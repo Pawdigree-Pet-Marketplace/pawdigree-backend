@@ -1,5 +1,5 @@
 from rest_framework import generics
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .serializers import (
@@ -8,6 +8,8 @@ from .serializers import (
     LogoutSerializer,
     VendorLoginSerializer,
     VendorRegistrationSerializer,
+    CustomerProfileSerializer,
+    
 )
 
 
@@ -59,3 +61,10 @@ class LogoutView(generics.GenericAPIView):
         return Response(
             {'detail': 'Successfully logged out.'},
         )
+        
+class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows customers to retrieve and update their profile information
+    serializer_class = CustomerProfileSerializer 
+    permission_classes = (IsAuthenticated,)
+
+    def get_object(self): #this method retrieves the currently authenticated user object
+        return self.request.user

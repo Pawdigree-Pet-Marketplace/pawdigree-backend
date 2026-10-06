@@ -154,3 +154,40 @@ class LogoutSerializer(serializers.Serializer):
             ) from exc
 
         return attrs
+    
+    
+class CustomerProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = (
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+        )
+        
+    def validate_username(self, value):
+        user = self.instance
+        
+        if User.objects.filter(username=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("This username is not available.")
+        
+        return value
+    
+    def validate_email(self, value):
+        user=self.instance
+        
+        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("This email already has an account")
+        
+        return value
+    
+    def validate_phone(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError("The phone number can only contain digits")
+        
+        if len(value) < 10 or len(value) > 20:
+            raise serializers.ValidationError("The phone number must between 10 to 20 digits")
+        
+        return value
