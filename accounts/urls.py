@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     CustomerLoginView,
     CustomerRegistrationView,
+     VendorLoginView,
     VendorRegistrationView,
 )
 
@@ -27,5 +28,11 @@ urlpatterns = [
     'login/customer/',
     CustomerLoginView.as_view(),
     name='customer-login',
+),
+
+    path(
+    'login/vendor/',
+    VendorLoginView.as_view(),
+    name='vendor-login',
 ),
 ]

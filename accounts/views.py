@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from .serializers import (
     CustomerLoginSerializer,
     CustomerRegistrationSerializer,
+    VendorLoginSerializer,
     VendorRegistrationSerializer,
 )
 
@@ -21,6 +22,20 @@ class VendorRegistrationView(generics.CreateAPIView):
 
 class CustomerLoginView(generics.GenericAPIView):
     serializer_class = CustomerLoginSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        return Response({
+            'access': serializer.validated_data['access'],
+            'refresh': serializer.validated_data['refresh'],
+        })
+
+
+class VendorLoginView(generics.GenericAPIView):
+    serializer_class = VendorLoginSerializer
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):

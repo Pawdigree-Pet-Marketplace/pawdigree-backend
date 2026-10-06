@@ -100,3 +100,42 @@ class CustomerLoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
+
+
+class VendorLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+    )
+
+    def validate(self, attrs):
+        email = attrs['email']
+        password = attrs['password']
+
+        user = authenticate(
+            email=email,
+            password=password,
+        )
+
+        if user is None:
+            raise serializers.ValidationError(
+                'Invalid email or password.'
+            )
+
+        if user.role != user.Role.VENDOR:
+            raise serializers.ValidationError(
+                'This login is only available to vendors.'
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                'This account is inactive.'
+            )
+
+        refresh = RefreshToken.for_user(user)
+
+        return {
+            'user': user,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
