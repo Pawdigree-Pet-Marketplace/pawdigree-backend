@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import CustomerRegistrationView
+from .views import CustomerRegistrationView, VendorRegistrationView
 
 
 urlpatterns = [
@@ -8,5 +8,11 @@ urlpatterns = [
         'register/customer/',
         CustomerRegistrationView.as_view(),
         name='customer-register',
+    ),
+    
+    path(
+        'register/vendor/',
+        VendorRegistrationView.as_view(),
+        name='vendor-register',
     ),
 ]

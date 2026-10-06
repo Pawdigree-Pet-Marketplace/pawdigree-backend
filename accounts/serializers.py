@@ -32,3 +32,32 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
             role=User.Role.CUSTOMER,
             **validated_data,
         )
+        
+        
+class VendorRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    phone = serializers.CharField(
+        required=True,
+        max_length=20,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'password',
+        ]
+
+    def create(self, validated_data):
+        return User.objects.create_user(
+            role=User.Role.VENDOR,
+            **validated_data,
+        )        
