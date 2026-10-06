@@ -3,13 +3,10 @@ from django.urls import path
 from .views import (
     CustomerLoginView,
     CustomerRegistrationView,
-     VendorLoginView,
+    LogoutView,
+    VendorLoginView,
     VendorRegistrationView,
 )
-
-urlpatterns = [
-    ...
-]
 
 urlpatterns = [
     path(
@@ -17,22 +14,24 @@ urlpatterns = [
         CustomerRegistrationView.as_view(),
         name='customer-register',
     ),
-    
     path(
         'register/vendor/',
         VendorRegistrationView.as_view(),
         name='vendor-register',
     ),
-
     path(
-    'login/customer/',
-    CustomerLoginView.as_view(),
-    name='customer-login',
-),
-
+        'login/customer/',
+        CustomerLoginView.as_view(),
+        name='customer-login',
+    ),
     path(
-    'login/vendor/',
-    VendorLoginView.as_view(),
-    name='vendor-login',
-),
+        'login/vendor/',
+        VendorLoginView.as_view(),
+        name='vendor-login',
+    ),
+    path(
+        'logout/',
+        LogoutView.as_view(),
+        name='logout',
+    ),
 ]

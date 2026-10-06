@@ -139,3 +139,18 @@ class VendorLoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+    def validate(self, attrs):
+        try:
+            refresh_token = RefreshToken(attrs['refresh'])
+            refresh_token.blacklist()
+        except Exception as exc:
+            raise serializers.ValidationError(
+                'Invalid or expired refresh token.'
+            ) from exc
+
+        return attrs

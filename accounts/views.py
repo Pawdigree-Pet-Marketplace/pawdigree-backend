@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from .serializers import (
     CustomerLoginSerializer,
     CustomerRegistrationSerializer,
+    LogoutSerializer,
     VendorLoginSerializer,
     VendorRegistrationSerializer,
 )
@@ -46,3 +47,15 @@ class VendorLoginView(generics.GenericAPIView):
             'access': serializer.validated_data['access'],
             'refresh': serializer.validated_data['refresh'],
         })
+
+
+class LogoutView(generics.GenericAPIView):
+    serializer_class = LogoutSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        return Response(
+            {'detail': 'Successfully logged out.'},
+        )
