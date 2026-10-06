@@ -1,14 +1,33 @@
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 
-from .serializers import CustomerRegistrationSerializer, VendorRegistrationSerializer
+from .serializers import (
+    CustomerLoginSerializer,
+    CustomerRegistrationSerializer,
+    VendorRegistrationSerializer,
+)
 
 
 class CustomerRegistrationView(generics.CreateAPIView):
     serializer_class = CustomerRegistrationSerializer
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
 
 
 class VendorRegistrationView(generics.CreateAPIView):
     serializer_class = VendorRegistrationSerializer
-    permission_classes = [AllowAny]
+    permission_classes = (AllowAny,)
+
+
+class CustomerLoginView(generics.GenericAPIView):
+    serializer_class = CustomerLoginSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        return Response({
+            'access': serializer.validated_data['access'],
+            'refresh': serializer.validated_data['refresh'],
+        })
