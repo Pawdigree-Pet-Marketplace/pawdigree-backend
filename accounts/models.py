@@ -19,3 +19,6 @@ class User(AbstractUser):
         max_length=20,
         blank=True
     )
+    email = models.EmailField(
+        unique=True,
+    )
