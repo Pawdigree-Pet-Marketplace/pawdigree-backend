@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+import dj_database_url
 
 from dotenv import load_dotenv
 
@@ -29,7 +30,9 @@ SECRET_KEY = 'django-insecure-a+rim1qy0qf+-s()@dn3nhvb1=uk)5swwf&+j3jk!8e5gjy+f4
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '.onrender.com'
+]
 
 
 # Application definition
@@ -81,15 +84,13 @@ WSGI_APPLICATION = 'pawdigree.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Uses dj_database_url to parse DATABASE_URL provided by Render PostgreSQL
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pawdigree',
-        'USER': 'postgres',
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(
+        default=f"postgres://postgres:{os.getenv('DB_PASSWORD', '')}@localhost:5432/pawdigree",
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 
