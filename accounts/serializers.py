@@ -184,8 +184,8 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return value
     
     def validate_phone(self, value):
-        if not value.isdigit():
-            raise serializers.ValidationError("The phone number can only contain digits")
+        if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")):
+            raise serializers.ValidationError("The phone number can only have this format: +########### or ##########")
         
         if len(value) < 10 or len(value) > 20:
             raise serializers.ValidationError("The phone number must between 10 to 20 digits")
