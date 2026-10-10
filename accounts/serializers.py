@@ -191,3 +191,6 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("The phone number must between 10 to 20 digits")
         
         return value
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
