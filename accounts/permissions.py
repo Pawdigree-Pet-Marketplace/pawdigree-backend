@@ -15,7 +15,7 @@ class IsVendor(BasePermission):
         )
         
 class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
+    def has_permission(self, request, view): #this method checks if the user is authenticated and has the role of 'ADMIN'
         return (
             request.user.is_authenticated
             and request.user.role == 'ADMIN'

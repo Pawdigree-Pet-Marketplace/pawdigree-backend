@@ -2,6 +2,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from accounts.permissions import IsCustomer, IsVendor
 
 from .serializers import (
     CustomerLoginSerializer,
@@ -100,7 +101,7 @@ class LogoutView(generics.GenericAPIView):
         
 class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows customers to retrieve and update their profile information
     serializer_class = CustomerProfileSerializer 
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, IsCustomer) #only authenticated customers can access this view)
 
     def get_object(self): #this method retrieves the currently authenticated user object
         return self.request.user
