@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.password_validation import validate_password
 
 User = get_user_model()
 
@@ -154,8 +155,8 @@ class LogoutSerializer(serializers.Serializer):
             ) from exc
 
         return attrs
-    
-    
+
+
 class CustomerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -166,31 +167,43 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             'email',
             'phone',
         )
-        
+
     def validate_username(self, value):
         user = self.instance
-        
+
         if User.objects.filter(username=value).exclude(pk=user.pk).exists():
             raise serializers.ValidationError("This username is not available.")
-        
+
         return value
-    
+
     def validate_email(self, value):
         user=self.instance
-        
+
         if User.objects.filter(email=value).exclude(pk=user.pk).exists():
             raise serializers.ValidationError("This email already has an account")
-        
+
         return value
-    
+
     def validate_phone(self, value):
         if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")): #this line checks if the phone number is valid by ensuring it only contains digits and an optional leading plus sign
             raise serializers.ValidationError("The phone number can only have this format: +########### or ##########")
-        
+
         if len(value) < 10 or len(value) > 20:
             raise serializers.ValidationError("The phone number must between 10 to 20 digits")
-        
+
         return value
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value

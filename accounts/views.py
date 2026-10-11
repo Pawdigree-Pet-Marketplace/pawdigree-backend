@@ -11,8 +11,20 @@ from .serializers import (
     VendorLoginSerializer,
     VendorRegistrationSerializer,
     CustomerProfileSerializer,
-    
+
 )
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from rest_framework import serializers
+
+from .password_reset import PasswordResetTokenGeneratorService
+from .serializers import (
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
+)
+
+User = get_user_model()
 
 
 @extend_schema(
@@ -98,13 +110,12 @@ class LogoutView(generics.GenericAPIView):
         return Response(
             {'detail': 'Successfully logged out.'},
         )
-        
-class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows customers to retrieve and update their profile information
-    serializer_class = CustomerProfileSerializer 
-    permission_classes = (IsAuthenticated, IsCustomer) #only authenticated customers can access this view
 
-    def get_object(self): #this method retrieves the currently authenticated user object
-        return self.request.user
+class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows customers to retrieve and update their profile information
+
+    serializer_class = CustomerProfileSerializer
+    permission_classes = (IsAuthenticated, IsCustomer)
+
     def get_object(self):
         return self.request.user
 
@@ -124,3 +135,81 @@ class CurrentUserView(generics.RetrieveAPIView):
             'phone': user.phone,
             'role': user.role,
         })
+
+
+class PasswordResetRequestView(generics.GenericAPIView):
+    permission_classes = (AllowAny,)
+    serializer_class = PasswordResetRequestSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        user = User.objects.filter(
+            email__iexact=email,
+            is_active=True,
+        ).first()
+
+        if user:
+            token_service = PasswordResetTokenGeneratorService()
+            token = token_service.generate_token(user)
+            reset_url = (
+                f"{settings.FRONTEND_URL}/reset-password/"
+                f"?uid={user.pk}&token={token}"
+            )
+
+            send_mail(
+                subject='Reset your Pawdigree password',
+                message=(
+                    'We received a request to reset your password. '
+                    f'Use this link to continue: {reset_url}'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+
+        return Response(
+            {
+                'detail': (
+                    'If an account exists for that email, '
+                    'password reset instructions will be sent.'
+                )
+            },
+            status=200,
+        )
+
+
+class PasswordResetConfirmView(generics.GenericAPIView):
+    permission_classes = (AllowAny,)
+    serializer_class = PasswordResetConfirmSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        token = serializer.validated_data['token']
+        new_password = serializer.validated_data['new_password']
+
+        user = User.objects.filter(
+            email__iexact=email,
+            is_active=True,
+        ).first()
+        token_service = PasswordResetTokenGeneratorService()
+
+        if not user or not token_service.validate_token(user, token):
+            raise serializers.ValidationError({
+                'token': 'Invalid or expired password-reset token.'
+            })
+
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+
+        return Response(
+            {'detail': 'Password has been reset successfully.'},
+            status=200,
+        )
+
+
