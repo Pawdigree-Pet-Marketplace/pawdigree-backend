@@ -7,6 +7,7 @@ from .views import (
     VendorLoginView,
     VendorRegistrationView,
     CustomerProfileView,
+    CurrentUserView,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     path('login/vendor/',VendorLoginView.as_view(),name='vendor-login',),
     path('logout/',LogoutView.as_view(),name='logout', ),
     path('profile/',CustomerProfileView.as_view(), name='customer-profile',),
+    path('me/', CurrentUserView.as_view(), name='current-user'),
 ]
