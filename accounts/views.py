@@ -105,8 +105,6 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows cus
 
     def get_object(self): #this method retrieves the currently authenticated user object
         return self.request.user
-    def get_object(self):
-        return self.request.user
 
 
 class CurrentUserView(generics.RetrieveAPIView):
