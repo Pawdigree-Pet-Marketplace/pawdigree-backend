@@ -64,6 +64,39 @@ class VendorRegistrationSerializer(serializers.ModelSerializer):
         )
 
 
+class AdminRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+        validators=[validate_password],
+    )
+
+    phone = serializers.CharField(
+        required=False,
+        max_length=20,
+    )
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'password',
+            'role',
+        )
+        read_only_fields = ('id', 'role')
+
+    def create(self, validated_data):
+        return User.objects.create_user(
+            role=User.Role.ADMIN,
+            **validated_data,
+        )
+
+
 class CustomerLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(
