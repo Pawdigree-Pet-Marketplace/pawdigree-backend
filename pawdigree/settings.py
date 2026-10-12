@@ -154,7 +154,18 @@ REST_FRAMEWORK = {
 
 }
 
+# Allow the local frontend to communicate with Django
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Development email configuration
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@pawdigree.local'
+
+# Password-reset tokens expire after one hour.
+PASSWORD_RESET_TIMEOUT = 3600
+
+# Frontend URL used to build password-reset links
+FRONTEND_URL = 'http://localhost:3000'

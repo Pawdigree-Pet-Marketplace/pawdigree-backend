@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AdminRegistrationView,
     CustomerLoginView,
     CustomerRegistrationView,
     LogoutView,
@@ -8,6 +9,8 @@ from .views import (
     VendorRegistrationView,
     CustomerProfileView,
     CurrentUserView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
 )
 
 urlpatterns = [
@@ -17,5 +20,8 @@ urlpatterns = [
     path('login/vendor/',VendorLoginView.as_view(),name='vendor-login',),
     path('logout/',LogoutView.as_view(),name='logout', ),
     path('profile/',CustomerProfileView.as_view(), name='customer-profile',),
-    path('me/', CurrentUserView.as_view(), name='current-user'),
+    path('current-user/', CurrentUserView.as_view(), name='current-user'),
+    path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('password-reset/confirm/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('register/admin/', AdminRegistrationView.as_view(),name='admin-register',),
 ]
