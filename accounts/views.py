@@ -2,9 +2,10 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from accounts.permissions import IsCustomer, IsVendor
+from accounts.permissions import IsCustomer, IsVendor, IsAdmin
 
 from .serializers import (
+    AdminRegistrationSerializer,
     CustomerLoginSerializer,
     CustomerRegistrationSerializer,
     LogoutSerializer,
@@ -49,6 +50,18 @@ class CustomerRegistrationView(generics.CreateAPIView):
 class VendorRegistrationView(generics.CreateAPIView):
     serializer_class = VendorRegistrationSerializer
     permission_classes = (AllowAny,)
+
+
+@extend_schema(
+    summary='Create an administrator account',
+    description=(
+        'Creates a new administrator account. '
+        'Only authenticated administrators may use this endpoint.'
+    ),
+)
+class AdminRegistrationView(generics.CreateAPIView):
+    serializer_class = AdminRegistrationSerializer
+    permission_classes = (IsAuthenticated, IsAdmin)
 
 
 @extend_schema(
