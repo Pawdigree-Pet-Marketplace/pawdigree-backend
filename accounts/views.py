@@ -101,7 +101,7 @@ class LogoutView(generics.GenericAPIView):
         
 class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows customers to retrieve and update their profile information
     serializer_class = CustomerProfileSerializer 
-    permission_classes = (IsAuthenticated, IsCustomer) #only authenticated customers can access this view)
+    permission_classes = (IsAuthenticated, IsCustomer) #only authenticated customers can access this view
 
     def get_object(self): #this method retrieves the currently authenticated user object
         return self.request.user

@@ -184,7 +184,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return value
     
     def validate_phone(self, value):
-        if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")):
+        if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")): #this line checks if the phone number is valid by ensuring it only contains digits and an optional leading plus sign
             raise serializers.ValidationError("The phone number can only have this format: +########### or ##########")
         
         if len(value) < 10 or len(value) > 20:
