@@ -168,4 +168,4 @@ DEFAULT_FROM_EMAIL = 'noreply@pawdigree.local'
 PASSWORD_RESET_TIMEOUT = 3600
 
 # Frontend URL used to build password-reset links
-FRONTEND_URL = 'http://localhost:3000'
+FRONTEND_URL = 'http://localhost:5173'
