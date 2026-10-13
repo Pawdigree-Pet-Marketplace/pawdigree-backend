@@ -1,11 +1,13 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from accounts.permissions import IsCustomer, IsVendor, IsAdmin
 
 from .serializers import (
     AdminRegistrationSerializer,
+    BusinessRegistrationSerializer,
     CustomerLoginSerializer,
     CustomerRegistrationSerializer,
     LogoutSerializer,
@@ -50,6 +52,16 @@ class CustomerRegistrationView(generics.CreateAPIView):
 class VendorRegistrationView(generics.CreateAPIView):
     serializer_class = VendorRegistrationSerializer
     permission_classes = (AllowAny,)
+
+
+@extend_schema(
+    summary='Register a business',
+    description='Creates a business owned by the authenticated vendor.',
+)
+class BusinessRegistrationView(generics.CreateAPIView):
+    serializer_class = BusinessRegistrationSerializer
+    permission_classes = (IsAuthenticated, IsVendor)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 
 @extend_schema(

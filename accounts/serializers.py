@@ -3,6 +3,8 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
 
+from .models import Business, BusinessHours
+
 User = get_user_model()
 
 
@@ -95,6 +97,93 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
             role=User.Role.ADMIN,
             **validated_data,
         )
+
+
+class BusinessHoursSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessHours
+        fields = (
+            'day',
+            'is_open',
+            'opening_time',
+            'closing_time',
+        )
+
+    def validate(self, attrs):
+        is_open = attrs.get(
+            'is_open',
+            getattr(self.instance, 'is_open', True),
+        )
+        opening = attrs.get('opening_time')
+        closing = attrs.get('closing_time')
+
+        if is_open and (not opening or not closing):
+            raise serializers.ValidationError(
+                'Opening and closing times are required when open.'
+            )
+
+        if not is_open:
+            attrs['opening_time'] = None
+            attrs['closing_time'] = None
+
+        if is_open and opening and closing and opening >= closing:
+            raise serializers.ValidationError(
+                'Closing time must be later than opening time.'
+            )
+
+        return attrs
+
+
+class BusinessRegistrationSerializer(serializers.ModelSerializer):
+    business_hours = BusinessHoursSerializer(many=True, required=False)
+
+    class Meta:
+        model = Business
+        fields = (
+            'id',
+            'business_name',
+            'category',
+            'description',
+            'business_phone',
+            'business_email',
+            'address',
+            'city_district',
+            'logo',
+            'cover_image',
+            'status',
+            'business_hours',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = (
+            'id',
+            'status',
+            'created_at',
+            'updated_at',
+        )
+
+    def validate_business_hours(self, value):
+        days = [item['day'] for item in value]
+        if len(days) != len(set(days)):
+            raise serializers.ValidationError(
+                'Each day can only be provided once.'
+            )
+        return value
+
+    def create(self, validated_data):
+        hours_data = validated_data.pop('business_hours', [])
+
+        business = Business.objects.create(
+            vendor=self.context['request'].user,
+            **validated_data,
+        )
+
+        BusinessHours.objects.bulk_create([
+            BusinessHours(business=business, **item)
+            for item in hours_data
+        ])
+
+        return business
 
 
 class CustomerLoginSerializer(serializers.Serializer):
