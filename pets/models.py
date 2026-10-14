@@ -17,6 +17,10 @@ class Pet(models.Model):
         AVAILABLE = 'AVAILABLE', 'Available'
         PENDING = 'PENDING', 'Pending'
         ADOPTED = 'ADOPTED', 'Adopted'
+    
+    class ListingType(models.TextChoices):
+        ADOPTION = "ADOPTION", "Adoption"
+        SALE = "SALE", "For Sale"
         
     pet_id = models.AutoField(primary_key=True)
     
@@ -30,12 +34,25 @@ class Pet(models.Model):
     
     business = models.ForeignKey("businesses.Business", on_delete=models.CASCADE, related_name="pet_listing")
     
+    listing_type = models.CharField(
+        max_length=10,
+        choices=ListingType.choices,
+        default=ListingType.ADOPTION,
+    )
+    
     name = models.CharField(max_length=100)
     breed = models.CharField(max_length=100, blank=True)
     age = models.PositiveIntegerField(help_text="Age in months")
     gender = models.CharField(max_length=10, choices=Gender.choices)
     size = models.CharField(max_length=10, choices=Size.choices)
     description = models.TextField(blank=True)
+    price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True, 
+        help_text="Price is required for pets listed for sale."
+    )
     adoption_status = models.CharField(max_length=10, choices=AdoptionStatus.choices, default=AdoptionStatus.AVAILABLE)
     
     #time of creation is uneditable, time of update chenges to latest update
@@ -57,6 +74,24 @@ class Pet(models.Model):
 
     # if errors:
     #     raise ValidationError(errors)
+    
+#implememnt checks for the type of listing and the price field. If the listing type is "SALE", the price must be greater than zero. 
+# If the listing type is "ADOPTION", the price must be null.    
+def clean(self):
+    super().clean()
+
+    if self.listing_type == self.ListingType.SALE:
+        if self.price is None or self.price <= 0:
+            raise ValidationError({
+                "price": "A sale listing must have a price greater than zero."
+            })
+
+    elif self.listing_type == self.ListingType.ADOPTION:
+        if self.price is not None:
+            raise ValidationError({
+                "price": "An adoption listing must not have a price."
+            })
+
             
     def __str__(self):
         return f"{self.name} ({self.species})"
