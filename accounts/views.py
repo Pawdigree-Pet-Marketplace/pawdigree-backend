@@ -19,6 +19,19 @@ from .serializers import (
     PasswordResetRequestSerializer,
     VendorLoginSerializer,
     VendorRegistrationSerializer,
+    CustomerProfileSerializer,
+
+)
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from rest_framework import serializers
+
+from .password_reset import PasswordResetTokenGeneratorService
+from .serializers import (
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
 )
 
 User = get_user_model()
@@ -168,16 +181,40 @@ class PasswordResetRequestView(generics.GenericAPIView):
                 f"?uid={user.pk}&token={token}"
             )
 
-            send_mail(
-                subject='Reset your Pawdigree password',
-                message=(
-                    'We received a request to reset your password. '
-                    f'Use this link to continue: {reset_url}'
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
+           # Prepare the data for both email templates.
+            context = {
+                'user': user,
+                'reset_url': reset_url,
+            }
+
+            # Load the plain-text email template.
+            text_content = render_to_string(
+                'accounts/emails/password_reset.txt',
+                context,
             )
+
+            # Load your designed HTML email template.
+            html_content = render_to_string(
+                'accounts/emails/password_reset.html',
+                context,
+            )
+
+            # Create the email with the plain-text version.
+            email_message = EmailMultiAlternatives(
+                subject='Reset your Pawdigree password',
+                body=text_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email],
+            )
+
+            # Attach your HTML design as an alternative.
+            email_message.attach_alternative(
+                html_content,
+                'text/html',
+            )
+
+            # Send the email.
+            email_message.send(fail_silently=False)
 
         return Response(
             {
