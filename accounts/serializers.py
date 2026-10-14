@@ -176,6 +176,45 @@ class VendorLoginSerializer(serializers.Serializer):
         }
 
 
+class AdminLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+    )
+
+    def validate(self, attrs):
+        email = attrs['email']
+        password = attrs['password']
+
+        user = authenticate(
+            email=email,
+            password=password,
+        )
+
+        if user is None:
+            raise serializers.ValidationError(
+                'Invalid email or password.'
+            )
+
+        if user.role not in (user.Role.ADMIN, user.Role.SYSTEM_ADMIN):
+            raise serializers.ValidationError(
+                'This login is only available to administrators.'
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                'This account is inactive.'
+            )
+
+        refresh = RefreshToken.for_user(user)
+
+        return {
+            'user': user,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+
+
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
