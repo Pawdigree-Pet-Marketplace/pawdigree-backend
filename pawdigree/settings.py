@@ -32,7 +32,8 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     '.onrender.com',
-    '127.0.0.1'
+    '127.0.0.1',
+    'localhost'
 ]
 
 
@@ -184,3 +185,16 @@ PASSWORD_RESET_TIMEOUT = 3600
 
 # Frontend URL used to build password-reset links
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
+# Swagger documentation grouping
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Pawdigree API',
+    'VERSION': '1.0.0',
+    'SCHEMA_PATH_PREFIX': r'/api',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'TAGS': [
+        {'name': 'auth', 'description': 'Accounts, login and registration'},
+        {'name': 'businesses', 'description': 'Vendor businesses'},
+        {'name': 'categories', 'description': 'Marketplace categories'},
+    ],
+}
