@@ -28,7 +28,7 @@ class Pet(models.Model):
         limit_choices_to={"role": "VENDOR"},
         )
     
-    business = models.ForeignKey("business.Business", on_delete=models.CASCADE, related_name="pet_listing")
+    business = models.ForeignKey("businesses.Business", on_delete=models.CASCADE, related_name="pet_listing")
     
     name = models.CharField(max_length=100)
     breed = models.CharField(max_length=100, blank=True)
