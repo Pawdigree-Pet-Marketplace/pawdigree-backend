@@ -3,6 +3,7 @@ from django.urls import path
 from businesses.views import BusinessRegistrationView
 
 from .views import (
+    AdminLoginView,
     AdminRegistrationView,
     CurrentUserView,
     CustomerLoginView,
@@ -25,6 +26,7 @@ urlpatterns = [
     path('register/vendor/',VendorRegistrationView.as_view(),name='vendor-register',),
     path('login/customer/',CustomerLoginView.as_view(),name='customer-login',),
     path('login/vendor/',VendorLoginView.as_view(),name='vendor-login',),
+    path('login/admin/', AdminLoginView.as_view(), name='admin-login',),
     path('logout/',LogoutView.as_view(),name='logout', ),
     path('profile/',CustomerProfileView.as_view(), name='customer-profile',),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),

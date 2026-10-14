@@ -1,7 +1,6 @@
 from rest_framework import generics
 
-from accounts.models import User
-from common.permissions import IsAdminOrReadOnly
+from common.permissions import ADMIN_ROLES, IsAdminOrReadOnly
 
 from .models import Category
 from .serializers import CategorySerializer
@@ -13,7 +12,7 @@ class CategoryQuerysetMixin:
     def get_queryset(self):
         queryset = Category.objects.all()
 
-        if self.request.user.role != User.Role.ADMIN:
+        if self.request.user.role not in ADMIN_ROLES:
             queryset = queryset.filter(is_active=True)
 
         return queryset

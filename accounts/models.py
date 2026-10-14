@@ -8,6 +8,7 @@ class User(AbstractUser):
         CUSTOMER = 'CUSTOMER', 'Customer'
         VENDOR = 'VENDOR', 'Vendor'
         ADMIN = 'ADMIN', 'Admin'
+        SYSTEM_ADMIN = 'SYSTEM_ADMIN', 'System Admin'
 
     role = models.CharField(
         max_length=20,
