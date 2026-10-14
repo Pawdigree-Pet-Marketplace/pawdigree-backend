@@ -1,14 +1,22 @@
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics
+from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from accounts.permissions import IsCustomer, IsVendor, IsAdmin
 
+from accounts.permissions import IsAdmin, IsCustomer
+
+from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
     AdminRegistrationSerializer,
     CustomerLoginSerializer,
+    CustomerProfileSerializer,
     CustomerRegistrationSerializer,
     LogoutSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     VendorLoginSerializer,
     VendorRegistrationSerializer,
     CustomerProfileSerializer,

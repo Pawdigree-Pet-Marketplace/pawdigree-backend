@@ -1,19 +1,26 @@
 from django.urls import path
 
+from businesses.views import BusinessRegistrationView
+
 from .views import (
     AdminRegistrationView,
+    CurrentUserView,
     CustomerLoginView,
+    CustomerProfileView,
     CustomerRegistrationView,
     LogoutView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
     VendorLoginView,
     VendorRegistrationView,
-    CustomerProfileView,
-    CurrentUserView,
-    PasswordResetRequestView,
-    PasswordResetConfirmView,
 )
 
 urlpatterns = [
+    path(
+        'businesses/register/',
+        BusinessRegistrationView.as_view(),
+        name='business-register',
+    ),
     path('register/customer/',CustomerRegistrationView.as_view(),name='customer-register',),
     path('register/vendor/',VendorRegistrationView.as_view(),name='vendor-register',),
     path('login/customer/',CustomerLoginView.as_view(),name='customer-login',),
