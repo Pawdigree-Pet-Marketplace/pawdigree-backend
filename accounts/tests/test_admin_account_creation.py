@@ -1,8 +1,12 @@
+from types import SimpleNamespace
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+
+from accounts.permissions import IsAdmin
 
 User = get_user_model()
 
@@ -29,6 +33,17 @@ def regular_admin(db):
         password="AdminPass123!",
         role=User.Role.ADMIN,
         is_staff=True,
+    )
+
+
+@pytest.fixture
+def role_system_admin(db):
+    # A system admin identified by role only, not by is_superuser.
+    return User.objects.create_user(
+        username="role_system_admin_test",
+        email="rolesystemadmin_test@example.com",
+        password="SystemPass123!",
+        role=User.Role.SYSTEM_ADMIN,
     )
 
 
@@ -105,3 +120,39 @@ def test_unauthenticated_user_cannot_create_admin_account(api_client):
     assert not User.objects.filter(
         email="unauthorizedadmin_test@example.com"
     ).exists()
+
+
+@pytest.mark.django_db
+def test_user_with_system_admin_role_can_create_admin_account(
+    api_client, role_system_admin
+):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "role_created_admin_test",
+            "first_name": "Role",
+            "last_name": "Created",
+            "email": "rolecreated_test@example.com",
+            "phone": "0700000003",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert User.objects.get(
+        email="rolecreated_test@example.com"
+    ).role == User.Role.ADMIN
+
+
+@pytest.mark.django_db
+def test_admin_permission_allows_admin_and_system_admin(
+    regular_admin, system_admin, role_system_admin
+):
+    permission = IsAdmin()
+
+    for user in (regular_admin, system_admin, role_system_admin):
+        request = SimpleNamespace(user=user)
+        assert permission.has_permission(request, None) is True
