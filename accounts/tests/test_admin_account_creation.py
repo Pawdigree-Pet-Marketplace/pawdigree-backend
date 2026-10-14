@@ -1,0 +1,107 @@
+import pytest
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APIClient
+
+User = get_user_model()
+
+
+@pytest.fixture
+def api_client():
+    return APIClient()
+
+
+@pytest.fixture
+def system_admin(db):
+    return User.objects.create_superuser(
+        username="system_admin_test",
+        email="systemadmin_test@example.com",
+        password="SystemPass123!",
+    )
+
+
+@pytest.fixture
+def regular_admin(db):
+    return User.objects.create_user(
+        username="regular_admin_test",
+        email="admin_test@example.com",
+        password="AdminPass123!",
+        role=User.Role.ADMIN,
+        is_staff=True,
+    )
+
+
+@pytest.mark.django_db
+def test_system_admin_can_create_admin_account(api_client, system_admin):
+    api_client.force_authenticate(user=system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "new_admin_test",
+            "first_name": "New",
+            "last_name": "Administrator",
+            "email": "newadmin_test@example.com",
+            "phone": "0700000000",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    created_admin = User.objects.get(
+        email="newadmin_test@example.com"
+    )
+
+    assert created_admin.role == User.Role.ADMIN
+    assert created_admin.is_staff is True
+    assert created_admin.is_superuser is False
+    assert created_admin.check_password("StrongPass123!")
+
+
+@pytest.mark.django_db
+def test_regular_admin_cannot_create_admin_account(
+    api_client, regular_admin
+):
+    api_client.force_authenticate(user=regular_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "blocked_admin_test",
+            "first_name": "Blocked",
+            "last_name": "Administrator",
+            "email": "blockedadmin_test@example.com",
+            "phone": "0700000001",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert not User.objects.filter(
+        email="blockedadmin_test@example.com"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_unauthenticated_user_cannot_create_admin_account(api_client):
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "unauthorized_admin_test",
+            "first_name": "Unauthorized",
+            "last_name": "Administrator",
+            "email": "unauthorizedadmin_test@example.com",
+            "phone": "0700000002",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert not User.objects.filter(
+        email="unauthorizedadmin_test@example.com"
+    ).exists()

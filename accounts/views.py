@@ -6,7 +6,7 @@ from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.permissions import IsAdmin, IsCustomer
+from accounts.permissions import IsCustomer, IsSystemAdmin
 
 from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
@@ -65,12 +65,12 @@ class VendorRegistrationView(generics.CreateAPIView):
     summary='Create an administrator account',
     description=(
         'Creates a new administrator account. '
-        'Only authenticated administrators may use this endpoint.'
+        'Only the system admin (superuser) may use this endpoint.'
     ),
 )
 class AdminRegistrationView(generics.CreateAPIView):
     serializer_class = AdminRegistrationSerializer
-    permission_classes = (IsAuthenticated, IsAdmin)
+    permission_classes = (IsAuthenticated, IsSystemAdmin)
 
 
 @extend_schema(
@@ -133,8 +133,9 @@ class LogoutView(generics.GenericAPIView):
             {'detail': 'Successfully logged out.'},
         )
 
-class CustomerProfileView(generics.RetrieveUpdateAPIView): #this view allows customers to retrieve and update their profile information
 
+class CustomerProfileView(generics.RetrieveUpdateAPIView):
+    # Lets customers retrieve and update their profile information.
     serializer_class = CustomerProfileSerializer
     permission_classes = (IsAuthenticated, IsCustomer)
 
@@ -257,5 +258,3 @@ class PasswordResetConfirmView(generics.GenericAPIView):
             {'detail': 'Password has been reset successfully.'},
             status=200,
         )
-
-

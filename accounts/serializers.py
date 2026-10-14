@@ -93,6 +93,7 @@ class AdminRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         return User.objects.create_user(
             role=User.Role.ADMIN,
+            is_staff=True,
             **validated_data,
         )
 
@@ -210,7 +211,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value):
-        user=self.instance
+        user = self.instance
 
         if User.objects.filter(email=value).exclude(pk=user.pk).exists():
             raise serializers.ValidationError("This email already has an account")
@@ -218,7 +219,8 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone(self, value):
-        if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")): #this line checks if the phone number is valid by ensuring it only contains digits and an optional leading plus sign
+        # Checks the phone number only contains digits and an optional leading plus sign.
+        if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")):
             raise serializers.ValidationError("The phone number can only have this format: +########### or ##########")
 
         if len(value) < 10 or len(value) > 20:
@@ -226,8 +228,10 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
 
         return value
 
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     email = serializers.EmailField()
