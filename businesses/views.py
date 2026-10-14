@@ -32,6 +32,7 @@ class BusinessDetailView(generics.RetrieveUpdateAPIView):
 
 
 @extend_schema(
+    tags=['businesses'],
     summary="Register a business",
     description=(
         "Creates a business owned by the authenticated vendor. "

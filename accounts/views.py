@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives, send_mail
+from django.template.loader import render_to_string
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,6 +11,7 @@ from accounts.permissions import IsCustomer, IsSystemAdmin
 
 from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
+    AdminLoginSerializer,
     AdminRegistrationSerializer,
     CustomerLoginSerializer,
     CustomerProfileSerializer,
@@ -19,19 +21,6 @@ from .serializers import (
     PasswordResetRequestSerializer,
     VendorLoginSerializer,
     VendorRegistrationSerializer,
-    CustomerProfileSerializer,
-
-)
-from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
-from rest_framework import serializers
-
-from .password_reset import PasswordResetTokenGeneratorService
-from .serializers import (
-    PasswordResetRequestSerializer,
-    PasswordResetConfirmSerializer,
 )
 
 User = get_user_model()
@@ -82,6 +71,28 @@ class AdminRegistrationView(generics.CreateAPIView):
 )
 class CustomerLoginView(generics.GenericAPIView):
     serializer_class = CustomerLoginSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        return Response({
+            'access': serializer.validated_data['access'],
+            'refresh': serializer.validated_data['refresh'],
+        })
+
+
+@extend_schema(
+    summary='Administrator login',
+    description=(
+        'Authenticates an administrator or system administrator '
+        'using email and password and returns an access token '
+        'and refresh token.'
+    ),
+)
+class AdminLoginView(generics.GenericAPIView):
+    serializer_class = AdminLoginSerializer
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):

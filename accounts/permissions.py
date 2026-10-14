@@ -18,19 +18,25 @@ class IsVendor(BasePermission):
 
 
 class IsAdmin(BasePermission):
-    # Checks that the user is authenticated and has the 'ADMIN' role.
+    # Admins and system admins can perform admin-level actions.
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated
-            and request.user.role == 'ADMIN'
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                user.role in ('ADMIN', 'SYSTEM_ADMIN')
+                or user.is_superuser
+            )
         )
 
 
 class IsSystemAdmin(BasePermission):
-    # Only the system admin (a Django superuser) passes this check.
+    # Only system admins can create admin accounts.
     def has_permission(self, request, view):
+        user = request.user
         return bool(
-            request.user
-            and request.user.is_authenticated
-            and request.user.is_superuser
+            user
+            and user.is_authenticated
+            and (user.role == 'SYSTEM_ADMIN' or user.is_superuser)
         )

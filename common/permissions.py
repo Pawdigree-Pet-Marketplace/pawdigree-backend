@@ -2,6 +2,8 @@ from rest_framework import permissions
 
 from accounts.models import User
 
+ADMIN_ROLES = (User.Role.ADMIN, User.Role.SYSTEM_ADMIN)
+
 
 class IsAdminOrReadOnly(permissions.BasePermission):
     """Allow authenticated users to read and admins to modify."""
@@ -15,7 +17,7 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        return user.role == User.Role.ADMIN
+        return user.role in ADMIN_ROLES
 
 
 class IsVendor(permissions.BasePermission):
@@ -28,4 +30,17 @@ class IsVendor(permissions.BasePermission):
             user
             and user.is_authenticated
             and user.role == User.Role.VENDOR
+        )
+
+
+class IsSystemAdmin(permissions.BasePermission):
+    """Allow only authenticated system administrators."""
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        return bool(
+            user
+            and user.is_authenticated
+            and user.role == User.Role.SYSTEM_ADMIN
         )
