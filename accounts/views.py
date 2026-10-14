@@ -1,30 +1,24 @@
-from drf_spectacular.utils import extend_schema
-from rest_framework import generics
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.response import Response
-from accounts.permissions import IsCustomer, IsVendor, IsAdmin
-
-from .serializers import (
-    AdminRegistrationSerializer,
-    BusinessRegistrationSerializer,
-    CustomerLoginSerializer,
-    CustomerRegistrationSerializer,
-    LogoutSerializer,
-    VendorLoginSerializer,
-    VendorRegistrationSerializer,
-    CustomerProfileSerializer,
-
-)
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
-from rest_framework import serializers
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, serializers
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+
+from accounts.permissions import IsAdmin, IsCustomer
 
 from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
-    PasswordResetRequestSerializer,
+    AdminRegistrationSerializer,
+    CustomerLoginSerializer,
+    CustomerProfileSerializer,
+    CustomerRegistrationSerializer,
+    LogoutSerializer,
     PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    VendorLoginSerializer,
+    VendorRegistrationSerializer,
 )
 
 User = get_user_model()
@@ -52,16 +46,6 @@ class CustomerRegistrationView(generics.CreateAPIView):
 class VendorRegistrationView(generics.CreateAPIView):
     serializer_class = VendorRegistrationSerializer
     permission_classes = (AllowAny,)
-
-
-@extend_schema(
-    summary='Register a business',
-    description='Creates a business owned by the authenticated vendor.',
-)
-class BusinessRegistrationView(generics.CreateAPIView):
-    serializer_class = BusinessRegistrationSerializer
-    permission_classes = (IsAuthenticated, IsVendor)
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 
 @extend_schema(

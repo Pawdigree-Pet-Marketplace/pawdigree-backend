@@ -1,9 +1,12 @@
 import re
 from datetime import time
 
+from django.db import transaction
 from rest_framework import serializers
 
-from .models import Business
+from categories.models import Category
+
+from .models import Business, BusinessCategory
 
 DAYS = (
     "monday",
@@ -20,6 +23,11 @@ class BusinessSerializer(serializers.ModelSerializer):
     """Validates and serializes vendor business information."""
 
     description = serializers.CharField(max_length=500)
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.filter(is_active=True),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Business
@@ -32,12 +40,34 @@ class BusinessSerializer(serializers.ModelSerializer):
             "address",
             "city_district",
             "business_hours",
+            "logo",
+            "cover_image",
+            "category",
             "verification_status",
         )
         read_only_fields = (
             "id",
             "verification_status",
         )
+
+    @transaction.atomic
+    def create(self, validated_data):
+        category = validated_data.pop("category", None)
+        business = super().create(validated_data)
+
+        if category:
+            BusinessCategory.objects.create(
+                business=business,
+                category=category,
+            )
+
+        return business
+
+    def update(self, instance, validated_data):
+        # The category is chosen at registration; changing it later
+        # goes through the category approval flow.
+        validated_data.pop("category", None)
+        return super().update(instance, validated_data)
 
     def validate_name(self, value):
         request = self.context.get("request")

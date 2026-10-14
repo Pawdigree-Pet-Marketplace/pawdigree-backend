@@ -1,17 +1,18 @@
 from django.urls import path
 
+from businesses.views import BusinessRegistrationView
+
 from .views import (
     AdminRegistrationView,
-    BusinessRegistrationView,
+    CurrentUserView,
     CustomerLoginView,
+    CustomerProfileView,
     CustomerRegistrationView,
     LogoutView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
     VendorLoginView,
     VendorRegistrationView,
-    CustomerProfileView,
-    CurrentUserView,
-    PasswordResetRequestView,
-    PasswordResetConfirmView,
 )
 
 urlpatterns = [

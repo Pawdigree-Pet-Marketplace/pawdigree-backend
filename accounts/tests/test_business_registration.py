@@ -2,7 +2,26 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Business, BusinessHours, User
+from accounts.models import User
+from businesses.models import Business, BusinessCategory
+from categories.models import Category
+
+DAYS = (
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+)
+
+
+def make_hours():
+    return {
+        day: {'is_open': True, 'open': '09:00', 'close': '17:00'}
+        for day in DAYS
+    }
 
 
 class BusinessRegistrationAPITests(APITestCase):
@@ -26,14 +45,16 @@ class BusinessRegistrationAPITests(APITestCase):
             password='TestPass123!Secure',
             role=User.Role.CUSTOMER,
         )
+        self.category = Category.objects.create(name='Pet Grooming')
         self.payload = {
-            'business_name': 'Pawdigree Pet Care',
-            'category': 'Pet Grooming',
+            'name': 'Pawdigree Pet Care',
+            'category': self.category.pk,
             'description': 'Pet grooming and care services.',
-            'business_phone': '+256700123456',
-            'business_email': 'business@example.com',
+            'contact': '+256700123456',
+            'email': 'business@example.com',
             'address': 'Plot 10, Example Road',
             'city_district': 'Kampala',
+            'business_hours': make_hours(),
         }
 
     def test_vendor_can_register_business(self):
@@ -47,7 +68,19 @@ class BusinessRegistrationAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Business.objects.count(), 1)
-        self.assertEqual(Business.objects.get().vendor, self.vendor)
+
+        business = Business.objects.get()
+        self.assertEqual(business.vendor, self.vendor)
+        self.assertEqual(
+            business.verification_status,
+            Business.VerificationStatus.DRAFT,
+        )
+        self.assertTrue(
+            BusinessCategory.objects.filter(
+                business=business,
+                category=self.category,
+            ).exists()
+        )
 
     def test_vendor_can_register_multiple_businesses(self):
         self.client.force_authenticate(user=self.vendor)
@@ -61,8 +94,8 @@ class BusinessRegistrationAPITests(APITestCase):
             self.url,
             {
                 **self.payload,
-                'business_name': 'Pawdigree Veterinary Clinic',
-                'business_email': 'clinic@example.com',
+                'name': 'Pawdigree Veterinary Clinic',
+                'email': 'clinic@example.com',
             },
             format='json',
         )
@@ -106,7 +139,7 @@ class BusinessRegistrationAPITests(APITestCase):
 
         response = self.client.post(
             self.url,
-            {'business_name': 'Incomplete Business'},
+            {'name': 'Incomplete Business'},
             format='json',
         )
 
@@ -121,18 +154,6 @@ class BusinessRegistrationAPITests(APITestCase):
         payload = {
             **self.payload,
             'vendor': self.other_vendor.pk,
-            'business_hours': [
-                {
-                    'day': BusinessHours.Day.MONDAY,
-                    'is_open': True,
-                    'opening_time': '09:00',
-                    'closing_time': '17:00',
-                },
-                {
-                    'day': BusinessHours.Day.TUESDAY,
-                    'is_open': False,
-                },
-            ],
         }
 
         response = self.client.post(
@@ -143,41 +164,19 @@ class BusinessRegistrationAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertNotIn('vendor', response.data)
+
         business = Business.objects.get(pk=response.data['id'])
         self.assertEqual(business.vendor, self.vendor)
-        self.assertEqual(
-            list(business.business_hours.values_list('day', flat=True)),
-            [BusinessHours.Day.MONDAY, BusinessHours.Day.TUESDAY],
-        )
-        closed_hours = business.business_hours.get(
-            day=BusinessHours.Day.TUESDAY,
-        )
-        self.assertIsNone(closed_hours.opening_time)
-        self.assertIsNone(closed_hours.closing_time)
+        self.assertEqual(business.business_hours, make_hours())
 
-    def test_duplicate_business_hours_days_are_rejected(self):
+    def test_incomplete_business_hours_are_rejected(self):
         self.client.force_authenticate(user=self.vendor)
-        payload = {
-            **self.payload,
-            'business_hours': [
-                {
-                    'day': BusinessHours.Day.MONDAY,
-                    'is_open': True,
-                    'opening_time': '09:00',
-                    'closing_time': '17:00',
-                },
-                {
-                    'day': BusinessHours.Day.MONDAY,
-                    'is_open': True,
-                    'opening_time': '10:00',
-                    'closing_time': '18:00',
-                },
-            ],
-        }
+        hours = make_hours()
+        del hours['sunday']
 
         response = self.client.post(
             self.url,
-            payload,
+            {**self.payload, 'business_hours': hours},
             format='json',
         )
 

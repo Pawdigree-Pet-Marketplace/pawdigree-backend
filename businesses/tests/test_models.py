@@ -15,4 +15,4 @@ class TestBusinessModel:
 
     def test_business_belongs_to_its_vendor(self, vendor, business):
         assert business.vendor == vendor
-        assert business in vendor.owned_businesses.all()
+        assert business in vendor.businesses.all()
