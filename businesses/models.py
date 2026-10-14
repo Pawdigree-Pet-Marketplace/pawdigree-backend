@@ -26,7 +26,7 @@ class Business(TimeStampedModel):
     vendor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
-        related_name="owned_businesses",
+        related_name="businesses",
     )
     name = models.CharField(max_length=150)
     description = models.TextField()
@@ -43,6 +43,16 @@ class Business(TimeStampedModel):
     decision_reason = models.TextField(blank=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    logo = models.ImageField(
+        upload_to="businesses/logos/",
+        blank=True,
+        null=True,
+    )
+    cover_image = models.ImageField(
+        upload_to="businesses/covers/",
+        blank=True,
+        null=True,
+    )
     categories = models.ManyToManyField(
         "categories.Category",
         through="BusinessCategory",
