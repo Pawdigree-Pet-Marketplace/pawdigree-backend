@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.conf import settings
 
 class Pet(models.Model):
     class Gender(models.TextChoices):
@@ -20,7 +21,12 @@ class Pet(models.Model):
     pet_id = models.AutoField(primary_key=True)
     
     #connect to user.vendor model
-    vendor = models.ForeignKey("accounts.Vendor", on_delete=models.CASCADE, related_name="pet_listing")
+    vendor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name="pet_listing",
+        limit_choices_to={"role": "VENDOR"},
+        )
     
     business = models.ForeignKey("business.Business", on_delete=models.CASCADE, related_name="pet_listing")
     
@@ -39,11 +45,18 @@ class Pet(models.Model):
     class Meta:
         ordering = ["-created_at"]
         
-    def clean(self):
-        # The vendor creating the listing must own the business
-        if self.business_id and self.vendor_id:
-            if self.business.vendor_id != self.vendor_id:  # adjust to your owner field name
-                raise ValidationError("This vendor does not own this business.")
+    # def clean(self):
+    # errors = {}
+
+    # if self.vendor_id and self.vendor.role != "VENDOR":
+    #     errors["vendor"] = "Listings can only be created by vendors."
+
+    # if self.business_id and self.vendor_id:
+    #     if self.business.vendor_id != self.vendor_id:
+    #         errors["business"] = "This vendor does not own this business."
+
+    # if errors:
+    #     raise ValidationError(errors)
             
     def __str__(self):
         return f"{self.name} ({self.species})"
