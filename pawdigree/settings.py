@@ -169,8 +169,10 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    [os.environ.get("FRONTEND_URL", "http://localhost:5173")]
 ]
+
+# Optional production frontend URL(s), comma-separated in the environment
+extra_origins = os.environ.get("FRONTEND_URL", "")
 
 # Development email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' 
