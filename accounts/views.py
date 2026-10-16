@@ -189,6 +189,10 @@ class CurrentUserView(generics.RetrieveAPIView):
             'email': user.email,
             'phone': user.phone,
             'role': user.role,
+            'isActive': user.is_active,
+            'accountStatus': (
+                'active' if user.is_active else 'inactive'
+            ),
         })
 
 

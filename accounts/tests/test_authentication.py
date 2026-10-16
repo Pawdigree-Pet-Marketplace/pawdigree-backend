@@ -330,3 +330,56 @@ def test_blacklisted_refresh_token_cannot_be_used_again(logout_user):
     )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_current_user_requires_authentication():
+    client = APIClient()
+
+    response = client.get(reverse('current-user'))
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_current_user_returns_profile_and_active_status():
+    user = User.objects.create_user(
+        username='currentuser',
+        email='currentuser@example.com',
+        password='SecurePass123',
+        role=User.Role.CUSTOMER,
+        first_name='Test',
+        last_name='User',
+        phone='0700000000',
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get(reverse('current-user'))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['id'] == user.id
+    assert response.data['username'] == user.username
+    assert response.data['email'] == user.email
+    assert response.data['role'] == user.role
+    assert response.data['isActive'] is True
+    assert response.data['accountStatus'] == 'active'
+
+
+@pytest.mark.django_db
+def test_current_user_returns_inactive_account_status():
+    user = User.objects.create_user(
+        username='inactiveuser',
+        email='inactiveuser@example.com',
+        password='SecurePass123',
+        role=User.Role.CUSTOMER,
+        is_active=False,
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get(reverse('current-user'))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['isActive'] is False
+    assert response.data['accountStatus'] == 'inactive'
