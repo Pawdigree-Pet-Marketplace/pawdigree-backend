@@ -4,6 +4,7 @@ import json
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from drf_spectacular.generators import SchemaGenerator
 from PIL import Image, PngImagePlugin
 from rest_framework import status
 
@@ -26,6 +27,21 @@ def get_results(response):
         return response.data["results"]
 
     return response.data
+
+
+def test_business_registration_schema_uses_binary_file_uploads():
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    business_schema = schema["components"]["schemas"]["Business"]
+
+    for field_name in ("logo", "cover_image"):
+        field = business_schema["properties"][field_name]
+        assert field["type"] == "string"
+        assert field["format"] == "binary"
+
+    request_body = schema["paths"]["/api/auth/businesses/register/"]["post"][
+        "requestBody"
+    ]["content"]
+    assert "multipart/form-data" in request_body
 
 
 @pytest.mark.django_db

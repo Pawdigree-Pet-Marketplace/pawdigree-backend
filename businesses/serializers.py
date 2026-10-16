@@ -2,9 +2,12 @@ import re
 from datetime import time
 
 from django.db import transaction
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from categories.models import Category
+from common.validators import validate_image_upload
 
 from .models import Business, BusinessCategory
 
@@ -19,10 +22,25 @@ DAYS = (
 )
 
 
+@extend_schema_field(OpenApiTypes.BINARY)
+class BinaryImageField(serializers.ImageField):
+    """Document uploaded image files as binary payloads for Swagger."""
+
+
 class BusinessSerializer(serializers.ModelSerializer):
     """Validates and serializes vendor business information."""
 
     description = serializers.CharField(max_length=500)
+    logo = BinaryImageField(
+        required=False,
+        allow_null=True,
+        validators=[validate_image_upload],
+    )
+    cover_image = BinaryImageField(
+        required=False,
+        allow_null=True,
+        validators=[validate_image_upload],
+    )
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.filter(is_active=True),
         write_only=True,
