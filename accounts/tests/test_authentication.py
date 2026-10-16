@@ -63,6 +63,7 @@ def test_customer_cannot_register_with_duplicate_email():
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert 'email' in response.data
 
+
 @pytest.mark.django_db
 def test_vendor_can_register():
     client = APIClient()
@@ -118,6 +119,7 @@ def test_vendor_cannot_register_with_duplicate_email():
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert 'email' in response.data
+
 
 @pytest.fixture
 def customer():
@@ -296,9 +298,24 @@ def logout_user():
 
 
 @pytest.mark.django_db
-def test_user_can_logout_with_valid_refresh_token(logout_user):
+def test_anonymous_user_cannot_logout(logout_user):
     _, refresh_token = logout_user
     client = APIClient()
+
+    response = client.post(
+        reverse('logout'),
+        {'refresh': str(refresh_token)},
+        format='json',
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_authenticated_user_can_logout_with_valid_refresh_token(logout_user):
+    user, refresh_token = logout_user
+    client = APIClient()
+    client.force_authenticate(user=user)
 
     response = client.post(
         reverse('logout'),
@@ -312,8 +329,9 @@ def test_user_can_logout_with_valid_refresh_token(logout_user):
 
 @pytest.mark.django_db
 def test_blacklisted_refresh_token_cannot_be_used_again(logout_user):
-    _, refresh_token = logout_user
+    user, refresh_token = logout_user
     client = APIClient()
+    client.force_authenticate(user=user)
 
     refresh_token = str(refresh_token)
 
@@ -333,6 +351,87 @@ def test_blacklisted_refresh_token_cannot_be_used_again(logout_user):
 
 
 @pytest.mark.django_db
+def test_anonymous_user_cannot_access_profile():
+    client = APIClient()
+
+    get_response = client.get(reverse('customer-profile'))
+    patch_response = client.patch(
+        reverse('customer-profile'),
+        {'first_name': 'Blocked'},
+        format='json',
+    )
+
+    assert get_response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert patch_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_customer_can_get_and_patch_own_profile(customer):
+    user, _ = customer
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    get_response = client.get(reverse('customer-profile'))
+    patch_response = client.patch(
+        reverse('customer-profile'),
+        {'first_name': 'Updated'},
+        format='json',
+    )
+
+    assert get_response.status_code == status.HTTP_200_OK
+    assert get_response.data['email'] == user.email
+    assert patch_response.status_code == status.HTTP_200_OK
+
+    user.refresh_from_db()
+    assert user.first_name == 'Updated'
+
+
+@pytest.mark.django_db
+def test_non_customer_users_cannot_access_customer_profile():
+    customer = User.objects.create_user(
+        username='profilecustomer',
+        email='profilecustomer@example.com',
+        password='SecurePass123',
+        role=User.Role.CUSTOMER,
+    )
+    vendor = User.objects.create_user(
+        username='profilevendor',
+        email='profilevendor@example.com',
+        password='SecurePass123',
+        role=User.Role.VENDOR,
+    )
+    admin = User.objects.create_user(
+        username='profileadmin',
+        email='profileadmin@example.com',
+        password='SecurePass123',
+        role=User.Role.ADMIN,
+    )
+    system_admin = User.objects.create_user(
+        username='profilesystemadmin',
+        email='profilesystemadmin@example.com',
+        password='SecurePass123',
+        role=User.Role.SYSTEM_ADMIN,
+    )
+
+    for user in (customer, vendor, admin, system_admin):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        get_response = client.get(reverse('customer-profile'))
+        patch_response = client.patch(
+            reverse('customer-profile'),
+            {'first_name': 'Blocked'},
+            format='json',
+        )
+
+        if user == customer:
+            assert get_response.status_code == status.HTTP_200_OK
+            assert patch_response.status_code == status.HTTP_200_OK
+        else:
+            assert get_response.status_code == status.HTTP_403_FORBIDDEN
+            assert patch_response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
 def test_current_user_requires_authentication():
     client = APIClient()
 
@@ -342,12 +441,21 @@ def test_current_user_requires_authentication():
 
 
 @pytest.mark.django_db
-def test_current_user_returns_profile_and_active_status():
+@pytest.mark.parametrize(
+    'role',
+    [
+        User.Role.CUSTOMER,
+        User.Role.VENDOR,
+        User.Role.ADMIN,
+        User.Role.SYSTEM_ADMIN,
+    ],
+)
+def test_authenticated_users_can_get_current_user(role):
     user = User.objects.create_user(
-        username='currentuser',
-        email='currentuser@example.com',
+        username=f'currentuser_{role}',
+        email=f'currentuser_{role}@example.com',
         password='SecurePass123',
-        role=User.Role.CUSTOMER,
+        role=role,
         first_name='Test',
         last_name='User',
         phone='0700000000',
@@ -362,18 +470,27 @@ def test_current_user_returns_profile_and_active_status():
     assert response.data['username'] == user.username
     assert response.data['email'] == user.email
     assert response.data['role'] == user.role
-    assert response.data['isActive'] is True
-    assert response.data['accountStatus'] == 'active'
+    assert response.data['isActive'] is user.is_active
+    assert response.data['accountStatus'] == (
+        'active' if user.is_active else 'inactive'
+    )
 
 
 @pytest.mark.django_db
-def test_current_user_returns_inactive_account_status():
+@pytest.mark.parametrize(
+    'is_active, expected_status',
+    [
+        (True, 'active'),
+        (False, 'inactive'),
+    ],
+)
+def test_current_user_reports_account_status(is_active, expected_status):
     user = User.objects.create_user(
-        username='inactiveuser',
-        email='inactiveuser@example.com',
+        username=f'currentuser_status_{is_active}',
+        email=f'currentuser_status_{is_active}@example.com',
         password='SecurePass123',
         role=User.Role.CUSTOMER,
-        is_active=False,
+        is_active=is_active,
     )
     client = APIClient()
     client.force_authenticate(user=user)
@@ -381,5 +498,5 @@ def test_current_user_returns_inactive_account_status():
     response = client.get(reverse('current-user'))
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.data['isActive'] is False
-    assert response.data['accountStatus'] == 'inactive'
+    assert response.data['isActive'] is is_active
+    assert response.data['accountStatus'] == expected_status

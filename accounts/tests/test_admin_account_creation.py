@@ -7,6 +7,12 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.permissions import IsAdmin
+from common.permissions import (
+    IsSystemAdmin as AccountIsSystemAdmin,
+)
+from common.permissions import (
+    IsSystemAdminRoleOnly,
+)
 
 User = get_user_model()
 
@@ -38,7 +44,7 @@ def regular_admin(db):
 
 @pytest.fixture
 def role_system_admin(db):
-    # A system admin identified by role only, not by is_superuser.
+    # A system admin identified by role, not by is_superuser.
     return User.objects.create_user(
         username="role_system_admin_test",
         email="rolesystemadmin_test@example.com",
@@ -66,9 +72,7 @@ def test_system_admin_can_create_admin_account(api_client, system_admin):
 
     assert response.status_code == status.HTTP_201_CREATED
 
-    created_admin = User.objects.get(
-        email="newadmin_test@example.com"
-    )
+    created_admin = User.objects.get(email="newadmin_test@example.com")
 
     assert created_admin.role == User.Role.ADMIN
     assert created_admin.is_staff is True
@@ -109,7 +113,7 @@ def test_unauthenticated_user_cannot_create_admin_account(api_client):
             "username": "unauthorized_admin_test",
             "first_name": "Unauthorized",
             "last_name": "Administrator",
-            "email": "unauthorizedadmin_test@example.com",
+            "email": "unauthorized_admin_test@example.com",
             "phone": "0700000002",
             "password": "StrongPass123!",
         },
@@ -118,7 +122,7 @@ def test_unauthenticated_user_cannot_create_admin_account(api_client):
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert not User.objects.filter(
-        email="unauthorizedadmin_test@example.com"
+        email="unauthorized_admin_test@example.com"
     ).exists()
 
 
@@ -148,6 +152,64 @@ def test_user_with_system_admin_role_can_create_admin_account(
 
 
 @pytest.mark.django_db
+def test_customer_cannot_create_admin_account(api_client):
+    customer = User.objects.create_user(
+        username="customer_cannot_create_admin",
+        email="customer_cannot_create_admin@example.com",
+        password="StrongPass123!",
+        role=User.Role.CUSTOMER,
+    )
+    api_client.force_authenticate(user=customer)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "customer_admin_attempt",
+            "first_name": "Customer",
+            "last_name": "Blocked",
+            "email": "customer_blocked_admin@example.com",
+            "phone": "0700000004",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert not User.objects.filter(
+        email="customer_blocked_admin@example.com"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_vendor_cannot_create_admin_account(api_client):
+    vendor = User.objects.create_user(
+        username="vendor_cannot_create_admin",
+        email="vendor_cannot_create_admin@example.com",
+        password="StrongPass123!",
+        role=User.Role.VENDOR,
+    )
+    api_client.force_authenticate(user=vendor)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "vendor_admin_attempt",
+            "first_name": "Vendor",
+            "last_name": "Blocked",
+            "email": "vendor_blocked_admin@example.com",
+            "phone": "0700000005",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert not User.objects.filter(
+        email="vendor_blocked_admin@example.com"
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_admin_permission_allows_admin_and_system_admin(
     regular_admin, system_admin, role_system_admin
 ):
@@ -156,3 +218,41 @@ def test_admin_permission_allows_admin_and_system_admin(
     for user in (regular_admin, system_admin, role_system_admin):
         request = SimpleNamespace(user=user)
         assert permission.has_permission(request, None) is True
+
+
+@pytest.mark.django_db
+def test_account_system_admin_permission_allows_superuser_and_system_admin_role(
+    system_admin, role_system_admin
+):
+    permission = AccountIsSystemAdmin()
+
+    for user in (system_admin, role_system_admin):
+        request = SimpleNamespace(user=user)
+        assert permission.has_permission(request, None) is True
+
+
+@pytest.mark.django_db
+def test_account_system_admin_permission_rejects_anonymous_and_non_system_admin(
+    regular_admin,
+):
+    permission = AccountIsSystemAdmin()
+
+    request = SimpleNamespace(user=None)
+    assert permission.has_permission(request, None) is False
+
+    request = SimpleNamespace(user=regular_admin)
+    assert permission.has_permission(request, None) is False
+
+
+@pytest.mark.django_db
+def test_role_only_system_admin_permission_requires_role_only(
+    role_system_admin, system_admin, regular_admin
+):
+    permission = IsSystemAdminRoleOnly()
+
+    request = SimpleNamespace(user=role_system_admin)
+    assert permission.has_permission(request, None) is True
+
+    for user in (system_admin, regular_admin):
+        request = SimpleNamespace(user=user)
+        assert permission.has_permission(request, None) is False

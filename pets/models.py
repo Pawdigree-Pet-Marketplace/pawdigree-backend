@@ -2,6 +2,8 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.conf import settings
 
+from common.validators import validate_image_upload
+
 class Pet(models.Model):
     class Gender(models.TextChoices):
         MALE = 'MALE', 'Male'
@@ -105,7 +107,10 @@ class PetImage(models.Model):
     image_id = models.AutoField(primary_key=True)
     pet = models.ForeignKey(Pet, on_delete=models.CASCADE, related_name="images") 
     
-    image = models.ImageField(upload_to="pets/")  # or URLField if you store external URLs
+    image = models.ImageField(
+        upload_to="pets/",
+        validators=[validate_image_upload],
+    )  # or URLField if you store external URLs
     is_primary = models.BooleanField(default=False)
     position = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)  

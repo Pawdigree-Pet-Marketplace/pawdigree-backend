@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import models
 
 from common.models import TimeStampedModel
+from common.validators import validate_image_upload
 
 
 class Business(TimeStampedModel):
@@ -47,11 +48,13 @@ class Business(TimeStampedModel):
         upload_to="businesses/logos/",
         blank=True,
         null=True,
+        validators=[validate_image_upload],
     )
     cover_image = models.ImageField(
         upload_to="businesses/covers/",
         blank=True,
         null=True,
+        validators=[validate_image_upload],
     )
     categories = models.ManyToManyField(
         "categories.Category",
@@ -123,7 +126,10 @@ class BusinessImage(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="images",
     )
-    image = models.ImageField(upload_to="business_images/%Y/%m/")
+    image = models.ImageField(
+        upload_to="business_images/%Y/%m/",
+        validators=[validate_image_upload],
+    )
     alt_text = models.CharField(max_length=150, blank=True)
     display_order = models.PositiveIntegerField(default=0)
 

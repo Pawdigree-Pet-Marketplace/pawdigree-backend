@@ -7,7 +7,7 @@ from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.permissions import IsCustomer, IsSystemAdmin
+from common.permissions import IsCustomer, IsSystemAdmin
 
 from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
@@ -156,6 +156,7 @@ class VendorLoginView(generics.GenericAPIView):
 )
 class LogoutView(generics.GenericAPIView):
     serializer_class = LogoutSerializer
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

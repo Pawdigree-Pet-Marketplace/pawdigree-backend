@@ -126,10 +126,52 @@ class TestCategoryViews:
         assert category.is_active is False
         assert Category.objects.filter(pk=category.pk).exists()
 
-    def test_unauthenticated_user_cannot_list_categories(self, api_client):
+    def test_anonymous_user_can_list_active_categories(self, api_client):
+        Category.objects.create(
+            name="Active Category",
+            is_active=True,
+        )
+        Category.objects.create(
+            name="Inactive Category",
+            is_active=False,
+        )
+
         response = api_client.get(reverse("category-list"))
 
-        assert response.status_code in (
-            status.HTTP_401_UNAUTHORIZED,
-            status.HTTP_403_FORBIDDEN,
+        assert response.status_code == status.HTTP_200_OK
+        names = {item["name"] for item in get_results(response)}
+
+        assert "Active Category" in names
+        assert "Inactive Category" not in names
+
+    def test_anonymous_user_cannot_create_category(self, api_client):
+        response = api_client.post(
+            reverse("category-list"),
+            {
+                "name": "Veterinary",
+                "description": "Veterinary services",
+                "is_active": True,
+            },
+            format="json",
         )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_anonymous_user_cannot_update_or_delete_category(self, api_client):
+        category = Category.objects.create(
+            name="Veterinary",
+            description="Veterinary services",
+            is_active=True,
+        )
+
+        update_response = api_client.patch(
+            reverse("category-detail", kwargs={"pk": category.pk}),
+            {"name": "Animal Healthcare"},
+            format="json",
+        )
+        delete_response = api_client.delete(
+            reverse("category-detail", kwargs={"pk": category.pk})
+        )
+
+        assert update_response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert delete_response.status_code == status.HTTP_401_UNAUTHORIZED

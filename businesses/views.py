@@ -5,11 +5,12 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from common.permissions import IsVendor
 
 from .models import Business
-from .serializers import BusinessSerializer
+from .serializers import BusinessSerializer, BusinessWriteSerializer
 
 PARSERS = (MultiPartParser, FormParser, JSONParser)
 
 
+@extend_schema(request=BusinessWriteSerializer, responses=BusinessSerializer)
 class BusinessListCreateView(generics.ListCreateAPIView):
     serializer_class = BusinessSerializer
     permission_classes = (IsVendor,)
@@ -38,6 +39,8 @@ class BusinessDetailView(generics.RetrieveUpdateAPIView):
         "Creates a business owned by the authenticated vendor. "
         "The vendor is taken from the access token."
     ),
+    request=BusinessWriteSerializer,
+    responses=BusinessSerializer,
 )
 class BusinessRegistrationView(generics.CreateAPIView):
     """Registration endpoint, mounted by accounts at its existing URL."""
