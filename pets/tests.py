@@ -200,3 +200,98 @@ def test_vendor_can_create_pet_listing_with_multiple_images(
         image.image.storage.exists(image.image.name)
         for image in images
     )
+
+
+@pytest.mark.django_db
+def test_pet_listing_requires_mandatory_fields(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+    valid_pet_data.pop("name")
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "name" in response.data
+    assert Pet.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_pet_listing_rejects_negative_age(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+    valid_pet_data["age"] = -1
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "age" in response.data
+    assert Pet.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_sale_listing_requires_positive_price(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+    valid_pet_data["listing_type"] = Pet.ListingType.SALE
+    valid_pet_data["price"] = "0.00"
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "price" in response.data
+    assert Pet.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_adoption_listing_rejects_price(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+    valid_pet_data["price"] = "100.00"
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "price" in response.data
+    assert Pet.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_sale_listing_accepts_positive_price(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+    valid_pet_data["listing_type"] = Pet.ListingType.SALE
+    valid_pet_data["price"] = "250000.00"
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert Pet.objects.filter(
+        vendor=vendor,
+        name="Buddy",
+        price="250000.00",
+    ).exists()

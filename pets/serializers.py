@@ -66,6 +66,32 @@ class PetSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate(self, attrs):
+        listing_type = attrs.get(
+            "listing_type",
+            self.instance.listing_type
+            if self.instance
+            else Pet.ListingType.ADOPTION,
+        )
+        price = attrs.get(
+            "price",
+            self.instance.price if self.instance else None,
+        )
+
+        if listing_type == Pet.ListingType.SALE:
+            if price is None or price <= 0:
+                raise serializers.ValidationError({
+                    "price": (
+                        "A sale listing must have a price greater than zero."
+                    )
+                })
+        elif listing_type == Pet.ListingType.ADOPTION and price is not None:
+            raise serializers.ValidationError({
+                "price": "An adoption listing must not have a price."
+            })
+
+        return attrs
+
     @transaction.atomic
     def create(self, validated_data):
         images_data = validated_data.pop("images", [])
