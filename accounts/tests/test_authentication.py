@@ -63,6 +63,7 @@ def test_customer_cannot_register_with_duplicate_email():
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert 'email' in response.data
 
+
 @pytest.mark.django_db
 def test_vendor_can_register():
     client = APIClient()
@@ -118,6 +119,7 @@ def test_vendor_cannot_register_with_duplicate_email():
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert 'email' in response.data
+
 
 @pytest.fixture
 def customer():
@@ -430,7 +432,7 @@ def test_non_customer_users_cannot_access_customer_profile():
 
 
 @pytest.mark.django_db
-def test_anonymous_user_cannot_access_current_user():
+def test_current_user_requires_authentication():
     client = APIClient()
 
     response = client.get(reverse('current-user'))
@@ -454,6 +456,9 @@ def test_authenticated_users_can_get_current_user(role):
         email=f'currentuser_{role}@example.com',
         password='SecurePass123',
         role=role,
+        first_name='Test',
+        last_name='User',
+        phone='0700000000',
     )
     client = APIClient()
     client.force_authenticate(user=user)

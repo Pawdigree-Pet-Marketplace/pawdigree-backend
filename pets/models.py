@@ -83,20 +83,20 @@ class Pet(models.Model):
     
 #implememnt checks for the type of listing and the price field. If the listing type is "SALE", the price must be greater than zero. 
 # If the listing type is "ADOPTION", the price must be null.    
-def clean(self):
-    super().clean()
+    def clean(self):
+        super().clean()
 
-    if self.listing_type == self.ListingType.SALE:
-        if self.price is None or self.price <= 0:
-            raise ValidationError({
-                "price": "A sale listing must have a price greater than zero."
-            })
+        if self.listing_type == self.ListingType.SALE:
+            if self.price is None or self.price <= 0:
+                raise ValidationError({
+                    "price": "A sale listing must have a price greater than zero."
+                })
 
-    elif self.listing_type == self.ListingType.ADOPTION:
-        if self.price is not None:
-            raise ValidationError({
-                "price": "An adoption listing must not have a price."
-            })
+        elif self.listing_type == self.ListingType.ADOPTION:
+            if self.price is not None:
+                raise ValidationError({
+                    "price": "An adoption listing must not have a price."
+                })
 
             
     def __str__(self):

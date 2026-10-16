@@ -7,7 +7,9 @@ from django.urls import reverse
 from drf_spectacular.generators import SchemaGenerator
 from PIL import Image, PngImagePlugin
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from accounts.models import User
 from businesses.models import Business
 
 
@@ -264,6 +266,28 @@ class TestBusinessViews:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    def test_admin_cannot_create_business(
+        self, api_client, admin, valid_business_data
+    ):
+        api_client.force_authenticate(user=admin)
+
+        response = api_client.post(
+            reverse("business-list"),
+            valid_business_data,
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_admin_cannot_list_vendor_businesses(
+        self, api_client, admin, business
+    ):
+        api_client.force_authenticate(user=admin)
+
+        response = api_client.get(reverse("business-list"))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
     def test_customer_cannot_access_vendor_business_detail(
         self, api_client, customer, business
     ):
@@ -305,3 +329,18 @@ class TestBusinessViews:
             status.HTTP_401_UNAUTHORIZED,
             status.HTTP_403_FORBIDDEN,
         )
+
+    def test_inactive_vendor_cannot_access_business_workspace(
+        self, api_client, vendor
+    ):
+        vendor.is_active = False
+        vendor.save(update_fields=["is_active"])
+
+        refresh = RefreshToken.for_user(vendor)
+        api_client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
+        )
+
+        response = api_client.get(reverse("business-list"))
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
