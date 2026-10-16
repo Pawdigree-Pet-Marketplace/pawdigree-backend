@@ -217,6 +217,49 @@ class TestBusinessViews:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    def test_customer_cannot_list_vendor_businesses(
+        self, api_client, customer, business
+    ):
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.get(reverse("business-list"))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_customer_cannot_access_vendor_business_detail(
+        self, api_client, customer, business
+    ):
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.get(
+            reverse("business-detail", kwargs={"pk": business.pk})
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_vendor_cannot_patch_another_vendors_business(
+        self, api_client, vendor, another_vendor
+    ):
+        other_business = Business.objects.create(
+            vendor=another_vendor,
+            name="Another Business",
+            description="Other vendor's business",
+            contact="+256700123456",
+            email="anotherbusiness@example.com",
+            address="Entebbe Road",
+            city_district="Wakiso",
+        )
+
+        api_client.force_authenticate(user=vendor)
+
+        response = api_client.patch(
+            reverse("business-detail", kwargs={"pk": other_business.pk}),
+            {"name": "Should Not Update"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_unauthenticated_user_cannot_list_businesses(self, api_client):
         response = api_client.get(reverse("business-list"))
 

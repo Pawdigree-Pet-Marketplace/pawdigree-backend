@@ -346,3 +346,120 @@ def test_blacklisted_refresh_token_cannot_be_used_again(logout_user):
     )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_anonymous_user_cannot_access_profile():
+    client = APIClient()
+
+    get_response = client.get(reverse('customer-profile'))
+    patch_response = client.patch(
+        reverse('customer-profile'),
+        {'first_name': 'Blocked'},
+        format='json',
+    )
+
+    assert get_response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert patch_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_customer_can_get_and_patch_own_profile(customer):
+    user, _ = customer
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    get_response = client.get(reverse('customer-profile'))
+    patch_response = client.patch(
+        reverse('customer-profile'),
+        {'first_name': 'Updated'},
+        format='json',
+    )
+
+    assert get_response.status_code == status.HTTP_200_OK
+    assert get_response.data['email'] == user.email
+    assert patch_response.status_code == status.HTTP_200_OK
+
+    user.refresh_from_db()
+    assert user.first_name == 'Updated'
+
+
+@pytest.mark.django_db
+def test_non_customer_users_cannot_access_customer_profile():
+    customer = User.objects.create_user(
+        username='profilecustomer',
+        email='profilecustomer@example.com',
+        password='SecurePass123',
+        role=User.Role.CUSTOMER,
+    )
+    vendor = User.objects.create_user(
+        username='profilevendor',
+        email='profilevendor@example.com',
+        password='SecurePass123',
+        role=User.Role.VENDOR,
+    )
+    admin = User.objects.create_user(
+        username='profileadmin',
+        email='profileadmin@example.com',
+        password='SecurePass123',
+        role=User.Role.ADMIN,
+    )
+    system_admin = User.objects.create_user(
+        username='profilesystemadmin',
+        email='profilesystemadmin@example.com',
+        password='SecurePass123',
+        role=User.Role.SYSTEM_ADMIN,
+    )
+
+    for user in (customer, vendor, admin, system_admin):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        get_response = client.get(reverse('customer-profile'))
+        patch_response = client.patch(
+            reverse('customer-profile'),
+            {'first_name': 'Blocked'},
+            format='json',
+        )
+
+        if user == customer:
+            assert get_response.status_code == status.HTTP_200_OK
+            assert patch_response.status_code == status.HTTP_200_OK
+        else:
+            assert get_response.status_code == status.HTTP_403_FORBIDDEN
+            assert patch_response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_anonymous_user_cannot_access_current_user():
+    client = APIClient()
+
+    response = client.get(reverse('current-user'))
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    'role',
+    [
+        User.Role.CUSTOMER,
+        User.Role.VENDOR,
+        User.Role.ADMIN,
+        User.Role.SYSTEM_ADMIN,
+    ],
+)
+def test_authenticated_users_can_get_current_user(role):
+    user = User.objects.create_user(
+        username=f'currentuser_{role}',
+        email=f'currentuser_{role}@example.com',
+        password='SecurePass123',
+        role=role,
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get(reverse('current-user'))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['email'] == user.email
+    assert response.data['role'] == user.role

@@ -152,6 +152,64 @@ def test_user_with_system_admin_role_can_create_admin_account(
 
 
 @pytest.mark.django_db
+def test_customer_cannot_create_admin_account(api_client):
+    customer = User.objects.create_user(
+        username="customer_cannot_create_admin",
+        email="customer_cannot_create_admin@example.com",
+        password="StrongPass123!",
+        role=User.Role.CUSTOMER,
+    )
+    api_client.force_authenticate(user=customer)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "customer_admin_attempt",
+            "first_name": "Customer",
+            "last_name": "Blocked",
+            "email": "customer_blocked_admin@example.com",
+            "phone": "0700000004",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert not User.objects.filter(
+        email="customer_blocked_admin@example.com"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_vendor_cannot_create_admin_account(api_client):
+    vendor = User.objects.create_user(
+        username="vendor_cannot_create_admin",
+        email="vendor_cannot_create_admin@example.com",
+        password="StrongPass123!",
+        role=User.Role.VENDOR,
+    )
+    api_client.force_authenticate(user=vendor)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        {
+            "username": "vendor_admin_attempt",
+            "first_name": "Vendor",
+            "last_name": "Blocked",
+            "email": "vendor_blocked_admin@example.com",
+            "phone": "0700000005",
+            "password": "StrongPass123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert not User.objects.filter(
+        email="vendor_blocked_admin@example.com"
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_admin_permission_allows_admin_and_system_admin(
     regular_admin, system_admin, role_system_admin
 ):
