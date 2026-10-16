@@ -461,5 +461,37 @@ def test_authenticated_users_can_get_current_user(role):
     response = client.get(reverse('current-user'))
 
     assert response.status_code == status.HTTP_200_OK
+    assert response.data['id'] == user.id
+    assert response.data['username'] == user.username
     assert response.data['email'] == user.email
     assert response.data['role'] == user.role
+    assert response.data['isActive'] is user.is_active
+    assert response.data['accountStatus'] == (
+        'active' if user.is_active else 'inactive'
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    'is_active, expected_status',
+    [
+        (True, 'active'),
+        (False, 'inactive'),
+    ],
+)
+def test_current_user_reports_account_status(is_active, expected_status):
+    user = User.objects.create_user(
+        username=f'currentuser_status_{is_active}',
+        email=f'currentuser_status_{is_active}@example.com',
+        password='SecurePass123',
+        role=User.Role.CUSTOMER,
+        is_active=is_active,
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get(reverse('current-user'))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['isActive'] is is_active
+    assert response.data['accountStatus'] == expected_status
