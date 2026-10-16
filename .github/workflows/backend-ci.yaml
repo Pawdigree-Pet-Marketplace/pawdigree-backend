@@ -27,6 +27,7 @@ jobs:
 
     env:
       DB_PASSWORD: postgres
+      SECRET_KEY: ci-only-insecure-key-not-used-anywhere-else
 
     steps:
       - name: Checkout code
