@@ -1,9 +1,13 @@
+from io import BytesIO
+
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from PIL import Image
 from rest_framework import status
 
 from businesses.models import Business
-from pets.models import Pet
+from pets.models import Pet, PetImage
 
 
 @pytest.fixture
@@ -150,3 +154,49 @@ def test_vendor_only_sees_own_pet_listings(
 
     assert "My Pet" in names
     assert "Other Pet" not in names
+
+
+def make_test_image(name="pet.png"):
+    image = Image.new("RGB", (20, 20), color="green")
+    image_bytes = BytesIO()
+    image.save(image_bytes, format="PNG")
+
+    return SimpleUploadedFile(
+        name,
+        image_bytes.getvalue(),
+        content_type="image/png",
+    )
+
+
+@pytest.mark.django_db
+def test_vendor_can_create_pet_listing_with_multiple_images(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+
+    response = api_client.post(
+        reverse("pet-list"),
+        {
+            **valid_pet_data,
+            "images": [
+                make_test_image("buddy-1.png"),
+                make_test_image("buddy-2.png"),
+            ],
+        },
+        format="multipart",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    pet = Pet.objects.get(name="Buddy", vendor=vendor)
+    images = list(pet.images.all())
+
+    assert len(images) == 2
+    assert images[0].is_primary is True
+    assert images[0].position == 0
+    assert images[1].is_primary is False
+    assert images[1].position == 1
+    assert all(
+        image.image.storage.exists(image.image.name)
+        for image in images
+    )
