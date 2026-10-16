@@ -3,6 +3,8 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .google_auth import GoogleTokenError, verify_google_token
+
 User = get_user_model()
 
 
@@ -127,6 +129,56 @@ class CustomerLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'This account is inactive.'
             )
+
+        refresh = RefreshToken.for_user(user)
+
+        return {
+            'user': user,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+
+class GoogleLoginSerializer(serializers.Serializer):
+    credential = serializers.CharField(write_only=True)
+
+    @staticmethod
+    def _unique_username(email):
+        base = email.split('@')[0][:140] or 'user'
+        username = base
+        counter = 2
+
+        while User.objects.filter(username=username).exists():
+            username = f'{base}{counter}'
+            counter += 1
+
+        return username
+
+    def validate(self, attrs):
+        try:
+            info = verify_google_token(attrs['credential'])
+        except GoogleTokenError as exc:
+            raise serializers.ValidationError(str(exc))
+
+        email = info['email'].lower()
+        user = User.objects.filter(email__iexact=email).first()
+
+        if user is None:
+            user = User(
+                username=self._unique_username(email),
+                email=email,
+                first_name=info.get('given_name', ''),
+                last_name=info.get('family_name', ''),
+                role=User.Role.CUSTOMER,
+            )
+            user.set_unusable_password()
+            user.save()
+        elif user.role != User.Role.CUSTOMER:
+            raise serializers.ValidationError(
+                'This login is only available to customers.'
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError('This account is inactive.')
 
         refresh = RefreshToken.for_user(user)
 
