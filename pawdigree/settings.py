@@ -210,3 +210,6 @@ SPECTACULAR_SETTINGS = {
         {'name': 'categories', 'description': 'Marketplace categories'},
     ],
 }
+
+# Google sign-in: ID tokens are only accepted if issued for the client
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID') or ''

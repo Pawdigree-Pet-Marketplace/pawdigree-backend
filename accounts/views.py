@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import EmailMultiAlternatives, send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers
@@ -16,6 +16,7 @@ from .serializers import (
     CustomerLoginSerializer,
     CustomerProfileSerializer,
     CustomerRegistrationSerializer,
+    GoogleLoginSerializer,
     LogoutSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -71,6 +72,26 @@ class AdminRegistrationView(generics.CreateAPIView):
 )
 class CustomerLoginView(generics.GenericAPIView):
     serializer_class = CustomerLoginSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        return Response({
+            'access': serializer.validated_data['access'],
+            'refresh': serializer.validated_data['refresh'],
+        })
+
+@extend_schema(
+    summary='Customer login with Google',
+    description=(
+        'Verifies a Google ID token and returns an access token and '
+        'refresh token. A customer account is created on first use.'
+    ),
+)
+class GoogleLoginView(generics.GenericAPIView):
+    serializer_class = GoogleLoginSerializer
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):
