@@ -282,6 +282,32 @@ class LogoutSerializer(serializers.Serializer):
         return attrs
 
 
+class CurrentUserSerializer(serializers.ModelSerializer):
+    isActive = serializers.SerializerMethodField()
+    accountStatus = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'role',
+            'isActive',
+            'accountStatus',
+        )
+        read_only_fields = fields
+
+    def get_isActive(self, obj) -> bool:
+        return obj.is_active
+
+    def get_accountStatus(self, obj) -> str:
+        return 'active' if obj.is_active else 'inactive'
+
+
 class CustomerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

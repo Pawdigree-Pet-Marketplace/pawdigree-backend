@@ -33,6 +33,6 @@ urlpatterns = [
     path('profile/',CustomerProfileView.as_view(), name='customer-profile',),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
-    path('password-reset/confirm/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('password-reset/confirm/<str:uidb64>/<str:token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('register/admin/', AdminRegistrationView.as_view(),name='admin-register',),
 ]
