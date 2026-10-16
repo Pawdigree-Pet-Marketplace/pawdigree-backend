@@ -33,6 +33,21 @@ def test_business_registration_schema_uses_binary_file_uploads():
     schema = SchemaGenerator().get_schema(request=None, public=True)
     business_schema = schema["components"]["schemas"]["Business"]
 
+    business_hours = business_schema["properties"]["business_hours"]
+    assert business_hours["type"] == "object"
+    assert set(business_hours["properties"]) == {
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    }
+    assert "is_open" in business_hours["properties"]["monday"]["properties"]
+    assert "id" in business_schema["properties"]
+    assert "verification_status" in business_schema["properties"]
+
     for field_name in ("logo", "cover_image"):
         field = business_schema["properties"][field_name]
         assert field["type"] == "string"
@@ -42,6 +57,13 @@ def test_business_registration_schema_uses_binary_file_uploads():
         "requestBody"
     ]["content"]
     assert "multipart/form-data" in request_body
+
+    multipart_schema = request_body["multipart/form-data"]["schema"]
+    assert "$ref" in multipart_schema
+    request_schema_name = multipart_schema["$ref"].split("/")[-1]
+    request_schema = schema["components"]["schemas"][request_schema_name]
+    assert "id" not in request_schema["properties"]
+    assert "verification_status" not in request_schema["properties"]
 
 
 @pytest.mark.django_db
