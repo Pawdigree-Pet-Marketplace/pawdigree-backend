@@ -165,15 +165,19 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
-# Allow the local frontend to communicate with Django
+# Allow the local and deployed frontends to communicate with Django
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
-# Optional production frontend URL(s), comma-separated in the environment
+# Add production frontend URL(s) from the environment
 extra_origins = os.environ.get("FRONTEND_URL", "")
-
+CORS_ALLOWED_ORIGINS += [
+    origin.strip()
+    for origin in extra_origins.split(",")
+    if origin.strip()
+]
 # Development email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' 
 DEFAULT_FROM_EMAIL = 'noreply@pawdigree.local'
