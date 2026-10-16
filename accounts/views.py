@@ -156,6 +156,7 @@ class VendorLoginView(generics.GenericAPIView):
 )
 class LogoutView(generics.GenericAPIView):
     serializer_class = LogoutSerializer
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

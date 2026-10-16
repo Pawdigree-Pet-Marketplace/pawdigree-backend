@@ -296,9 +296,24 @@ def logout_user():
 
 
 @pytest.mark.django_db
-def test_user_can_logout_with_valid_refresh_token(logout_user):
+def test_anonymous_user_cannot_logout(logout_user):
     _, refresh_token = logout_user
     client = APIClient()
+
+    response = client.post(
+        reverse('logout'),
+        {'refresh': str(refresh_token)},
+        format='json',
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_authenticated_user_can_logout_with_valid_refresh_token(logout_user):
+    user, refresh_token = logout_user
+    client = APIClient()
+    client.force_authenticate(user=user)
 
     response = client.post(
         reverse('logout'),
@@ -312,8 +327,9 @@ def test_user_can_logout_with_valid_refresh_token(logout_user):
 
 @pytest.mark.django_db
 def test_blacklisted_refresh_token_cannot_be_used_again(logout_user):
-    _, refresh_token = logout_user
+    user, refresh_token = logout_user
     client = APIClient()
+    client.force_authenticate(user=user)
 
     refresh_token = str(refresh_token)
 
