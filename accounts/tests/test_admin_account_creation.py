@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.permissions import IsAdmin
+from common.permissions import IsSystemAdmin as AccountIsSystemAdmin, IsSystemAdminRoleOnly
 
 User = get_user_model()
 
@@ -156,3 +157,42 @@ def test_admin_permission_allows_admin_and_system_admin(
     for user in (regular_admin, system_admin, role_system_admin):
         request = SimpleNamespace(user=user)
         assert permission.has_permission(request, None) is True
+
+
+@pytest.mark.django_db
+def test_account_system_admin_permission_allows_superuser_and_system_admin_role(
+    system_admin, role_system_admin
+):
+    permission = AccountIsSystemAdmin()
+
+    for user in (system_admin, role_system_admin):
+        request = SimpleNamespace(user=user)
+        assert permission.has_permission(request, None) is True
+
+
+@pytest.mark.django_db
+def test_account_system_admin_permission_rejects_anonymous_and_non_system_admin(
+    regular_admin
+):
+    permission = AccountIsSystemAdmin()
+
+    request = SimpleNamespace(user=None)
+    assert permission.has_permission(request, None) is False
+
+    request = SimpleNamespace(user=regular_admin)
+    assert permission.has_permission(request, None) is False
+
+
+@pytest.mark.django_db
+def test_role_only_system_admin_permission_requires_role_only(
+    role_system_admin, system_admin, regular_admin
+):
+    permission = IsSystemAdminRoleOnly()
+
+    for user in (role_system_admin,):
+        request = SimpleNamespace(user=user)
+        assert permission.has_permission(request, None) is True
+
+    for user in (system_admin, regular_admin):
+        request = SimpleNamespace(user=user)
+        assert permission.has_permission(request, None) is False

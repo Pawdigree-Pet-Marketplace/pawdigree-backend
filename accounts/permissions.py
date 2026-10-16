@@ -1,42 +1,15 @@
-from rest_framework.permissions import BasePermission
+"""Compatibility exports for account-level permissions.
 
+The canonical shared definitions live in common.permissions so the backend uses
+one permission source of truth while keeping import compatibility for older
+account imports.
+"""
 
-class IsCustomer(BasePermission):
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated
-            and request.user.role == 'CUSTOMER'
-        )
+from common.permissions import IsAdmin, IsCustomer, IsSystemAdmin, IsVendor
 
-
-class IsVendor(BasePermission):
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated
-            and request.user.role == 'VENDOR'
-        )
-
-
-class IsAdmin(BasePermission):
-    # Admins and system admins can perform admin-level actions.
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(
-            user
-            and user.is_authenticated
-            and (
-                user.role in ('ADMIN', 'SYSTEM_ADMIN')
-                or user.is_superuser
-            )
-        )
-
-
-class IsSystemAdmin(BasePermission):
-    # Only system admins can create admin accounts.
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(
-            user
-            and user.is_authenticated
-            and (user.role == 'SYSTEM_ADMIN' or user.is_superuser)
-        )
+__all__ = [
+    "IsAdmin",
+    "IsCustomer",
+    "IsSystemAdmin",
+    "IsVendor",
+]
