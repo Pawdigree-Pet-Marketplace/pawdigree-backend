@@ -13,6 +13,7 @@ from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
     AdminLoginSerializer,
     AdminRegistrationSerializer,
+    CurrentUserSerializer,
     CustomerLoginSerializer,
     CustomerProfileSerializer,
     CustomerRegistrationSerializer,
@@ -177,6 +178,7 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
 
 
 class CurrentUserView(generics.RetrieveAPIView):
+    serializer_class = CurrentUserSerializer
     permission_classes = (IsAuthenticated,)
 
     def retrieve(self, request, *args, **kwargs):
