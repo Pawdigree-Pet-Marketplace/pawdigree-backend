@@ -1,8 +1,23 @@
+import io
+import json
+
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from PIL import Image, PngImagePlugin
 from rest_framework import status
 
 from businesses.models import Business
+
+
+def make_uploaded_image(filename="test.png", format_name="PNG", color=(255, 0, 0)):
+    buffer = io.BytesIO()
+    Image.new("RGB", (10, 10), color).save(buffer, format=format_name)
+    return SimpleUploadedFile(
+        filename,
+        buffer.getvalue(),
+        content_type=f"image/{format_name.lower()}",
+    )
 
 
 def get_results(response):
@@ -33,6 +48,92 @@ class TestBusinessViews:
             vendor=vendor,
             name="New Happy Paws",
         ).exists()
+
+    @pytest.mark.parametrize(
+        "filename, format_name",
+        [("logo.jpg", "JPEG"), ("logo.png", "PNG"), ("logo.webp", "WEBP")],
+    )
+    def test_vendor_can_create_business_with_supported_image(
+        self, api_client, vendor, valid_business_data, filename, format_name
+    ):
+        api_client.force_authenticate(user=vendor)
+        payload = {
+            **valid_business_data,
+            "business_hours": json.dumps(valid_business_data["business_hours"]),
+            "logo": make_uploaded_image(
+                filename=filename,
+                format_name=format_name,
+            ),
+        }
+
+        response = api_client.post(
+            reverse("business-list"),
+            payload,
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Business.objects.filter(
+            vendor=vendor,
+            name="New Happy Paws",
+        ).exists()
+
+    def test_invalid_image_is_rejected_via_business_api(
+        self, api_client, vendor, valid_business_data
+    ):
+        api_client.force_authenticate(user=vendor)
+        payload = {
+            **valid_business_data,
+            "business_hours": json.dumps(valid_business_data["business_hours"]),
+            "logo": SimpleUploadedFile(
+                "logo.png",
+                b"not-a-real-image",
+                content_type="image/png",
+            ),
+        }
+
+        response = api_client.post(
+            reverse("business-list"),
+            payload,
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "logo" in response.data
+        assert "valid image" in str(response.data["logo"]).lower()
+
+    def test_large_image_is_rejected_via_business_api(
+        self, api_client, vendor, valid_business_data
+    ):
+        api_client.force_authenticate(user=vendor)
+
+        large_image_buffer = io.BytesIO()
+        png_info = PngImagePlugin.PngInfo()
+        png_info.add_text("comment", "A" * (6 * 1024 * 1024))
+        Image.new("RGB", (10, 10), (255, 0, 0)).save(
+            large_image_buffer,
+            format="PNG",
+            pnginfo=png_info,
+        )
+        payload = {
+            **valid_business_data,
+            "business_hours": json.dumps(valid_business_data["business_hours"]),
+            "logo": SimpleUploadedFile(
+                "logo-large.png",
+                large_image_buffer.getvalue(),
+                content_type="image/png",
+            ),
+        }
+
+        response = api_client.post(
+            reverse("business-list"),
+            payload,
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "logo" in response.data
+        assert "5 mb" in str(response.data["logo"]).lower()
 
     def test_vendor_can_update_own_business(
         self, api_client, vendor, business
