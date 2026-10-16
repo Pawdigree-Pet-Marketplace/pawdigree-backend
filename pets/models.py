@@ -32,6 +32,8 @@ class Pet(models.Model):
         limit_choices_to={"role": "VENDOR"},
         )
     
+    
+    
     business = models.ForeignKey("businesses.Business", on_delete=models.CASCADE, related_name="pet_listing")
     
     listing_type = models.CharField(
@@ -41,11 +43,13 @@ class Pet(models.Model):
     )
     
     name = models.CharField(max_length=100)
+    species = models.CharField(max_length=100, default="unknown")
     breed = models.CharField(max_length=100, blank=True)
     age = models.PositiveIntegerField(help_text="Age in months")
     gender = models.CharField(max_length=10, choices=Gender.choices)
     size = models.CharField(max_length=10, choices=Size.choices)
     description = models.TextField(blank=True)
+    approved = models.BooleanField(default=False)
     price = models.DecimalField(
         max_digits=10, 
         decimal_places=2, 
