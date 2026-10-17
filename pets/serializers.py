@@ -1,4 +1,3 @@
-from django.db import transaction
 from rest_framework import serializers
 
 from businesses.models import Business
@@ -20,12 +19,12 @@ class PetImageSerializer(serializers.ModelSerializer):
 
 
 class PetSerializer(serializers.ModelSerializer):
-    """Serialize pet listings and persist their uploaded images."""
+    """Serialize pet listings. Images are saved by the view."""
 
     business = serializers.PrimaryKeyRelatedField(
         queryset=Business.objects.all(),
     )
-    images = PetImageSerializer(many=True, required=False)
+    images = PetImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Pet
@@ -42,6 +41,7 @@ class PetSerializer(serializers.ModelSerializer):
             "size",
             "description",
             "approved",
+            "is_active",
             "price",
             "adoption_status",
             "images",
@@ -52,6 +52,7 @@ class PetSerializer(serializers.ModelSerializer):
             "pet_id",
             "vendor",
             "approved",
+            "is_active",
             "created_at",
             "updated_at",
         )
@@ -91,13 +92,3 @@ class PetSerializer(serializers.ModelSerializer):
             })
 
         return attrs
-
-    @transaction.atomic
-    def create(self, validated_data):
-        images_data = validated_data.pop("images", [])
-        pet = Pet.objects.create(**validated_data)
-
-        for image_data in images_data:
-            PetImage.objects.create(pet=pet, **image_data)
-
-        return pet

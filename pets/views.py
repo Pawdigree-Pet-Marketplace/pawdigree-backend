@@ -1,6 +1,7 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
@@ -8,6 +9,8 @@ from common.permissions import IsVendor
 
 from .models import Pet, PetImage
 from .serializers import PetSerializer
+
+MAX_IMAGES_PER_LISTING = 10
 
 
 @extend_schema(
@@ -32,11 +35,28 @@ class PetListCreateView(generics.ListCreateAPIView):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        data = request.data.copy()
         uploaded_images = request.FILES.getlist("images")
 
-        serializer = self.get_serializer(data=data)
+        if len(uploaded_images) > MAX_IMAGES_PER_LISTING:
+            raise serializers.ValidationError({
+                "images": (
+                    f"You can upload at most {MAX_IMAGES_PER_LISTING} images."
+                )
+            })
+
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # Validate every file before anything is saved, so a bad image
+        # leaves no pet row and no orphaned file behind.
+        image_field = PetImage._meta.get_field("image")
+        for uploaded_image in uploaded_images:
+            try:
+                image_field.run_validators(uploaded_image)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(
+                    {"images": exc.messages}
+                ) from exc
 
         pet = serializer.save(vendor=request.user)
 
@@ -56,3 +76,24 @@ class PetListCreateView(generics.ListCreateAPIView):
             status=status.HTTP_201_CREATED,
             headers=headers,
         )
+
+
+@extend_schema(
+    tags=["pets"],
+    summary="Deactivate a pet listing",
+    description=(
+        "Soft-deletes one of the authenticated vendor's own listings. "
+        "The row is kept with is_active set to false."
+    ),
+)
+class PetDetailView(generics.DestroyAPIView):
+    permission_classes = (IsVendor,)
+
+    def get_queryset(self):
+        # Scoping to the vendor's own active pets means another vendor's
+        # pet, or an already deactivated one, returns 404.
+        return Pet.objects.filter(vendor=self.request.user, is_active=True)
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save(update_fields=["is_active", "updated_at"])
