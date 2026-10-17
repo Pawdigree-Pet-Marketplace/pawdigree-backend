@@ -34,13 +34,33 @@ if not SECRET_KEY:
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
-ALLOWED_HOSTS = [
-    'pawdigree-bckd.onrender.com',
-    '127.0.0.1',
-    'localhost'
-]
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if render_host:
+    ALLOWED_HOSTS.append(render_host)
+
+if not DEBUG:
+    ALLOWED_HOSTS.append('pawdigree-bckd.onrender.com')
+
+if os.getenv('ALLOWED_HOSTS'):
+    ALLOWED_HOSTS.extend(
+        host.strip() for host in os.getenv('ALLOWED_HOSTS').split(',') if host.strip()
+    )
+
+# Production HTTPS settings. Render terminates HTTPS at its proxy, so Django
+# must trust the forwarded protocol header or the redirect would loop.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+# Keep HSTS short for the first deploy; raise it once HTTPS is confirmed stable.
+SECURE_HSTS_SECONDS = 3600 if not DEBUG else 0
+
+CSRF_TRUSTED_ORIGINS = ['https://pawdigree-bckd.onrender.com']
 
 
 # Application definition
