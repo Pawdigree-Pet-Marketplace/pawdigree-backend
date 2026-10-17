@@ -122,6 +122,72 @@ class TestBusinessDocumentUpload:
             status.HTTP_403_FORBIDDEN,
         )
 
+    def test_rejects_unsupported_file_extension(
+        self, api_client, vendor, vendor_business
+    ):
+        api_client.force_authenticate(user=vendor)
+        uploaded_file = SimpleUploadedFile(
+            "malware.exe",
+            b"MZ fake executable",
+            content_type="application/octet-stream",
+        )
+
+        response = api_client.post(
+            self.url,
+            {
+                "business": str(vendor_business.pk),
+                "document_type": "REGISTRATION",
+                "file": uploaded_file,
+            },
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_rejects_file_with_mismatched_signature(
+        self, api_client, vendor, vendor_business
+    ):
+        api_client.force_authenticate(user=vendor)
+        uploaded_file = SimpleUploadedFile(
+            "fake.pdf",
+            b"not a real PDF",
+            content_type="application/pdf",
+        )
+
+        response = api_client.post(
+            self.url,
+            {
+                "business": str(vendor_business.pk),
+                "document_type": "REGISTRATION",
+                "file": uploaded_file,
+            },
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_rejects_file_larger_than_10_mb(
+        self, api_client, vendor, vendor_business
+    ):
+        api_client.force_authenticate(user=vendor)
+        uploaded_file = SimpleUploadedFile(
+            "large.pdf",
+            b"%PDF-" + b"x" * (10 * 1024 * 1024),
+            content_type="application/pdf",
+        )
+
+        response = api_client.post(
+            self.url,
+            {
+                "business": str(vendor_business.pk),
+                "document_type": "REGISTRATION",
+                "file": uploaded_file,
+            },
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
 
 @pytest.mark.django_db
 class TestBusinessDocumentDownload:
