@@ -344,3 +344,28 @@ class TestBusinessViews:
         response = api_client.get(reverse("business-list"))
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_system_admin_cannot_create_business(
+        self, api_client, system_admin, valid_business_data
+    ):
+        api_client.force_authenticate(user=system_admin)
+
+        response = api_client.post(
+            reverse("business-list"),
+            valid_business_data,
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not Business.objects.filter(name="New Happy Paws").exists()
+
+    def test_system_admin_cannot_access_vendor_business_detail(
+        self, api_client, system_admin, business
+    ):
+        api_client.force_authenticate(user=system_admin)
+
+        response = api_client.get(
+            reverse("business-detail", kwargs={"pk": business.pk})
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
