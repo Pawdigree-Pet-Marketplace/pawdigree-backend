@@ -92,3 +92,29 @@ class PetSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
+
+class PublicPetSerializer(serializers.ModelSerializer):
+    """Customer-facing listing: no vendor id and no internal flags."""
+
+    images = PetImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Pet
+        fields = (
+            "pet_id",
+            "business",
+            "listing_type",
+            "name",
+            "species",
+            "breed",
+            "age",
+            "gender",
+            "size",
+            "description",
+            "price",
+            "adoption_status",
+            "images",
+            "created_at",
+        )
+        read_only_fields = fields
