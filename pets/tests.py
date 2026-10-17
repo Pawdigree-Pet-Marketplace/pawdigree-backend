@@ -374,3 +374,44 @@ def test_sale_listing_accepts_positive_price(api_client, vendor, valid_pet_data)
         name="Buddy",
         price="250000.00",
     ).exists()
+
+
+@pytest.mark.django_db
+def test_system_admin_cannot_create_pet_listing(
+    api_client,
+    system_admin,
+    valid_pet_data,
+):
+    api_client.force_authenticate(user=system_admin)
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert Pet.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_system_admin_cannot_access_pet_listings(
+    api_client,
+    system_admin,
+    vendor,
+    vendor_business,
+):
+    Pet.objects.create(
+        vendor=vendor,
+        business=vendor_business,
+        name="Vendor Pet",
+        age=6,
+        gender=Pet.Gender.FEMALE,
+        size=Pet.Size.SMALL,
+    )
+
+    api_client.force_authenticate(user=system_admin)
+
+    response = api_client.get(reverse("pet-list"))
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
