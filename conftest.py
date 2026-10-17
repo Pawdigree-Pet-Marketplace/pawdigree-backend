@@ -47,3 +47,9 @@ def admin(db):
         password="TestPassword123!",
         role=User.Role.ADMIN,
     )
+
+
+@pytest.fixture(autouse=True)
+def disable_ssl_redirect(settings):
+    # Production redirects HTTP to HTTPS; tests use plain HTTP.
+    settings.SECURE_SSL_REDIRECT = False
