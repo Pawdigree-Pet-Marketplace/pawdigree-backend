@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'businesses',
     'marketplace',
     'pets',
+    'documents',
 ]
 
 MIDDLEWARE = [
