@@ -175,3 +175,59 @@ class TestCategoryViews:
 
         assert update_response.status_code == status.HTTP_401_UNAUTHORIZED
         assert delete_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_system_admin_can_create_category(self, api_client, system_admin):
+        api_client.force_authenticate(user=system_admin)
+
+        response = api_client.post(
+            reverse("category-list"),
+            {
+                "name": "Veterinary",
+                "description": "Veterinary services",
+                "is_active": True,
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Category.objects.filter(name="Veterinary").exists()
+
+    def test_system_admin_can_update_category(self, api_client, system_admin):
+        category = Category.objects.create(
+            name="Veterinary",
+            description="Veterinary services",
+        )
+
+        api_client.force_authenticate(user=system_admin)
+
+        response = api_client.patch(
+            reverse("category-detail", kwargs={"pk": category.pk}),
+            {"name": "Animal Healthcare"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+
+        category.refresh_from_db()
+
+        assert category.name == "Animal Healthcare"
+        assert category.slug == "animal-healthcare"
+
+    def test_system_admin_can_delete_category(self, api_client, system_admin):
+        category = Category.objects.create(
+            name="Veterinary",
+            description="Veterinary services",
+        )
+
+        api_client.force_authenticate(user=system_admin)
+
+        response = api_client.delete(
+            reverse("category-detail", kwargs={"pk": category.pk})
+        )
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        category.refresh_from_db()
+
+        assert category.is_active is False
+        assert Category.objects.filter(pk=category.pk).exists()
