@@ -11,3 +11,4 @@ private_documents/
 htmlcov/
 *.dump
 backup_*.json
+private_documents/
