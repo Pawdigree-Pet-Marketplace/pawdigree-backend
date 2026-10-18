@@ -203,3 +203,62 @@ class BusinessWriteSerializer(BusinessSerializer):
             "category",
         )
         read_only_fields = ()
+
+
+def can_sell_in_category(business_category):
+    """A vendor may sell under a category once both it and the business are approved."""
+    business = business_category.business
+
+    return (
+        business.is_active
+        and business.verification_status == Business.VerificationStatus.APPROVED
+        and business_category.approval_status
+        == BusinessCategory.ApprovalStatus.APPROVED
+    )
+
+
+class BusinessCategoryStatusSerializer(serializers.ModelSerializer):
+    """A category the business asked to sell under, and its approval."""
+
+    category_id = serializers.IntegerField(source="category.id", read_only=True)
+    name = serializers.CharField(source="category.name", read_only=True)
+    can_sell = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BusinessCategory
+        fields = ("category_id", "name", "approval_status", "can_sell")
+        read_only_fields = fields
+
+    def get_can_sell(self, obj) -> bool:
+        return can_sell_in_category(obj)
+
+
+class BusinessVerificationStatusSerializer(serializers.ModelSerializer):
+    """A vendor's view of one business's verification and selling status."""
+
+    categories = BusinessCategoryStatusSerializer(
+        source="business_categories",
+        many=True,
+        read_only=True,
+    )
+    can_sell = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Business
+        fields = (
+            "id",
+            "name",
+            "verification_status",
+            "decision_reason",
+            "reviewed_at",
+            "is_active",
+            "can_sell",
+            "categories",
+        )
+        read_only_fields = fields
+
+    def get_can_sell(self, obj) -> bool:
+        return any(
+            can_sell_in_category(business_category)
+            for business_category in obj.business_categories.all()
+        )
