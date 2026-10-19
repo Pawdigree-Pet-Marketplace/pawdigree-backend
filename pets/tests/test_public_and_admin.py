@@ -179,3 +179,35 @@ def test_admin_deactivating_an_already_deactivated_pet_returns_404(
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_public_list_only_shows_available_pets(
+    api_client, vendor, vendor_business
+):
+    make_pet(
+        vendor,
+        vendor_business,
+        "Available Pet",
+        approved=True,
+        adoption_status=Pet.AdoptionStatus.AVAILABLE,
+    )
+    make_pet(
+        vendor,
+        vendor_business,
+        "Pending Pet",
+        approved=True,
+        adoption_status=Pet.AdoptionStatus.PENDING,
+    )
+    make_pet(
+        vendor,
+        vendor_business,
+        "Adopted Pet",
+        approved=True,
+        adoption_status=Pet.AdoptionStatus.ADOPTED,
+    )
+
+    response = api_client.get(reverse("pet-public-list"))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert pet_names(response) == {"Available Pet"}

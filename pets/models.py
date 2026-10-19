@@ -7,8 +7,12 @@ from common.validators import validate_image_upload
 
 class PetQuerySet(models.QuerySet):
     def publicly_visible(self):
-        """Listings customers may see: approved and not deactivated."""
-        return self.filter(approved=True, is_active=True)
+        """Return approved, active pets that are available."""
+        return self.filter(
+            approved=True,
+            is_active=True,
+            adoption_status="AVAILABLE",
+        )
     
 
 class Pet(models.Model):
