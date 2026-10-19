@@ -211,3 +211,38 @@ def test_public_list_only_shows_available_pets(
 
     assert response.status_code == status.HTTP_200_OK
     assert pet_names(response) == {"Available Pet"}
+
+
+@pytest.mark.django_db
+def test_public_list_excludes_unapproved_and_inactive_available_pets(
+    api_client, vendor, vendor_business
+):
+    make_pet(
+        vendor,
+        vendor_business,
+        "Approved Available Pet",
+        approved=True,
+        is_active=True,
+        adoption_status=Pet.AdoptionStatus.AVAILABLE,
+    )
+    make_pet(
+        vendor,
+        vendor_business,
+        "Unapproved Available Pet",
+        approved=False,
+        is_active=True,
+        adoption_status=Pet.AdoptionStatus.AVAILABLE,
+    )
+    make_pet(
+        vendor,
+        vendor_business,
+        "Inactive Available Pet",
+        approved=True,
+        is_active=False,
+        adoption_status=Pet.AdoptionStatus.AVAILABLE,
+    )
+
+    response = api_client.get(reverse("pet-public-list"))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert pet_names(response) == {"Approved Available Pet"}
