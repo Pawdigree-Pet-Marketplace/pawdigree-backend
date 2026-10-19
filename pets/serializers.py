@@ -118,3 +118,12 @@ class PublicPetSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = fields
+        
+    class PetImageEditSerializer(serializers.Serializer):
+        """Image instructions sent along with a listing edit."""
+
+        remove_image_ids = serializers.ListField(
+            child=serializers.IntegerField(),
+            required=False,
+        )
+        primary_image_id = serializers.IntegerField(required=False)

@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from common.permissions import IsAdmin, IsVendor
 
 from .models import Pet, PetImage
-from .serializers import PetSerializer, PublicPetSerializer
+from .serializers import PetSerializer, PublicPetSerializer, PetImageEditSerializer
 
 MAX_IMAGES_PER_LISTING = 10
 
