@@ -251,6 +251,31 @@ def test_vendor_can_create_pet_listing_with_multiple_images(
 
 
 @pytest.mark.django_db
+def test_invalid_image_does_not_create_pet_listing(
+    api_client, vendor, valid_pet_data
+):
+    api_client.force_authenticate(user=vendor)
+
+    invalid_image = SimpleUploadedFile(
+        "not-an-image.txt",
+        b"This is not a valid image",
+        content_type="text/plain",
+    )
+
+    response = api_client.post(
+        reverse("pet-list"),
+        {
+            **valid_pet_data,
+            "images": [invalid_image],
+        },
+        format="multipart",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert Pet.objects.filter(vendor=vendor).count() == 0
+
+
+@pytest.mark.django_db
 def test_pet_listing_requires_mandatory_fields(api_client, vendor, valid_pet_data):
     api_client.force_authenticate(user=vendor)
     valid_pet_data.pop("name")
