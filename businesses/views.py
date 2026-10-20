@@ -1,7 +1,8 @@
 from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.response import Response
 
 from common.permissions import IsVendor
 
@@ -10,6 +11,7 @@ from .serializers import (
     BusinessSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
+    VendorResponseSerializer,
 )
 
 PARSERS = (MultiPartParser, FormParser, JSONParser)
@@ -35,6 +37,12 @@ class BusinessDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return Business.objects.filter(vendor=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(
+            verification_status=Business.VerificationStatus.PENDING,
+            reviewed_at=None,
+        )
 
 
 @extend_schema(
@@ -83,4 +91,28 @@ class BusinessVerificationStatusView(generics.ListAPIView):
                     "category", "business"
                 ),
             )
+        )
+
+
+class VendorBusinessResponseView(generics.GenericAPIView):
+    serializer_class = VendorResponseSerializer
+    permission_classes = (IsVendor,)
+
+    def get_queryset(self):
+        return Business.objects.filter(vendor=self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        business = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        business.vendor_response = serializer.validated_data["vendor_response"]
+        business.save(update_fields=["vendor_response", "updated_at"])
+
+        return Response(
+            {
+                "id": str(business.pk),
+                "vendor_response": business.vendor_response,
+            },
+            status=status.HTTP_200_OK,
         )
