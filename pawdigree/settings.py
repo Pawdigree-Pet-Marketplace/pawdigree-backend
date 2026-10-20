@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     'marketplace',
     'pets',
     'documents',
+    'notification',
 ]
 
 MIDDLEWARE = [
