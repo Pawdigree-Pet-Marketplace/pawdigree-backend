@@ -10,7 +10,11 @@ from .serializers import (
     BusinessSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
+    CategoryRequestSerializer,
 )
+from django.shortcuts import get_object_or_404
+from rest_framework import generics, status
+from rest_framework.response import Response
 
 PARSERS = (MultiPartParser, FormParser, JSONParser)
 
@@ -84,3 +88,45 @@ class BusinessVerificationStatusView(generics.ListAPIView):
                 ),
             )
         )
+    
+class BusinessCategoryRequestView(generics.GenericAPIView):
+    """Allow a vendor to request categories for their own business."""
+
+    serializer_class = CategoryRequestSerializer
+    permission_classes = (IsVendor,)
+
+    def post(self, request, business_id):
+        # Vendors can only access businesses they own.
+        business = get_object_or_404(
+            Business,
+            pk=business_id,
+            vendor=request.user,
+        )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        requested_categories = serializer.validated_data["category_ids"]
+        saved_categories = []
+
+        for category in requested_categories:
+            business_category, _ = BusinessCategory.objects.get_or_create(
+                business=business,
+                category=category,
+            )
+            saved_categories.append(business_category)
+
+        from .serializers import BusinessCategoryStatusSerializer
+
+        response_serializer = BusinessCategoryStatusSerializer(
+            saved_categories,
+            many=True,
+        )
+
+        return Response(
+            {
+                "message": "Category requests submitted successfully.",
+                "categories": response_serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )  
