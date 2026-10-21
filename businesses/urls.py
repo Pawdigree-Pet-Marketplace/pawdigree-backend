@@ -4,11 +4,17 @@ from .views import (
     BusinessDetailView,
     BusinessListCreateView,
     BusinessVerificationStatusView,
+    PublicBusinessListView,
     VendorBusinessResponseView,
 )
 
 urlpatterns = [
     path("", BusinessListCreateView.as_view(), name="business-list"),
+    path(
+        "public/",
+        PublicBusinessListView.as_view(),
+        name="business-public-list",
+    ),
     path(
         "verification-status/",
         BusinessVerificationStatusView.as_view(),

@@ -434,3 +434,68 @@ class TestBusinessViews:
             Business.VerificationStatus.PENDING
         )
         assert business.reviewed_at is None
+
+
+@pytest.mark.django_db
+class TestPublicBusinessListing:
+    def test_public_listing_returns_only_approved_active_businesses(
+        self, api_client, business, another_vendor
+    ):
+        business.verification_status = Business.VerificationStatus.APPROVED
+        business.save()
+
+        inactive = Business.objects.create(
+            vendor=another_vendor,
+            name="Inactive Paws",
+            description="Inactive business",
+            contact="+256700123457",
+            email="inactive@example.com",
+            address="Kampala Road",
+            city_district="Kampala",
+            verification_status=Business.VerificationStatus.APPROVED,
+            is_active=False,
+        )
+
+        pending = Business.objects.create(
+            vendor=another_vendor,
+            name="Pending Paws",
+            description="Pending business",
+            contact="+256700123458",
+            email="pending@example.com",
+            address="Kampala Road",
+            city_district="Kampala",
+            verification_status=Business.VerificationStatus.PENDING,
+        )
+
+        response = api_client.get(reverse("business-public-list"))
+
+        assert response.status_code == status.HTTP_200_OK
+        results = get_results(response)
+        result_ids = {str(item["id"]) for item in results}
+
+        assert result_ids == {str(business.id)}
+        assert str(inactive.id) not in result_ids
+        assert str(pending.id) not in result_ids
+
+    def test_public_listing_does_not_require_authentication(
+        self, api_client, business
+    ):
+        business.verification_status = Business.VerificationStatus.APPROVED
+        business.save()
+
+        response = api_client.get(reverse("business-public-list"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert str(business.id) in {
+            str(item["id"]) for item in get_results(response)
+        }
+
+    def test_public_listing_excludes_unapproved_businesses(
+        self, api_client, business
+    ):
+        response = api_client.get(reverse("business-public-list"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert str(business.id) not in {
+            str(item["id"]) for item in get_results(response)
+        }

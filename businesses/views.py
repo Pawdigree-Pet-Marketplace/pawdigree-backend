@@ -2,6 +2,7 @@ from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from common.permissions import IsVendor
@@ -11,6 +12,7 @@ from .serializers import (
     BusinessSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
+    PublicBusinessSerializer,
     VendorResponseSerializer,
 )
 
@@ -28,6 +30,26 @@ class BusinessListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(vendor=self.request.user)
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="List approved vendors",
+    description=(
+        "Public listing of active businesses whose verification status "
+        "is approved. Authentication is not required."
+    ),
+)
+class PublicBusinessListView(generics.ListAPIView):
+    serializer_class = PublicBusinessSerializer
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+
+    def get_queryset(self):
+        return Business.objects.filter(
+            verification_status=Business.VerificationStatus.APPROVED,
+            is_active=True,
+        )
 
 
 class BusinessDetailView(generics.RetrieveUpdateAPIView):

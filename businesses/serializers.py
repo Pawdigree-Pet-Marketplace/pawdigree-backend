@@ -186,6 +186,26 @@ class BusinessSerializer(serializers.ModelSerializer):
         return value
 
 
+class PublicBusinessSerializer(serializers.ModelSerializer):
+    """Public information for approved businesses."""
+
+    class Meta:
+        model = Business
+        fields = (
+            "id",
+            "name",
+            "description",
+            "contact",
+            "email",
+            "address",
+            "city_district",
+            "business_hours",
+            "logo",
+            "cover_image",
+        )
+        read_only_fields = fields
+
+
 class BusinessWriteSerializer(BusinessSerializer):
     """Serializer used for create/update request bodies in Swagger and DRF."""
 
