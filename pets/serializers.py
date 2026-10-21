@@ -41,6 +41,9 @@ class PetSerializer(serializers.ModelSerializer):
             "size",
             "description",
             "approved",
+            "review_status",
+            "rejection_reason",
+            "reviewed_at",
             "is_active",
             "price",
             "adoption_status",
@@ -52,6 +55,9 @@ class PetSerializer(serializers.ModelSerializer):
             "pet_id",
             "vendor",
             "approved",
+            "review_status",
+            "rejection_reason",
+            "reviewed_at",
             "is_active",
             "created_at",
             "updated_at",
@@ -127,3 +133,7 @@ class PetImageEditSerializer(serializers.ModelSerializer):
         required=False,
     )
     primary_image_id = serializers.IntegerField(required=False)
+    
+    
+class PetRejectSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=1000, trim_whitespace=True)
