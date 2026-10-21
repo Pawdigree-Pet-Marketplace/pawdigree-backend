@@ -42,6 +42,7 @@ class Business(TimeStampedModel):
         default=VerificationStatus.DRAFT,
     )
     decision_reason = models.TextField(blank=True)
+    vendor_response = models.TextField(blank=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     logo = models.ImageField(

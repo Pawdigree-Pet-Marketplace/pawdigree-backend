@@ -369,3 +369,68 @@ class TestBusinessViews:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_vendor_response_is_saved(
+        self, api_client, vendor, business
+    ):
+        api_client.force_authenticate(user=vendor)
+
+        response = api_client.post(
+            reverse(
+                "business-vendor-response",
+                kwargs={"pk": business.pk},
+            ),
+            {"vendor_response": "I corrected the requested documents."},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        business.refresh_from_db()
+        assert business.vendor_response == (
+            "I corrected the requested documents."
+        )
+
+    def test_vendor_cannot_respond_to_another_business(
+        self, api_client, vendor, another_vendor
+    ):
+        other_business = Business.objects.create(
+            vendor=another_vendor,
+            name="Other Business",
+            description="Other vendor's business",
+            contact="+256700123456",
+            email="other@example.com",
+            address="Entebbe Road",
+            city_district="Wakiso",
+        )
+        api_client.force_authenticate(user=vendor)
+
+        response = api_client.post(
+            reverse(
+                "business-vendor-response",
+                kwargs={"pk": other_business.pk},
+            ),
+            {"vendor_response": "My response"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_business_update_resubmits_for_review(
+        self, api_client, vendor, business
+    ):
+        business.verification_status = Business.VerificationStatus.APPROVED
+        business.save(update_fields=["verification_status"])
+        api_client.force_authenticate(user=vendor)
+
+        response = api_client.patch(
+            reverse("business-detail", kwargs={"pk": business.pk}),
+            {"description": "Updated business description"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        business.refresh_from_db()
+        assert business.verification_status == (
+            Business.VerificationStatus.PENDING
+        )
+        assert business.reviewed_at is None

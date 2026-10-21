@@ -205,6 +205,21 @@ class BusinessWriteSerializer(BusinessSerializer):
         read_only_fields = ()
 
 
+class VendorResponseSerializer(serializers.ModelSerializer):
+    """Validates a vendor's response to requested business changes."""
+
+    vendor_response = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+        max_length=5000,
+    )
+
+    class Meta:
+        model = Business
+        fields = ("vendor_response",)
+
+
 def can_sell_in_category(business_category):
     """A vendor may sell under a category once both it and the business are approved."""
     business = business_category.business
