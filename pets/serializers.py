@@ -125,7 +125,7 @@ class PublicPetSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
         
-class PetImageEditSerializer(serializers.ModelSerializer):
+class PetImageEditSerializer(serializers.Serializer):
     """Image instructions sent along with a listing edit."""
 
     remove_image_ids = serializers.ListField(
