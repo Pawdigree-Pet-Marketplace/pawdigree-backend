@@ -262,3 +262,23 @@ class BusinessVerificationStatusSerializer(serializers.ModelSerializer):
             can_sell_in_category(business_category)
             for business_category in obj.business_categories.all()
         )
+
+    
+class CategoryRequestSerializer(serializers.Serializer):
+    """Validates the categories a vendor wants to offer through a business."""
+
+    category_ids = serializers.ListField(
+        child=serializers.PrimaryKeyRelatedField(
+            queryset=Category.objects.filter(is_active=True)
+        ),
+        allow_empty=False,
+    )
+
+    def validate_category_ids(self, categories):
+        # Keep each category only once, even if an ID is repeated.
+        unique_categories = {}
+        for category in categories:
+            unique_categories[category.pk] = category
+
+        return list(unique_categories.values())
+    
