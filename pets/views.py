@@ -6,11 +6,13 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from django.utils import timezone
 
 from common.permissions import IsAdmin, IsVendor
 
 from .models import Pet, PetImage
-from .serializers import PetSerializer, PublicPetSerializer, PetImageEditSerializer
+from .notifications import notify_listing_approved, notify_listing_rejected
+from .serializers import PetSerializer, PublicPetSerializer, PetImageEditSerializer, PetRejectSerializer
 
 MAX_IMAGES_PER_LISTING = 10
 
@@ -226,7 +228,12 @@ class PetUpdateView(generics.UpdateAPIView):
                 ) from exc
 
         #Save the listing. Any edit sends it back for review.
-        pet = serializer.save(approved=False)
+        pet = serializer.save(
+            approved=False,            
+            rejection_reason="",
+            reviewed_by=None,
+            reviewed_at=None,
+        )
 
         #To remove images here, files are deleted only if the transaction commits.
         for image in current_images:
@@ -264,4 +271,102 @@ class PetUpdateView(generics.UpdateAPIView):
             .prefetch_related("images")
             .get(pk=pet.pk)
         )
+        return Response(self.get_serializer(pet).data)
+    
+    
+
+#ADMIN REVIEW VIEWS--------------------------------------
+@extend_schema(
+    tags=["pets"],
+    summary="List listings waiting for review (administrators)",
+    description="Active listings that are neither approved nor rejected, oldest first.",
+)
+class AdminPendingPetListView(generics.ListAPIView):
+    serializer_class = PetSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = PublicPetPagination
+
+    def get_queryset(self):
+        return (
+            Pet.objects.pending_review()
+            .select_related("business", "vendor")
+            .prefetch_related("images")
+            .order_by("created_at")
+        )
+
+
+class AdminPetReviewBaseView(generics.GenericAPIView):
+    serializer_class = PetSerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        return (
+            Pet.objects.filter(is_active=True)
+            .select_related("business", "vendor")
+            .prefetch_related("images")
+        )
+
+
+@extend_schema(
+    tags=["pets"],
+    summary="Approve a pet listing (administrators)",
+    request=None,
+    description="Makes the listing public and notifies the vendor.",
+)
+class AdminPetApproveView(AdminPetReviewBaseView):
+
+    @transaction.atomic
+    def post(self, request, pk):
+        pet = self.get_object()
+
+        if pet.approved:
+            raise serializers.ValidationError("This listing is already approved.")
+
+        pet.approved = True
+        pet.rejection_reason = ""
+        pet.reviewed_by = request.user
+        pet.reviewed_at = timezone.now()
+        pet.save(update_fields=[
+            "approved", "rejection_reason", "reviewed_by",
+            "reviewed_at", "updated_at",
+        ])
+
+        # Notify only if the database change actually committed.
+        transaction.on_commit(lambda: notify_listing_approved(pet))
+
+        return Response(self.get_serializer(pet).data)
+
+
+@extend_schema(
+    tags=["pets"],
+    summary="Reject a pet listing (administrators)",
+    request=PetRejectSerializer,
+    description=(
+        "Hides the listing, stores the reason and notifies the vendor. "
+        "The vendor can edit the listing to send it for review again."
+    ),
+)
+class AdminPetRejectView(AdminPetReviewBaseView):
+
+    @transaction.atomic
+    def post(self, request, pk):
+        pet = self.get_object()
+
+        if not pet.approved and pet.rejection_reason:
+            raise serializers.ValidationError("This listing is already rejected.")
+
+        data = PetRejectSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+
+        pet.approved = False
+        pet.rejection_reason = data.validated_data["reason"]
+        pet.reviewed_by = request.user
+        pet.reviewed_at = timezone.now()
+        pet.save(update_fields=[
+            "approved", "rejection_reason", "reviewed_by",
+            "reviewed_at", "updated_at",
+        ])
+
+        transaction.on_commit(lambda: notify_listing_rejected(pet))
+
         return Response(self.get_serializer(pet).data)
