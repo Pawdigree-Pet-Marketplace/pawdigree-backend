@@ -83,7 +83,12 @@ INSTALLED_APPS = [
     'pets',
     'documents',
     'notification',
+    "phonenumber_field",
+    "countries",
 ]
+
+PHONENUMBER_DEFAULT_REGION = "UG"
+PHONENUMBER_DB_FORMAT = "E164"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
