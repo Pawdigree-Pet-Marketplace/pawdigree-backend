@@ -25,6 +25,7 @@ class PetSerializer(serializers.ModelSerializer):
         queryset=Business.objects.all(),
     )
     images = PetImageSerializer(many=True, read_only=True)
+    review_status = serializers.ReadOnlyField()
 
     class Meta:
         model = Pet
@@ -41,6 +42,9 @@ class PetSerializer(serializers.ModelSerializer):
             "size",
             "description",
             "approved",
+            "review_status",
+            "rejection_reason",
+            "reviewed_at",
             "is_active",
             "price",
             "adoption_status",
@@ -52,6 +56,9 @@ class PetSerializer(serializers.ModelSerializer):
             "pet_id",
             "vendor",
             "approved",
+            "review_status",
+            "rejection_reason",
+            "reviewed_at",
             "is_active",
             "created_at",
             "updated_at",
@@ -118,8 +125,8 @@ class PublicPetSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = fields
-        
-class PetImageEditSerializer(serializers.ModelSerializer):
+
+class PetImageEditSerializer(serializers.Serializer):
     """Image instructions sent along with a listing edit."""
 
     remove_image_ids = serializers.ListField(
@@ -127,3 +134,7 @@ class PetImageEditSerializer(serializers.ModelSerializer):
         required=False,
     )
     primary_image_id = serializers.IntegerField(required=False)
+
+
+class PetRejectSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=1000, trim_whitespace=True)

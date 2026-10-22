@@ -1,4 +1,3 @@
-import re
 from datetime import time
 
 from django.db import transaction
@@ -7,6 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from categories.models import Category
+from common.phone import normalize_phone_number
 from common.validators import validate_image_upload
 
 from .models import Business, BusinessCategory
@@ -136,15 +136,7 @@ class BusinessSerializer(serializers.ModelSerializer):
         return value
 
     def validate_contact(self, value):
-        number = re.sub(r"[\s-]", "", value)
-
-        if not re.fullmatch(r"\+256\d{9}", number):
-            raise serializers.ValidationError(
-                "Enter a valid Ugandan phone number, "
-                "e.g. +256700123456."
-            )
-
-        return number
+        return normalize_phone_number(value)
 
     def validate_business_hours(self, value):
         if not isinstance(value, dict) or set(value) != set(DAYS):
@@ -297,3 +289,22 @@ class BusinessVerificationStatusSerializer(serializers.ModelSerializer):
             can_sell_in_category(business_category)
             for business_category in obj.business_categories.all()
         )
+
+
+class CategoryRequestSerializer(serializers.Serializer):
+    """Validates the categories a vendor wants to offer through a business."""
+
+    category_ids = serializers.ListField(
+        child=serializers.PrimaryKeyRelatedField(
+            queryset=Category.objects.filter(is_active=True)
+        ),
+        allow_empty=False,
+    )
+
+    def validate_category_ids(self, categories):
+        # Keep each category only once, even if an ID is repeated.
+        unique_categories = {}
+        for category in categories:
+            unique_categories[category.pk] = category
+
+        return list(unique_categories.values())

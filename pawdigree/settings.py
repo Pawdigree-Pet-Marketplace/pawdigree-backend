@@ -82,7 +82,13 @@ INSTALLED_APPS = [
     'marketplace',
     'pets',
     'documents',
+    'notification',
+    "phonenumber_field",
+    "countries",
 ]
+
+PHONENUMBER_DEFAULT_REGION = "UG"
+PHONENUMBER_DB_FORMAT = "E164"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -225,6 +231,7 @@ EMAIL_USE_TLS = (os.getenv('EMAIL_USE_TLS') or 'True') == 'True'
 DEFAULT_FROM_EMAIL = (
     os.getenv('DEFAULT_FROM_EMAIL') or 'noreply@pawdigree.local'
 )
+EMAIL_TIMEOUT = 10
 
 # Password-reset tokens expire after one hour.
 PASSWORD_RESET_TIMEOUT = 3600
@@ -247,3 +254,6 @@ SPECTACULAR_SETTINGS = {
 
 # Google sign-in: ID tokens are only accepted if issued for the client
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID') or ''
+
+# Phone numbers entered without a + are read as Ugandan
+PHONENUMBER_DEFAULT_REGION = "UG"

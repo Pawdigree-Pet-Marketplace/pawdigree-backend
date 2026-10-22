@@ -1,4 +1,5 @@
 from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -10,8 +11,10 @@ from common.permissions import IsVendor
 from .models import Business, BusinessCategory
 from .serializers import (
     BusinessSerializer,
+    BusinessCategoryStatusSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
+    CategoryRequestSerializer,
     PublicBusinessSerializer,
     VendorResponseSerializer,
 )
@@ -114,8 +117,6 @@ class BusinessVerificationStatusView(generics.ListAPIView):
                 ),
             )
         )
-
-
 class VendorBusinessResponseView(generics.GenericAPIView):
     serializer_class = VendorResponseSerializer
     permission_classes = (IsVendor,)
@@ -135,6 +136,46 @@ class VendorBusinessResponseView(generics.GenericAPIView):
             {
                 "id": str(business.pk),
                 "vendor_response": business.vendor_response,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class BusinessCategoryRequestView(generics.GenericAPIView):
+    """Allow a vendor to request categories for their own business."""
+
+    serializer_class = CategoryRequestSerializer
+    permission_classes = (IsVendor,)
+
+    def post(self, request, business_id):
+        business = get_object_or_404(
+            Business,
+            pk=business_id,
+            vendor=request.user,
+        )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        requested_categories = serializer.validated_data["category_ids"]
+        saved_categories = []
+
+        for category in requested_categories:
+            business_category, _ = BusinessCategory.objects.get_or_create(
+                business=business,
+                category=category,
+            )
+            saved_categories.append(business_category)
+
+        response_serializer = BusinessCategoryStatusSerializer(
+            saved_categories,
+            many=True,
+        )
+
+        return Response(
+            {
+                "message": "Category requests submitted successfully.",
+                "categories": response_serializer.data,
             },
             status=status.HTTP_200_OK,
         )
