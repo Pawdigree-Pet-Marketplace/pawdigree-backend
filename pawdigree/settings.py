@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -59,6 +60,9 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 # Keep HSTS short for the first deploy; raise it once HTTPS is confirmed stable.
 SECURE_HSTS_SECONDS = 3600 if not DEBUG else 0
+
+if "test" in sys.argv:
+    SECURE_SSL_REDIRECT = False
 
 CSRF_TRUSTED_ORIGINS = ['https://pawdigree-bckd.onrender.com']
 
