@@ -254,3 +254,6 @@ SPECTACULAR_SETTINGS = {
 
 # Google sign-in: ID tokens are only accepted if issued for the client
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID') or ''
+
+# Phone numbers entered without a + are read as Ugandan
+PHONENUMBER_DEFAULT_REGION = "UG"

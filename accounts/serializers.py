@@ -4,12 +4,24 @@ from django.db import IntegrityError, transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from common.phone import normalize_phone_number
+
 from .google_auth import GoogleTokenError, verify_google_token
 
 User = get_user_model()
 
 
-class CustomerRegistrationSerializer(serializers.ModelSerializer):
+class PhoneValidationMixin:
+    """Validates and normalizes the phone field to international format."""
+
+    def validate_phone(self, value):
+        return normalize_phone_number(value)
+
+
+class CustomerRegistrationSerializer(
+    PhoneValidationMixin,
+    serializers.ModelSerializer,
+):
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -38,7 +50,10 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         )
 
 
-class VendorRegistrationSerializer(serializers.ModelSerializer):
+class VendorRegistrationSerializer(
+    PhoneValidationMixin,
+    serializers.ModelSerializer,
+):
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -67,7 +82,10 @@ class VendorRegistrationSerializer(serializers.ModelSerializer):
         )
 
 
-class AdminRegistrationSerializer(serializers.ModelSerializer):
+class AdminRegistrationSerializer(
+    PhoneValidationMixin,
+    serializers.ModelSerializer,
+):
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -331,7 +349,10 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         return 'active' if obj.is_active else 'inactive'
 
 
-class CustomerProfileSerializer(serializers.ModelSerializer):
+class CustomerProfileSerializer(
+    PhoneValidationMixin,
+    serializers.ModelSerializer,
+):
     class Meta:
         model = User
         fields = (
@@ -355,16 +376,6 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
 
         if User.objects.filter(email=value).exclude(pk=user.pk).exists():
             raise serializers.ValidationError("This email already has an account")
-
-        return value
-
-    def validate_phone(self, value):
-        # Checks the phone number only contains digits and an optional leading plus sign.
-        if not value.lstrip("+").isdigit() or value.count("+") > 1 or ("+" in value and not value.startswith("+")):
-            raise serializers.ValidationError("The phone number can only have this format: +########### or ##########")
-
-        if len(value) < 10 or len(value) > 20:
-            raise serializers.ValidationError("The phone number must between 10 to 20 digits")
 
         return value
 

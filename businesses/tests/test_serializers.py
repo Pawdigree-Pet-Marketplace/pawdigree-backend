@@ -41,7 +41,6 @@ class TestBusinessSerializer:
     @pytest.mark.parametrize(
         "phone_number",
         [
-            "0700123456",
             "+25670012345",
             "+2567001234567",
             "invalid-number",
@@ -56,6 +55,24 @@ class TestBusinessSerializer:
 
         assert not serializer.is_valid()
         assert "contact" in serializer.errors
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("0700123456", "+256700123456"),
+            ("+256 700-123-456", "+256700123456"),
+            ("+254712345678", "+254712345678"),
+        ],
+    )
+    def test_contact_is_normalized_to_international_format(
+        self, valid_business_data, raw, expected
+    ):
+        valid_business_data["contact"] = raw
+
+        serializer = BusinessSerializer(data=valid_business_data)
+
+        assert serializer.is_valid(), serializer.errors
+        assert serializer.validated_data["contact"] == expected
 
     def test_business_hours_must_include_all_seven_days(
         self, valid_business_data
