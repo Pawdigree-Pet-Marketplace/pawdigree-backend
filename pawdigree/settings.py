@@ -89,7 +89,12 @@ INSTALLED_APPS = [
     'notification',
     "phonenumber_field",
     "countries",
+    "anymail",
 ]
+
+ANYMAIL = {
+       "BREVO_API_KEY": os.getenv("BREVO_API_KEY", ""),
+   }
 
 PHONENUMBER_DEFAULT_REGION = "UG"
 PHONENUMBER_DB_FORMAT = "E164"
