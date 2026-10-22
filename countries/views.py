@@ -1,3 +1,4 @@
+import unicodedata
 from functools import lru_cache
 
 import phonenumbers
@@ -5,6 +6,13 @@ import pycountry
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+
+def sort_key(name):
+    """Sort names ignoring accents and case, so 'Åland' sorts under A."""
+    decomposed = unicodedata.normalize("NFKD", name)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return stripped.casefold()
 
 
 @lru_cache(maxsize=1)
@@ -15,11 +23,11 @@ def get_country_codes():
         if not country:
             continue
         data.append({
-            "country": country.name,
+            "country": getattr(country, "common_name", country.name),
             "iso_code": region,
             "dial_code": f"+{phonenumbers.country_code_for_region(region)}",
         })
-    data.sort(key=lambda c: c["country"])
+    data.sort(key=lambda c: sort_key(c["country"]))
     return tuple(data)
 
 
