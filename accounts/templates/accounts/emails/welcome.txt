@@ -1,0 +1,15 @@
+{% autoescape off %}Welcome{% if user.first_name %} {{ user.first_name }}{% endif %}!
+
+{{ intro }}
+
+Your registered email address is {{ user.email }}
+Your username is {{ user.username }}
+
+Thanks for creating an account. Have fun!
+
+Continue to Pawdigree: {{ frontend_url }}
+
+If you didn't create a Pawdigree account, you can safely ignore this email.
+
+© Pawdigree. Pets, care and community.
+{% endautoescape %}
