@@ -226,6 +226,7 @@ EMAIL_USE_TLS = (os.getenv('EMAIL_USE_TLS') or 'True') == 'True'
 DEFAULT_FROM_EMAIL = (
     os.getenv('DEFAULT_FROM_EMAIL') or 'noreply@pawdigree.local'
 )
+EMAIL_TIMEOUT = 10
 
 # Password-reset tokens expire after one hour.
 PASSWORD_RESET_TIMEOUT = 3600

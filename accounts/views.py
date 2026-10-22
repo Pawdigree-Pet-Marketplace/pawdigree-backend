@@ -6,10 +6,12 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from django.db import transaction
 
 from common.permissions import IsCustomer, IsSystemAdmin
 
 from .password_reset import PasswordResetTokenGeneratorService
+from .emails import send_welcome_email
 from .serializers import (
     AdminLoginSerializer,
     AdminRegistrationSerializer,
@@ -28,6 +30,15 @@ from .serializers import (
 User = get_user_model()
 
 
+class WelcomeEmailMixin:
+    """After a successful registration, send the welcome email."""
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        # Send only if the account was actually committed to the database.
+        transaction.on_commit(lambda: send_welcome_email(user))
+        
+        
 @extend_schema(
     summary='Register a customer',
     description=(
@@ -35,7 +46,7 @@ User = get_user_model()
         'No authentication is required.'
     ),
 )
-class CustomerRegistrationView(generics.CreateAPIView):
+class CustomerRegistrationView(WelcomeEmailMixin, generics.CreateAPIView):
     serializer_class = CustomerRegistrationSerializer
     permission_classes = (AllowAny,)
 
@@ -47,7 +58,7 @@ class CustomerRegistrationView(generics.CreateAPIView):
         'No authentication is required.'
     ),
 )
-class VendorRegistrationView(generics.CreateAPIView):
+class VendorRegistrationView(WelcomeEmailMixin, generics.CreateAPIView):
     serializer_class = VendorRegistrationSerializer
     permission_classes = (AllowAny,)
 
