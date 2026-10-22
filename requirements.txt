@@ -43,3 +43,4 @@ whitenoise==6.12.0
 django-phonenumber-field==9.0.0
 phonenumbers==9.0.41
 pycountry==26.2.16
+django-anymail[brevo]
