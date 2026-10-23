@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from django.db import transaction
 
 from common.permissions import IsCustomer, IsSystemAdmin
@@ -85,6 +86,8 @@ class AdminRegistrationView(generics.CreateAPIView):
 class CustomerLoginView(generics.GenericAPIView):
     serializer_class = CustomerLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -105,6 +108,8 @@ class CustomerLoginView(generics.GenericAPIView):
 class GoogleLoginView(generics.GenericAPIView):
     serializer_class = GoogleLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -127,6 +132,8 @@ class GoogleLoginView(generics.GenericAPIView):
 class AdminLoginView(generics.GenericAPIView):
     serializer_class = AdminLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -148,6 +155,8 @@ class AdminLoginView(generics.GenericAPIView):
 class VendorLoginView(generics.GenericAPIView):
     serializer_class = VendorLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
