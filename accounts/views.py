@@ -12,6 +12,7 @@ from django.db import transaction
 
 from common.permissions import IsCustomer, IsSystemAdmin
 
+from .verification import start_verification
 from .password_reset import PasswordResetTokenGeneratorService
 from .token_utils import revoke_user_tokens
 from .emails import send_welcome_email
@@ -93,6 +94,10 @@ class CustomerLoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        data = serializer.validated_data
+        if data.get('verification_required'):
+            return Response(start_verification(data['user']))
+
         return Response({
             'access': serializer.validated_data['access'],
             'refresh': serializer.validated_data['refresh'],
@@ -155,6 +160,10 @@ class VendorLoginView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        if data.get('verification_required'):
+            return Response(start_verification(data['user']))
 
         return Response({
             'access': serializer.validated_data['access'],
