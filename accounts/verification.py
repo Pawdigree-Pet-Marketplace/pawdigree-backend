@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import EmailVerificationCode, User
+from .emails import send_verification_email
 
 CODE_LENGTH = 6
 CODE_TTL = timedelta(minutes=10)
@@ -110,3 +111,28 @@ def read_verification_token(token):
         return None
 
     return User.objects.filter(pk=data.get('uid'), is_active=True).first()
+
+
+def mask_email(email):
+    """v***@example.com, so the screen can say where the code went."""
+    name, _, domain = email.partition('@')
+    return f'{name[:1]}***@{domain}'
+
+
+def start_verification(user):
+    """Send a code unless one was just sent, and build the login response."""
+    if seconds_until_resend(user) == 0:
+        code = issue_code(user)
+        send_verification_email(
+            user,
+            code,
+            expires_minutes=int(CODE_TTL.total_seconds() // 60),
+        )
+
+    return {
+        'verification_required': True,
+        'verification_token': make_verification_token(user),
+        'email': mask_email(user.email),
+        'expires_in': int(CODE_TTL.total_seconds()),
+        'resend_available_in': seconds_until_resend(user),
+    }

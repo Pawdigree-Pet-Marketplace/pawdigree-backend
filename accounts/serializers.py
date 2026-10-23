@@ -175,6 +175,12 @@ class CustomerLoginSerializer(serializers.Serializer):
                 'Invalid email or password.'
             )
 
+        if not user.is_email_verified:
+            return {
+                'user': user,
+                'verification_required': True,
+            }
+
         refresh = RefreshToken.for_user(user)
 
         return {
@@ -241,6 +247,11 @@ class GoogleLoginSerializer(serializers.Serializer):
         if not user.is_active:
             raise serializers.ValidationError('Could not sign in. Please try again.')
 
+        if not user.is_email_verified:
+            # Google has verified this email address.
+            user.is_email_verified = True
+            user.save(update_fields=['is_email_verified'])
+
         if user.has_usable_password():
             # Google has verified the inbox, so any password set earlier
             # may belong to someone else.
@@ -286,6 +297,12 @@ class VendorLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
+
+        if not user.is_email_verified:
+            return {
+                'user': user,
+                'verification_required': True,
+            }
 
         refresh = RefreshToken.for_user(user)
 

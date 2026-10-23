@@ -7,7 +7,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .emails import send_verification_email
 from .serializers import (
-    CurrentUserSerializer,
     ResendVerificationSerializer,
     VerifyEmailSerializer,
 )
@@ -54,7 +53,6 @@ class VerifyEmailView(generics.GenericAPIView):
 
         refresh = RefreshToken.for_user(user)
         return Response({
-            'user': CurrentUserSerializer(user).data,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })

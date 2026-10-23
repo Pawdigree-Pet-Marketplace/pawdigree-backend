@@ -130,6 +130,7 @@ def customer():
         email='logincustomer@example.com',
         password=password,
         role=User.Role.CUSTOMER,
+        is_email_verified=True,
     )
 
     return user, password
@@ -211,6 +212,7 @@ def vendor():
         email='loginvendor@example.com',
         password=password,
         role=User.Role.VENDOR,
+        is_email_verified=True,
     )
 
     return user, password
