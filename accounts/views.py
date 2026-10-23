@@ -1,3 +1,5 @@
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
@@ -227,9 +229,10 @@ class PasswordResetRequestView(generics.GenericAPIView):
         if user:
             token_service = PasswordResetTokenGeneratorService()
             token = token_service.generate_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
             reset_url = (
                 f"{settings.FRONTEND_URL}/reset-password/"
-                f"?uid={user.pk}&token={token}"
+                f"?uid={uid}&token={token}"
             )
 
            # Prepare the data for both email templates.
@@ -286,14 +289,25 @@ class PasswordResetConfirmView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data['email']
+        uid = serializer.validated_data.get('uid')
+        email = serializer.validated_data.get('email')
         token = serializer.validated_data['token']
         new_password = serializer.validated_data['new_password']
 
-        user = User.objects.filter(
-            email__iexact=email,
-            is_active=True,
-        ).first()
+        user = None
+        if uid:
+            try:
+                user = User.objects.filter(
+                    pk=force_str(urlsafe_base64_decode(uid)),
+                    is_active=True,
+                ).first()
+            except (TypeError, ValueError, OverflowError):
+                user = None
+        elif email:
+            user = User.objects.filter(
+                email__iexact=email,
+                is_active=True,
+            ).first()
         token_service = PasswordResetTokenGeneratorService()
 
         if not user or not token_service.validate_token(user, token):
