@@ -374,7 +374,7 @@ class CustomerProfileSerializer(
     def validate_email(self, value):
         user = self.instance
 
-        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+        if User.objects.filter(email__iexact=value).exclude(pk=user.pk).exists():
             raise serializers.ValidationError("This email already has an account")
 
         return value
