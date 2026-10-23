@@ -141,12 +141,12 @@ class CustomerLoginSerializer(serializers.Serializer):
 
         if user.role != user.Role.CUSTOMER:
             raise serializers.ValidationError(
-                'This login is only available to customers.'
+                'Invalid email or password.'
             )
 
         if not user.is_active:
             raise serializers.ValidationError(
-                'This account is inactive.'
+                'Invalid email or password.'
             )
 
         refresh = RefreshToken.for_user(user)
@@ -209,11 +209,11 @@ class GoogleLoginSerializer(serializers.Serializer):
 
         if user.role != User.Role.CUSTOMER:
             raise serializers.ValidationError(
-                'This login is only available to customers.'
+                'Could not sign in. Please try again.'
             )
 
         if not user.is_active:
-            raise serializers.ValidationError('This account is inactive.')
+            raise serializers.ValidationError('Could not sign in. Please try again.')
 
         if user.has_usable_password():
             # Google has verified the inbox, so any password set earlier
@@ -252,12 +252,12 @@ class VendorLoginSerializer(serializers.Serializer):
 
         if user.role != user.Role.VENDOR:
             raise serializers.ValidationError(
-                'This login is only available to vendors.'
+                'Invalid email or password.'
             )
 
         if not user.is_active:
             raise serializers.ValidationError(
-                'This account is inactive.'
+                'Invalid email or password.'
             )
 
         refresh = RefreshToken.for_user(user)
@@ -291,12 +291,12 @@ class AdminLoginSerializer(serializers.Serializer):
 
         if user.role not in (user.Role.ADMIN, user.Role.SYSTEM_ADMIN):
             raise serializers.ValidationError(
-                'This login is only available to administrators.'
+                'Invalid email or password.'
             )
 
         if not user.is_active:
             raise serializers.ValidationError(
-                'This account is inactive.'
+                'Invalid email or password.'
             )
 
         refresh = RefreshToken.for_user(user)
