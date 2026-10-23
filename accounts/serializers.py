@@ -410,7 +410,8 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    uid = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
     token = serializers.CharField()
     new_password = serializers.CharField(
         write_only=True,
@@ -420,3 +421,10 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     def validate_new_password(self, value):
         validate_password(value)
         return value
+
+    def validate(self, attrs):
+        if not attrs.get('uid') and not attrs.get('email'):
+            raise serializers.ValidationError({
+                'token': 'Invalid or expired password-reset token.'
+            })
+        return attrs
