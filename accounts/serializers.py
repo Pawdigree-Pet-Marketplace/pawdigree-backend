@@ -18,8 +18,29 @@ class PhoneValidationMixin:
         return normalize_phone_number(value)
 
 
+class EmailNormalizationMixin:
+    """Stores emails lowercased and rejects case-only duplicates."""
+
+    def validate_email(self, value):
+        value = value.strip().lower()
+
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                'user with this email already exists.'
+            )
+
+        return value
+
+
+def resolve_login_email(email):
+    """Return the stored spelling of an email, matched ignoring case."""
+    user = User.objects.filter(email__iexact=email).order_by('id').first()
+    return user.email if user else email
+
+
 class CustomerRegistrationSerializer(
     PhoneValidationMixin,
+    EmailNormalizationMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -52,6 +73,7 @@ class CustomerRegistrationSerializer(
 
 class VendorRegistrationSerializer(
     PhoneValidationMixin,
+    EmailNormalizationMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -84,6 +106,7 @@ class VendorRegistrationSerializer(
 
 class AdminRegistrationSerializer(
     PhoneValidationMixin,
+    EmailNormalizationMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -130,7 +153,7 @@ class CustomerLoginSerializer(serializers.Serializer):
         password = attrs['password']
 
         user = authenticate(
-            email=email,
+            email=resolve_login_email(email),
             password=password,
         )
 
@@ -241,7 +264,7 @@ class VendorLoginSerializer(serializers.Serializer):
         password = attrs['password']
 
         user = authenticate(
-            email=email,
+            email=resolve_login_email(email),
             password=password,
         )
 
@@ -280,7 +303,7 @@ class AdminLoginSerializer(serializers.Serializer):
         password = attrs['password']
 
         user = authenticate(
-            email=email,
+            email=resolve_login_email(email),
             password=password,
         )
 
