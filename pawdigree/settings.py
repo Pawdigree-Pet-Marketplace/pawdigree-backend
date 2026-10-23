@@ -214,6 +214,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'verification': '10/minute',
         'verification_resend': '5/minute',
+        'login': '10/minute',
     },
 }
 

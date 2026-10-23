@@ -63,3 +63,14 @@ def system_admin(db):
         password="TestPassword123!",
         role=User.Role.SYSTEM_ADMIN,
     )
+
+
+@pytest.fixture(autouse=True)
+def clear_throttle_cache():
+    # Login throttling counts attempts in the cache, which is shared
+    # across tests, so reset it around every test.
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
+    cache.clear()
