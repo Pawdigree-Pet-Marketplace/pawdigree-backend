@@ -1,4 +1,4 @@
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
@@ -49,10 +49,50 @@ class PublicBusinessListView(generics.ListAPIView):
     authentication_classes = ()
 
     def get_queryset(self):
-        return Business.objects.filter(
+        approved_categories = BusinessCategory.objects.filter(
+            approval_status=BusinessCategory.ApprovalStatus.APPROVED,
+            category__is_active=True,
+        ).select_related("category")
+
+        queryset = Business.objects.filter(
             verification_status=Business.VerificationStatus.APPROVED,
             is_active=True,
+        ).prefetch_related(
+            Prefetch(
+                "business_categories",
+                queryset=approved_categories,
+            )
         )
+
+        search = self.request.query_params.get("search", "").strip()
+        city_district = self.request.query_params.get(
+            "city_district", ""
+        ).strip()
+        category = self.request.query_params.get("category", "").strip()
+
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        if city_district:
+            queryset = queryset.filter(
+                city_district__icontains=city_district
+            )
+
+        if category:
+            queryset = queryset.filter(
+                Q(
+                    business_categories__category__name__iexact=category
+                )
+                | Q(
+                    business_categories__category__slug__iexact=category
+                ),
+                business_categories__approval_status=(
+                    BusinessCategory.ApprovalStatus.APPROVED
+                ),
+                business_categories__category__is_active=True,
+            )
+
+        return queryset.distinct()
 
 
 class BusinessDetailView(generics.RetrieveUpdateAPIView):

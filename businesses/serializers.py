@@ -181,6 +181,8 @@ class BusinessSerializer(serializers.ModelSerializer):
 class PublicBusinessSerializer(serializers.ModelSerializer):
     """Public information for approved businesses."""
 
+    categories = serializers.SerializerMethodField()
+
     class Meta:
         model = Business
         fields = (
@@ -194,8 +196,15 @@ class PublicBusinessSerializer(serializers.ModelSerializer):
             "business_hours",
             "logo",
             "cover_image",
+            "categories",
         )
         read_only_fields = fields
+
+    def get_categories(self, obj) -> list[str]:
+        return [
+            business_category.category.name
+            for business_category in obj.business_categories.all()
+        ]
 
 
 class BusinessWriteSerializer(BusinessSerializer):

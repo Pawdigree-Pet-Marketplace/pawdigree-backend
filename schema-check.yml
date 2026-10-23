@@ -1,0 +1,2753 @@
+openapi: 3.0.3
+info:
+  title: Pawdigree API
+  version: 1.0.0
+paths:
+  /api/auth/businesses/register/:
+    post:
+      operationId: auth_businesses_register_create
+      description: Creates a business owned by the authenticated vendor. The vendor
+        is taken from the access token.
+      summary: Register a business
+      tags:
+      - businesses
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BusinessWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BusinessWrite'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BusinessWrite'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+          description: ''
+  /api/auth/current-user/:
+    get:
+      operationId: auth_current_user_retrieve
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+          description: ''
+  /api/auth/login/admin/:
+    post:
+      operationId: auth_login_admin_create
+      description: Authenticates an administrator or system administrator using email
+        and password and returns an access token and refresh token.
+      summary: Administrator login
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLogin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminLogin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminLogin'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLogin'
+          description: ''
+  /api/auth/login/customer/:
+    post:
+      operationId: auth_login_customer_create
+      description: Authenticates a customer using email and password and returns an
+        access token and refresh token.
+      summary: Customer login
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerLogin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerLogin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerLogin'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerLogin'
+          description: ''
+  /api/auth/login/google/:
+    post:
+      operationId: auth_login_google_create
+      description: Verifies a Google ID token and returns an access token and refresh
+        token. A customer account is created on first use.
+      summary: Customer login with Google
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleLogin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GoogleLogin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GoogleLogin'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleLogin'
+          description: ''
+  /api/auth/login/vendor/:
+    post:
+      operationId: auth_login_vendor_create
+      description: Authenticates a vendor using email and password and returns an
+        access token and refresh token.
+      summary: Vendor login
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorLogin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VendorLogin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VendorLogin'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorLogin'
+          description: ''
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: Logs out the authenticated user by blacklisting the provided refresh
+        token.
+      summary: Logout
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Logout'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Logout'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Logout'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Logout'
+          description: ''
+  /api/auth/password-reset/confirm/{uidb64}/{token}/:
+    post:
+      operationId: auth_password_reset_confirm_create
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: uidb64
+        schema:
+          type: string
+        required: true
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetConfirm'
+          description: ''
+  /api/auth/password-reset/request/:
+    post:
+      operationId: auth_password_reset_request_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetRequest'
+          description: ''
+  /api/auth/profile/:
+    get:
+      operationId: auth_profile_retrieve
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfile'
+          description: ''
+    put:
+      operationId: auth_profile_update
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerProfile'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfile'
+          description: ''
+    patch:
+      operationId: auth_profile_partial_update
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerProfile'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfile'
+          description: ''
+  /api/auth/register/admin/:
+    post:
+      operationId: auth_register_admin_create
+      description: Creates a new administrator account. Only the system admin (superuser)
+        may use this endpoint.
+      summary: Create an administrator account
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRegistration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminRegistration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminRegistration'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRegistration'
+          description: ''
+  /api/auth/register/customer/:
+    post:
+      operationId: auth_register_customer_create
+      description: Creates a new customer account. No authentication is required.
+      summary: Register a customer
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRegistration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerRegistration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerRegistration'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerRegistration'
+          description: ''
+  /api/auth/register/vendor/:
+    post:
+      operationId: auth_register_vendor_create
+      description: Creates a new vendor account. No authentication is required.
+      summary: Register a vendor
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegistration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VendorRegistration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VendorRegistration'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorRegistration'
+          description: ''
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/businesses/:
+    get:
+      operationId: businesses_list
+      tags:
+      - businesses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Business'
+          description: ''
+    post:
+      operationId: businesses_create
+      tags:
+      - businesses
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BusinessWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BusinessWrite'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BusinessWrite'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+          description: ''
+  /api/businesses/{business_id}/category-requests/:
+    post:
+      operationId: businesses_category_requests_create
+      description: Allow a vendor to request categories for their own business.
+      parameters:
+      - in: path
+        name: business_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - businesses
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRequest'
+          description: ''
+  /api/businesses/{id}/:
+    get:
+      operationId: businesses_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - businesses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+          description: ''
+    put:
+      operationId: businesses_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - businesses
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Business'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Business'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Business'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+          description: ''
+    patch:
+      operationId: businesses_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - businesses
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBusiness'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBusiness'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBusiness'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+          description: ''
+  /api/businesses/{id}/response/:
+    post:
+      operationId: businesses_response_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - businesses
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VendorResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VendorResponse'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorResponse'
+          description: ''
+  /api/businesses/public/:
+    get:
+      operationId: businesses_public_list
+      description: Public listing of active businesses whose verification status is
+        approved. Authentication is not required.
+      summary: List approved vendors
+      tags:
+      - businesses
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicBusiness'
+          description: ''
+  /api/businesses/verification-status/:
+    get:
+      operationId: businesses_verification_status_list
+      description: Lists the authenticated vendor's businesses with their verification
+        status, the administrator's decision, and the approval status of each requested
+        category. A vendor can sell under a category only when the business and that
+        category are both approved.
+      summary: Vendor verification status
+      tags:
+      - businesses
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessVerificationStatus'
+          description: ''
+  /api/categories/:
+    get:
+      operationId: categories_list
+      description: Show inactive categories only to administrators.
+      tags:
+      - categories
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+          description: ''
+    post:
+      operationId: categories_create
+      description: Show inactive categories only to administrators.
+      tags:
+      - categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Category'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Category'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/categories/{id}/:
+    get:
+      operationId: categories_retrieve
+      description: Show inactive categories only to administrators.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - categories
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    put:
+      operationId: categories_update
+      description: Show inactive categories only to administrators.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Category'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Category'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    patch:
+      operationId: categories_partial_update
+      description: Show inactive categories only to administrators.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    delete:
+      operationId: categories_destroy
+      description: Show inactive categories only to administrators.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - categories
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/country-codes/:
+    get:
+      operationId: country_codes_list
+      tags:
+      - country-codes
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CountryCode'
+          description: ''
+  /api/documents/:
+    post:
+      operationId: documents_create
+      description: Allows an authenticated vendor to upload a document for a business
+        they own.
+      summary: Upload a business verification document
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BusinessDocumentUpload'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BusinessDocumentUpload'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessDocumentUpload'
+          description: ''
+  /api/documents/{document_id}/download/:
+    get:
+      operationId: documents_download_retrieve
+      description: Only administrators can open uploaded documents.
+      summary: Open a business verification document
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /api/notifications/:
+    get:
+      operationId: notifications_list
+      description: Newest first. Use ?is_read=false to see only unread ones.
+      summary: List my notifications
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNotificationList'
+          description: ''
+  /api/notifications/{id}/read/:
+    post:
+      operationId: notifications_read_create
+      description: Every view only ever sees the caller's own notifications.
+      summary: Mark one notification as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/notifications/mark-all-read/:
+    post:
+      operationId: notifications_mark_all_read_create
+      description: Every view only ever sees the caller's own notifications.
+      summary: Mark all my notifications as read
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCount'
+          description: ''
+  /api/notifications/unread-count/:
+    get:
+      operationId: notifications_unread_count_retrieve
+      description: Every view only ever sees the caller's own notifications.
+      summary: Unread notification count
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCount'
+          description: ''
+  /api/pets/:
+    get:
+      operationId: pets_list
+      description: Allows authenticated vendors to view their own pet listings and
+        create new listings for businesses they own.
+      summary: List or create pet listings
+      tags:
+      - pets
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+          description: ''
+    post:
+      operationId: pets_create
+      description: Allows authenticated vendors to view their own pet listings and
+        create new listings for businesses they own.
+      summary: List or create pet listings
+      tags:
+      - pets
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+          description: ''
+  /api/pets/{id}/:
+    delete:
+      operationId: pets_destroy
+      description: Soft-deletes one of the authenticated vendor's own listings. The
+        row is kept with is_active set to false.
+      summary: Deactivate a pet listing
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - pets
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/pets/{id}/edit/:
+    put:
+      operationId: pets_edit_update
+      description: Lets a vendor edit one of their own active listings, including
+        its photos. Send new files in 'images', ids to delete in 'remove_image_ids'
+        and the id of the main photo in 'primary_image_id'. Every edit sets approved
+        back to false so the listing is reviewed again.
+      summary: Edit a pet listing
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - pets
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+          description: ''
+    patch:
+      operationId: pets_edit_partial_update
+      description: Lets a vendor edit one of their own active listings, including
+        its photos. Send new files in 'images', ids to delete in 'remove_image_ids'
+        and the id of the main photo in 'primary_image_id'. Every edit sets approved
+        back to false so the listing is reviewed again.
+      summary: Edit a pet listing
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - pets
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPet'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPet'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPet'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+          description: ''
+  /api/pets/admin/{id}/:
+    delete:
+      operationId: pets_admin_destroy
+      description: Lets an admin or system admin deactivate any vendor's active listing.
+        The row is kept with is_active set to false.
+      summary: Deactivate any pet listing (administrators)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - pets
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/pets/admin/{id}/approve/:
+    post:
+      operationId: pets_admin_approve_create
+      description: Makes the listing public and notifies the vendor.
+      summary: Approve a pet listing (administrators)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - pets
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+          description: ''
+  /api/pets/admin/{id}/reject/:
+    post:
+      operationId: pets_admin_reject_create
+      description: Hides the listing, stores the reason and notifies the vendor. The
+        vendor can edit the listing to send it for review again.
+      summary: Reject a pet listing (administrators)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - pets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PetReject'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PetReject'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PetReject'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+          description: ''
+  /api/pets/admin/pending/:
+    get:
+      operationId: pets_admin_pending_list
+      description: Active listings that are neither approved nor rejected, oldest
+        first.
+      summary: List listings waiting for review (administrators)
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - pets
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPetList'
+          description: ''
+  /api/pets/public/:
+    get:
+      operationId: pets_public_list
+      description: Public list of approved, active pet listings. Open to everyone,
+        logged in or not. Deactivated and unapproved listings are never included,
+        whatever filters are used.
+      summary: Browse pet listings
+      parameters:
+      - in: query
+        name: age_max
+        schema:
+          type: integer
+        description: Maximum age in months.
+      - in: query
+        name: age_min
+        schema:
+          type: integer
+        description: Minimum age in months.
+      - in: query
+        name: breed
+        schema:
+          type: string
+        description: Exact breed, any case.
+      - in: query
+        name: gender
+        schema:
+          type: string
+          enum:
+          - FEMALE
+          - MALE
+          - UNKNOWN
+      - in: query
+        name: listing_type
+        schema:
+          type: string
+          enum:
+          - ADOPTION
+          - SALE
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Matches name, breed, species or description.
+      tags:
+      - pets
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicPetList'
+          description: ''
+components:
+  schemas:
+    AdminLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    AdminRegistration:
+      type: object
+      description: Validates and normalizes the phone field to international format.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+      required:
+      - email
+      - id
+      - password
+      - role
+      - username
+    AdoptionStatusEnum:
+      enum:
+      - AVAILABLE
+      - PENDING
+      - ADOPTED
+      type: string
+      description: |-
+        * `AVAILABLE` - Available
+        * `PENDING` - Pending
+        * `ADOPTED` - Adopted
+    ApprovalStatusEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `approved` - Approved
+        * `rejected` - Rejected
+    Business:
+      type: object
+      description: Validates and serializes vendor business information.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+        contact:
+          type: string
+          maxLength: 30
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        address:
+          type: string
+          maxLength: 255
+        city_district:
+          type: string
+          maxLength: 100
+        business_hours:
+          type: object
+          properties:
+            monday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            tuesday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            wednesday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            thursday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            friday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            saturday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            sunday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+          required:
+          - monday
+          - tuesday
+          - wednesday
+          - thursday
+          - friday
+          - saturday
+          - sunday
+          additionalProperties: false
+        logo:
+          type: string
+          format: binary
+          nullable: true
+        cover_image:
+          type: string
+          format: binary
+          nullable: true
+        category:
+          type: integer
+          writeOnly: true
+        verification_status:
+          allOf:
+          - $ref: '#/components/schemas/VerificationStatusEnum'
+          readOnly: true
+      required:
+      - address
+      - city_district
+      - contact
+      - description
+      - email
+      - id
+      - name
+      - verification_status
+    BusinessCategoryStatus:
+      type: object
+      description: A category the business asked to sell under, and its approval.
+      properties:
+        category_id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        approval_status:
+          allOf:
+          - $ref: '#/components/schemas/ApprovalStatusEnum'
+          readOnly: true
+        can_sell:
+          type: boolean
+          readOnly: true
+      required:
+      - approval_status
+      - can_sell
+      - category_id
+      - name
+    BusinessDocumentUpload:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          readOnly: true
+        business:
+          type: string
+          format: uuid
+        document_type:
+          $ref: '#/components/schemas/DocumentTypeEnum'
+        file:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - business
+      - created_at
+      - document_id
+      - file
+    BusinessVerificationStatus:
+      type: object
+      description: A vendor's view of one business's verification and selling status.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        verification_status:
+          allOf:
+          - $ref: '#/components/schemas/VerificationStatusEnum'
+          readOnly: true
+        decision_reason:
+          type: string
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+          readOnly: true
+        can_sell:
+          type: boolean
+          readOnly: true
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/BusinessCategoryStatus'
+          readOnly: true
+      required:
+      - can_sell
+      - categories
+      - decision_reason
+      - id
+      - is_active
+      - name
+      - reviewed_at
+      - verification_status
+    BusinessWrite:
+      type: object
+      description: Serializer used for create/update request bodies in Swagger and
+        DRF.
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+        contact:
+          type: string
+          maxLength: 30
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        address:
+          type: string
+          maxLength: 255
+        city_district:
+          type: string
+          maxLength: 100
+        business_hours:
+          type: object
+          properties:
+            monday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            tuesday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            wednesday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            thursday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            friday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            saturday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            sunday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+          required:
+          - monday
+          - tuesday
+          - wednesday
+          - thursday
+          - friday
+          - saturday
+          - sunday
+          additionalProperties: false
+        logo:
+          type: string
+          format: binary
+          nullable: true
+        cover_image:
+          type: string
+          format: binary
+          nullable: true
+        category:
+          type: integer
+          writeOnly: true
+      required:
+      - address
+      - city_district
+      - contact
+      - description
+      - email
+      - name
+    Category:
+      type: object
+      description: Validates and serializes marketplace categories.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - id
+      - name
+      - slug
+    CategoryRequest:
+      type: object
+      description: Validates the categories a vendor wants to offer through a business.
+      properties:
+        category_ids:
+          type: array
+          items:
+            type: integer
+      required:
+      - category_ids
+    CountryCode:
+      type: object
+      properties:
+        country:
+          type: string
+        iso_code:
+          type: string
+        dial_code:
+          type: string
+      required:
+      - country
+      - dial_code
+      - iso_code
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        phone:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        isActive:
+          type: boolean
+          readOnly: true
+        accountStatus:
+          type: string
+          readOnly: true
+      required:
+      - accountStatus
+      - email
+      - first_name
+      - id
+      - isActive
+      - last_name
+      - phone
+      - role
+      - username
+    CustomerLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    CustomerProfile:
+      type: object
+      description: Validates and normalizes the phone field to international format.
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+      required:
+      - email
+      - username
+    CustomerRegistration:
+      type: object
+      description: Validates and normalizes the phone field to international format.
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - email
+      - password
+      - phone
+      - username
+    DocumentTypeEnum:
+      enum:
+      - REGISTRATION
+      - TAX
+      - OTHER
+      type: string
+      description: |-
+        * `REGISTRATION` - Business registration
+        * `TAX` - Tax document
+        * `OTHER` - Other
+    GenderEnum:
+      enum:
+      - MALE
+      - FEMALE
+      - UNKNOWN
+      type: string
+      description: |-
+        * `MALE` - Male
+        * `FEMALE` - Female
+        * `UNKNOWN` - Unknown
+    GoogleLogin:
+      type: object
+      properties:
+        credential:
+          type: string
+          writeOnly: true
+      required:
+      - credential
+    ListingTypeEnum:
+      enum:
+      - ADOPTION
+      - SALE
+      type: string
+      description: |-
+        * `ADOPTION` - Adoption
+        * `SALE` - For Sale
+    Logout:
+      type: object
+      properties:
+        refresh:
+          type: string
+      required:
+      - refresh
+    Notification:
+      type: object
+      properties:
+        notification_id:
+          type: integer
+          readOnly: true
+        type:
+          allOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        reference_id:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Id of the object this notification is about, e.g. a pet.
+        is_read:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - is_read
+      - message
+      - notification_id
+      - reference_id
+      - type
+      - updated_at
+    PaginatedNotificationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+    PaginatedPetList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pet'
+    PaginatedPublicPetList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicPet'
+    PasswordResetConfirm:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - email
+      - new_password
+      - token
+    PasswordResetRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    PatchedBusiness:
+      type: object
+      description: Validates and serializes vendor business information.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+        contact:
+          type: string
+          maxLength: 30
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        address:
+          type: string
+          maxLength: 255
+        city_district:
+          type: string
+          maxLength: 100
+        business_hours:
+          type: object
+          properties:
+            monday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            tuesday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            wednesday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            thursday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            friday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            saturday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+            sunday:
+              type: object
+              properties:
+                is_open:
+                  type: boolean
+                open:
+                  type: string
+                  format: time
+                close:
+                  type: string
+                  format: time
+              required:
+              - is_open
+              - open
+              - close
+              additionalProperties: false
+          required:
+          - monday
+          - tuesday
+          - wednesday
+          - thursday
+          - friday
+          - saturday
+          - sunday
+          additionalProperties: false
+        logo:
+          type: string
+          format: binary
+          nullable: true
+        cover_image:
+          type: string
+          format: binary
+          nullable: true
+        category:
+          type: integer
+          writeOnly: true
+        verification_status:
+          allOf:
+          - $ref: '#/components/schemas/VerificationStatusEnum'
+          readOnly: true
+    PatchedCategory:
+      type: object
+      description: Validates and serializes marketplace categories.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+        is_active:
+          type: boolean
+    PatchedCustomerProfile:
+      type: object
+      description: Validates and normalizes the phone field to international format.
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+    PatchedPet:
+      type: object
+      description: Serialize pet listings. Images are saved by the view.
+      properties:
+        pet_id:
+          type: integer
+          readOnly: true
+        vendor:
+          type: integer
+          readOnly: true
+        business:
+          type: string
+          format: uuid
+        listing_type:
+          $ref: '#/components/schemas/ListingTypeEnum'
+        name:
+          type: string
+          maxLength: 100
+        species:
+          type: string
+          maxLength: 100
+        breed:
+          type: string
+          maxLength: 100
+        age:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Age in months
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        size:
+          $ref: '#/components/schemas/SizeEnum'
+        description:
+          type: string
+        approved:
+          type: boolean
+          readOnly: true
+        review_status:
+          type: string
+          readOnly: true
+        rejection_reason:
+          type: string
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+          readOnly: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Price is required for pets listed for sale.
+        adoption_status:
+          $ref: '#/components/schemas/AdoptionStatusEnum'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PetImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    Pet:
+      type: object
+      description: Serialize pet listings. Images are saved by the view.
+      properties:
+        pet_id:
+          type: integer
+          readOnly: true
+        vendor:
+          type: integer
+          readOnly: true
+        business:
+          type: string
+          format: uuid
+        listing_type:
+          $ref: '#/components/schemas/ListingTypeEnum'
+        name:
+          type: string
+          maxLength: 100
+        species:
+          type: string
+          maxLength: 100
+        breed:
+          type: string
+          maxLength: 100
+        age:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Age in months
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        size:
+          $ref: '#/components/schemas/SizeEnum'
+        description:
+          type: string
+        approved:
+          type: boolean
+          readOnly: true
+        review_status:
+          type: string
+          readOnly: true
+        rejection_reason:
+          type: string
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+          readOnly: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          description: Price is required for pets listed for sale.
+        adoption_status:
+          $ref: '#/components/schemas/AdoptionStatusEnum'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PetImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - age
+      - approved
+      - business
+      - created_at
+      - gender
+      - images
+      - is_active
+      - name
+      - pet_id
+      - rejection_reason
+      - review_status
+      - reviewed_at
+      - size
+      - updated_at
+      - vendor
+    PetImage:
+      type: object
+      properties:
+        image_id:
+          type: integer
+          readOnly: true
+        image:
+          type: string
+          format: uri
+        is_primary:
+          type: boolean
+        position:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - image
+      - image_id
+    PetReject:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+      required:
+      - reason
+    PublicBusiness:
+      type: object
+      description: Public information for approved businesses.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        contact:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        address:
+          type: string
+          readOnly: true
+        city_district:
+          type: string
+          readOnly: true
+        business_hours:
+          readOnly: true
+        logo:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        cover_image:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        categories:
+          type: array
+          items:
+            type: string
+          readOnly: true
+      required:
+      - address
+      - business_hours
+      - categories
+      - city_district
+      - contact
+      - cover_image
+      - description
+      - email
+      - id
+      - logo
+      - name
+    PublicPet:
+      type: object
+      description: 'Customer-facing listing: no vendor id and no internal flags.'
+      properties:
+        pet_id:
+          type: integer
+          readOnly: true
+        business:
+          type: string
+          format: uuid
+          readOnly: true
+        listing_type:
+          allOf:
+          - $ref: '#/components/schemas/ListingTypeEnum'
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        species:
+          type: string
+          readOnly: true
+        breed:
+          type: string
+          readOnly: true
+        age:
+          type: integer
+          readOnly: true
+          description: Age in months
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          readOnly: true
+        size:
+          allOf:
+          - $ref: '#/components/schemas/SizeEnum'
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+          description: Price is required for pets listed for sale.
+        adoption_status:
+          allOf:
+          - $ref: '#/components/schemas/AdoptionStatusEnum'
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PetImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - adoption_status
+      - age
+      - breed
+      - business
+      - created_at
+      - description
+      - gender
+      - images
+      - listing_type
+      - name
+      - pet_id
+      - price
+      - size
+      - species
+    RoleEnum:
+      enum:
+      - CUSTOMER
+      - VENDOR
+      - ADMIN
+      - SYSTEM_ADMIN
+      type: string
+      description: |-
+        * `CUSTOMER` - Customer
+        * `VENDOR` - Vendor
+        * `ADMIN` - Admin
+        * `SYSTEM_ADMIN` - System Admin
+    SizeEnum:
+      enum:
+      - SMALL
+      - MEDIUM
+      - LARGE
+      type: string
+      description: |-
+        * `SMALL` - Small
+        * `MEDIUM` - Medium
+        * `LARGE` - Large
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TypeEnum:
+      enum:
+      - LISTING_APPROVED
+      - LISTING_REJECTED
+      - LISTING_PENDING
+      type: string
+      description: |-
+        * `LISTING_APPROVED` - Listing approved
+        * `LISTING_REJECTED` - Listing rejected
+        * `LISTING_PENDING` - Listing pending
+    UnreadCount:
+      type: object
+      properties:
+        unread:
+          type: integer
+      required:
+      - unread
+    VendorLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    VendorRegistration:
+      type: object
+      description: Validates and normalizes the phone field to international format.
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - email
+      - password
+      - phone
+      - username
+    VendorResponse:
+      type: object
+      description: Validates a vendor's response to requested business changes.
+      properties:
+        vendor_response:
+          type: string
+          maxLength: 5000
+      required:
+      - vendor_response
+    VerificationStatusEnum:
+      enum:
+      - draft
+      - pending
+      - changes_requested
+      - approved
+      - suspended
+      - rejected
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `pending` - Pending
+        * `changes_requested` - Changes requested
+        * `approved` - Approved
+        * `suspended` - Suspended
+        * `rejected` - Rejected
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: auth
+  description: Accounts, login and registration
+- name: businesses
+  description: Vendor businesses
+- name: categories
+  description: Marketplace categories

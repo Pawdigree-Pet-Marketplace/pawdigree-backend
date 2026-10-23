@@ -10,7 +10,8 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User
-from businesses.models import Business
+from businesses.models import Business, BusinessCategory
+from categories.models import Category
 
 
 def make_uploaded_image(filename="test.png", format_name="PNG", color=(255, 0, 0)):
@@ -499,3 +500,62 @@ class TestPublicBusinessListing:
         assert str(business.id) not in {
             str(item["id"]) for item in get_results(response)
         }
+
+    def test_public_listing_searches_by_name(self, api_client, business):
+        business.verification_status = Business.VerificationStatus.APPROVED
+        business.save()
+
+        response = api_client.get(
+            reverse("business-public-list"),
+            {"search": "Happy"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        results = get_results(response)
+        assert str(business.id) in {
+            str(item["id"]) for item in results
+        }
+
+    def test_public_listing_filters_by_city_district(
+        self, api_client, business
+    ):
+        business.verification_status = Business.VerificationStatus.APPROVED
+        business.save()
+
+        response = api_client.get(
+            reverse("business-public-list"),
+            {"city_district": "Kampala"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        results = get_results(response)
+        assert str(business.id) in {
+            str(item["id"]) for item in results
+        }
+
+    def test_public_listing_filters_by_approved_category(
+        self, api_client, business
+    ):
+        business.verification_status = Business.VerificationStatus.APPROVED
+        business.save()
+
+        category = Category.objects.create(name="Veterinary")
+        BusinessCategory.objects.create(
+            business=business,
+            category=category,
+            approval_status=BusinessCategory.ApprovalStatus.APPROVED,
+        )
+
+        response = api_client.get(
+            reverse("business-public-list"),
+            {"category": "veterinary"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        results = get_results(response)
+
+        matching_business = next(
+            item for item in results
+            if str(item["id"]) == str(business.id)
+        )
+        assert "Veterinary" in matching_business["categories"]
