@@ -430,3 +430,12 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 'token': 'Invalid or expired password-reset token.'
             })
         return attrs
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    verification_token = serializers.CharField(write_only=True)
+    code = serializers.CharField(write_only=True, max_length=10)
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    verification_token = serializers.CharField(write_only=True)

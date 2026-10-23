@@ -205,6 +205,10 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_RATES': {
+        'verification': '10/minute',
+        'verification_resend': '5/minute',
+    },
 }
 
 SIMPLE_JWT = {

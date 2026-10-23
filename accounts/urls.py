@@ -18,7 +18,14 @@ from .views import (
     VendorRegistrationView,
 )
 
+from .verification_views import (
+    ResendVerificationView,
+    VerifyEmailView,
+)
+
 urlpatterns = [
+    path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
+    path('verify-email/resend/', ResendVerificationView.as_view(), name='verify-email-resend'),
     path(
         'businesses/register/',
         BusinessRegistrationView.as_view(),

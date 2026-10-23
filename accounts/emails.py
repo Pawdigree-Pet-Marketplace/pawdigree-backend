@@ -55,3 +55,41 @@ def send_welcome_email(user):
         return False
 
     return True
+
+
+def send_verification_email(user, code, expires_minutes):
+    """Email the one-time verification code.
+
+    Never raises: a mail problem must not break the login flow.
+    Returns True if the email was handed to the mail backend.
+    """
+    context = {
+        "user": user,
+        "code": code,
+        "expires_minutes": expires_minutes,
+        "frontend_url": settings.FRONTEND_URL,
+    }
+
+    try:
+        text_body = render_to_string(
+            "accounts/emails/verification_code.txt", context
+        )
+        html_body = render_to_string(
+            "accounts/emails/verification_code.html", context
+        )
+
+        message = EmailMultiAlternatives(
+            subject="Your Pawdigree verification code",
+            body=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email],
+        )
+        message.attach_alternative(html_body, "text/html")
+        message.send(fail_silently=False)
+    except Exception:
+        logger.exception(
+            "Could not send verification email to user %s", user.pk
+        )
+        return False
+
+    return True

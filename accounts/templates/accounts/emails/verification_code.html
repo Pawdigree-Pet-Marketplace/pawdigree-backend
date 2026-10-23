@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #222;">
+    <p>Hi {{ user.first_name|default:user.username }},</p>
+    <p>Your Pawdigree verification code is:</p>
+    <p style="font-size: 28px; font-weight: bold; letter-spacing: 6px;">{{ code }}</p>
+    <p>It expires in {{ expires_minutes }} minutes. If you did not try to log in, you can ignore this email.</p>
+  </body>
+</html>
