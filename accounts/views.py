@@ -13,6 +13,7 @@ from django.db import transaction
 from common.permissions import IsCustomer, IsSystemAdmin
 
 from .password_reset import PasswordResetTokenGeneratorService
+from .token_utils import revoke_user_tokens
 from .emails import send_welcome_email
 from .serializers import (
     AdminLoginSerializer,
@@ -317,6 +318,7 @@ class PasswordResetConfirmView(generics.GenericAPIView):
 
         user.set_password(new_password)
         user.save(update_fields=['password'])
+        revoke_user_tokens(user)
 
         return Response(
             {'detail': 'Password has been reset successfully.'},
