@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.phone import normalize_phone_number
 
 from .google_auth import GoogleTokenError, verify_google_token
+from .token_utils import revoke_user_tokens
 
 User = get_user_model()
 
@@ -245,6 +246,7 @@ class GoogleLoginSerializer(serializers.Serializer):
             # may belong to someone else.
             user.set_unusable_password()
             user.save(update_fields=['password'])
+            revoke_user_tokens(user)
 
         refresh = RefreshToken.for_user(user)
 
