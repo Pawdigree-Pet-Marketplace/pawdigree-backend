@@ -46,6 +46,7 @@ class CustomerRegistrationSerializer(
     password = serializers.CharField(
         write_only=True,
         min_length=8,
+        validators=[validate_password],
     )
 
     phone = serializers.CharField(
@@ -79,6 +80,7 @@ class VendorRegistrationSerializer(
     password = serializers.CharField(
         write_only=True,
         min_length=8,
+        validators=[validate_password],
     )
 
     phone = serializers.CharField(
