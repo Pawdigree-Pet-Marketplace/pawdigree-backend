@@ -1,9 +1,46 @@
 <!DOCTYPE html>
-<html>
-  <body style="font-family: Arial, sans-serif; color: #222;">
-    <p>Hi {{ user.first_name|default:user.username }},</p>
-    <p>Your Pawdigree verification code is:</p>
-    <p style="font-size: 28px; font-weight: bold; letter-spacing: 6px;">{{ code }}</p>
-    <p>It expires in {{ expires_minutes }} minutes. If you did not try to log in, you can ignore this email.</p>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Your Pawdigree verification code</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#F3F0EA; font-family:Arial, Helvetica, sans-serif; color:#2C302F;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F0EA; padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px; width:100%; background-color:#FBFAF7; border-radius:12px; overflow:hidden;">
+            <tr>
+              <td style="background-color:#216C68; padding:20px 24px; color:#FCFDFC; font-size:22px; font-weight:bold;">
+                Pawdigree
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 24px 8px 24px; font-size:16px; line-height:24px;">
+                <p style="margin:0 0 12px 0;">Hi {{ user.first_name|default:user.username }},</p>
+                <p style="margin:0;">Use this code to verify your email address:</p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:16px 24px;">
+                <div style="display:inline-block; background-color:#F3F0EA; border:2px solid #FB8665; border-radius:10px; padding:14px 28px; font-size:32px; font-weight:bold; letter-spacing:8px; color:#216C68;">
+                  {{ code }}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 24px 28px 24px; font-size:14px; line-height:22px; color:#2C302F;">
+                <p style="margin:0 0 8px 0;">This code expires in {{ expires_minutes }} minutes.</p>
+                <p style="margin:0;">If you did not try to log in, you can ignore this email.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color:#DCE2DF; padding:14px 24px; font-size:12px; color:#2C302F;">
+                Pawdigree
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
