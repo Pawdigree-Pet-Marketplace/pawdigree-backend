@@ -100,6 +100,18 @@ class Pet(models.Model):
 
     class Meta:
         ordering = ["-created_at",]
+        indexes = [
+            # Serves the public pet list: only visible pets, newest first.
+            models.Index(
+                fields=["-created_at"],
+                name="pet_public_created_idx",
+                condition=models.Q(
+                    approved=True,
+                    is_active=True,
+                    adoption_status="AVAILABLE",
+                ),
+            ),
+        ]
 
     def clean(self):
         """A sale listing needs a positive price; an adoption must have none."""
