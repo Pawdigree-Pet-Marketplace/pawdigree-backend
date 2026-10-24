@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models.functions import Upper
 
 
 class User(AbstractUser):
@@ -29,6 +30,11 @@ class User(AbstractUser):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ('username',)
+
+    class Meta(AbstractUser.Meta):
+        indexes = [
+            models.Index(Upper('email'), name='user_email_upper_idx'),
+        ]
 
 
 class EmailVerificationCode(models.Model):
