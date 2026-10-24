@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'businesses',
     'marketplace',
     'pets',
+    'products',
     'documents',
     'notification',
     "phonenumber_field",
