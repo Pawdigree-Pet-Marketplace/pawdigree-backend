@@ -1,6 +1,9 @@
+from email.mime.image import MIMEImage
+from pathlib import Path
+
+from django.conf import settings
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
@@ -270,6 +273,19 @@ class PasswordResetRequestView(generics.GenericAPIView):
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 to=[user.email],
             )
+
+            logo_path = (
+                Path(__file__).parent / 'email_assets' / 'pawdigree-logo.svg'
+            )
+            with logo_path.open('rb') as logo_file:
+                logo = MIMEImage(logo_file.read(), _subtype='svg+xml')
+            logo.add_header('Content-ID', '<pawdigree-logo>')
+            logo.add_header(
+                'Content-Disposition',
+                'inline',
+                filename='pawdigree-logo.svg',
+            )
+            email_message.attach(logo)
 
             # Attach your HTML design as an alternative.
             email_message.attach_alternative(
