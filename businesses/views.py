@@ -109,10 +109,22 @@ class BusinessDetailView(generics.RetrieveUpdateAPIView):
         return Business.objects.filter(vendor=self.request.user)
 
     def perform_update(self, serializer):
-        serializer.save(
-            verification_status=Business.VerificationStatus.PENDING,
-            reviewed_at=None,
+    # Editing sends a business back for review, but never lets a
+    # suspended or rejected one reopen itself.
+        resubmittable = (
+            Business.VerificationStatus.DRAFT,
+            Business.VerificationStatus.CHANGES_REQUESTED,
+            Business.VerificationStatus.APPROVED,
         )
+        if serializer.instance.verification_status in resubmittable:
+            serializer.save(
+                verification_status=Business.VerificationStatus.PENDING,
+                reviewed_at=None,
+            )
+        else:
+            serializer.save()
+
+        sync_vendor_approval(self.request.user)
 
 
 @extend_schema(
