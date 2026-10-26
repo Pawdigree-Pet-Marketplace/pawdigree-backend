@@ -183,20 +183,30 @@ class VendorBusinessResponseView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         business = self.get_object()
+
+        if business.verification_status != Business.VerificationStatus.CHANGES_REQUESTED:
+            raise serializers.ValidationError(
+                "There are no requested changes to respond to."
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         business.vendor_response = serializer.validated_data["vendor_response"]
-        business.save(update_fields=["vendor_response", "updated_at"])
+        business.verification_status = Business.VerificationStatus.PENDING
+        business.reviewed_at = None
+        business.save(update_fields=[
+            "vendor_response", "verification_status", "reviewed_at", "updated_at",
+        ])
 
         return Response(
             {
                 "id": str(business.pk),
                 "vendor_response": business.vendor_response,
+                "verification_status": business.verification_status,
             },
             status=status.HTTP_200_OK,
         )
-
 
 class BusinessCategoryRequestView(generics.GenericAPIView):
     """Allow a vendor to request categories for their own business."""
