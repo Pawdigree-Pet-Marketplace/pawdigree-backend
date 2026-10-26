@@ -9,8 +9,8 @@ from django.core import signing
 from django.db import transaction
 from django.utils import timezone
 
-from .models import EmailVerificationCode, User
 from .emails import send_verification_email
+from .models import EmailVerificationCode, User
 
 CODE_LENGTH = 6
 CODE_TTL = timedelta(minutes=10)
@@ -119,20 +119,34 @@ def mask_email(email):
     return f'{name[:1]}***@{domain}'
 
 
+def send_new_code(user):
+    """Issue a code and email it. Returns True only if the email was sent.
+
+    If sending fails, the unsent code is removed so the user can retry
+    straight away instead of waiting out the cooldown.
+    """
+    code = issue_code(user)
+    sent = send_verification_email(
+        user,
+        code,
+        expires_minutes=int(CODE_TTL.total_seconds() // 60),
+    )
+    if not sent:
+        EmailVerificationCode.objects.filter(user=user).delete()
+    return sent
+
+
 def start_verification(user):
     """Send a code unless one was just sent, and build the login response."""
+    email_sent = True
     if seconds_until_resend(user) == 0:
-        code = issue_code(user)
-        send_verification_email(
-            user,
-            code,
-            expires_minutes=int(CODE_TTL.total_seconds() // 60),
-        )
+        email_sent = send_new_code(user)
 
     return {
         'verification_required': True,
         'verification_token': make_verification_token(user),
         'email': mask_email(user.email),
+        'email_sent': email_sent,
         'expires_in': int(CODE_TTL.total_seconds()),
         'resend_available_in': seconds_until_resend(user),
     }

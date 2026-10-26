@@ -5,7 +5,6 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .emails import send_verification_email
 from .serializers import (
     ResendVerificationSerializer,
     VerifyEmailSerializer,
@@ -14,9 +13,9 @@ from .verification import (
     CODE_TTL,
     RESEND_COOLDOWN,
     check_code,
-    issue_code,
     read_verification_token,
     seconds_until_resend,
+    send_new_code,
 )
 
 SESSION_EXPIRED = 'Your session has expired. Please log in again.'
@@ -97,12 +96,11 @@ class ResendVerificationView(generics.GenericAPIView):
                 headers={'Retry-After': str(wait)},
             )
 
-        code = issue_code(user)
-        send_verification_email(
-            user,
-            code,
-            expires_minutes=int(CODE_TTL.total_seconds() // 60),
-        )
+        if not send_new_code(user):
+            return Response(
+                {'detail': "We couldn't send the email. Please try again."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         return Response({
             'detail': 'A new verification code has been sent.',
