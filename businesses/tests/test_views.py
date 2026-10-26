@@ -9,7 +9,6 @@ from PIL import Image, PngImagePlugin
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from accounts.models import User
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
 
@@ -374,6 +373,11 @@ class TestBusinessViews:
     def test_vendor_response_is_saved(
         self, api_client, vendor, business
     ):
+        business.verification_status = (
+            Business.VerificationStatus.CHANGES_REQUESTED
+        )
+        business.save(update_fields=["verification_status"])
+
         api_client.force_authenticate(user=vendor)
 
         response = api_client.post(
@@ -390,6 +394,27 @@ class TestBusinessViews:
         assert business.vendor_response == (
             "I corrected the requested documents."
         )
+        assert business.verification_status == (
+            Business.VerificationStatus.PENDING
+        )
+
+    def test_vendor_cannot_respond_when_no_changes_requested(
+        self, api_client, vendor, business
+    ):
+        api_client.force_authenticate(user=vendor)
+
+        response = api_client.post(
+            reverse(
+                "business-vendor-response",
+                kwargs={"pk": business.pk},
+            ),
+            {"vendor_response": "Nothing to respond to."},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        business.refresh_from_db()
+        assert business.vendor_response != "Nothing to respond to."
 
     def test_vendor_cannot_respond_to_another_business(
         self, api_client, vendor, another_vendor
