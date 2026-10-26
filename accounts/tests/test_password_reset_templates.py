@@ -1,9 +1,10 @@
+from html import unescape
+
 import pytest
 from django.template.loader import render_to_string
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-from html import unescape
 
 from accounts.models import User
 
@@ -88,9 +89,5 @@ def test_password_reset_request_sends_html_email(mailoutbox, settings):
     assert content_type == 'text/html'
     assert 'Pawdigree' in html_content
     assert '/reset-password/?uid=' in html_content
-    assert 'src="cid:pawdigree-logo"' in html_content
-    assert len(email.attachments) == 1
-    logo = email.attachments[0]
-    assert logo.get_content_type() == 'image/svg+xml'
-    assert logo['Content-ID'] == '<pawdigree-logo>'
-    assert logo['Content-Disposition'].startswith('inline')
+    assert 'cid:' not in html_content
+    assert email.attachments == []
