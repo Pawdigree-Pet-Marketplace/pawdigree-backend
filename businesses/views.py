@@ -1,22 +1,30 @@
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
+from django.db import transaction
+from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework.pagination import PageNumberPagination
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics, status
+from rest_framework import generics, status, serializers
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from common.permissions import IsVendor
 
-from .models import Business, BusinessCategory
+from common.permissions import IsAdmin, IsVendor
+from .services import sync_vendor_approval
+from .models import Business, BusinessCategory, BusinessDecision
 from .serializers import (
     BusinessSerializer,
     BusinessCategoryStatusSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
+    AdminBusinessReviewSerializer,
     CategoryRequestSerializer,
     PublicBusinessSerializer,
     VendorResponseSerializer,
+    BusinessDecisionHistorySerializer,
+    BusinessDecisionInputSerializer,
 )
 
 PARSERS = (MultiPartParser, FormParser, JSONParser)
@@ -104,10 +112,23 @@ class BusinessDetailView(generics.RetrieveUpdateAPIView):
         return Business.objects.filter(vendor=self.request.user)
 
     def perform_update(self, serializer):
-        serializer.save(
-            verification_status=Business.VerificationStatus.PENDING,
-            reviewed_at=None,
+        # Editing a live or under-review business sends it back for review.
+        # Drafts stay drafts until submitted, and suspended or rejected
+        # businesses can't reopen themselves by editing.
+        goes_back_to_review = (
+            Business.VerificationStatus.PENDING,
+            Business.VerificationStatus.CHANGES_REQUESTED,
+            Business.VerificationStatus.APPROVED,
         )
+        if serializer.instance.verification_status in goes_back_to_review:
+            serializer.save(
+                verification_status=Business.VerificationStatus.PENDING,
+                reviewed_at=None,
+            )
+        else:
+            serializer.save()
+
+        sync_vendor_approval(self.request.user)
 
 
 @extend_schema(
@@ -166,20 +187,30 @@ class VendorBusinessResponseView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         business = self.get_object()
+
+        if business.verification_status != Business.VerificationStatus.CHANGES_REQUESTED:
+            raise serializers.ValidationError(
+                "There are no requested changes to respond to."
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         business.vendor_response = serializer.validated_data["vendor_response"]
-        business.save(update_fields=["vendor_response", "updated_at"])
+        business.verification_status = Business.VerificationStatus.PENDING
+        business.reviewed_at = None
+        business.save(update_fields=[
+            "vendor_response", "verification_status", "reviewed_at", "updated_at",
+        ])
 
         return Response(
             {
                 "id": str(business.pk),
                 "vendor_response": business.vendor_response,
+                "verification_status": business.verification_status,
             },
             status=status.HTTP_200_OK,
         )
-
 
 class BusinessCategoryRequestView(generics.GenericAPIView):
     """Allow a vendor to request categories for their own business."""
@@ -219,3 +250,182 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK,
         )
+        
+        
+@extend_schema(
+    tags=["businesses"],
+    summary="Decide on a vendor application (administrators)",
+    request=BusinessDecisionInputSerializer,
+    description=(
+        "Actions: approve (from pending), request_changes (from pending or "
+        "approved, reason required), suspend (from approved, reason required) "
+        "and reapprove (from suspended). The decision and reason are saved "
+        "on the business and in its decision history, and the vendor's "
+        "approved flag is updated."
+    ),
+)
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Submit a business for review",
+    request=None,
+    responses=BusinessVerificationStatusSerializer,
+    description=(
+        "Moves a draft business to pending so administrators can review it. "
+        "After requested changes, use the response endpoint instead."
+    ),
+)
+class BusinessSubmitView(generics.GenericAPIView):
+    serializer_class = BusinessVerificationStatusSerializer
+    permission_classes = (IsVendor,)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        business = get_object_or_404(
+            Business.objects.select_for_update(),
+            pk=pk,
+            vendor=request.user,
+        )
+
+        if business.verification_status != Business.VerificationStatus.DRAFT:
+            raise serializers.ValidationError(
+                "Only a draft business can be submitted for review."
+            )
+
+        business.verification_status = Business.VerificationStatus.PENDING
+        business.reviewed_at = None
+        business.save(update_fields=[
+            "verification_status", "reviewed_at", "updated_at",
+        ])
+
+        return Response(BusinessVerificationStatusSerializer(business).data)
+    
+    
+    
+class AdminBusinessPagination(PageNumberPagination):
+        page_size = 20
+
+
+def admin_business_queryset():
+    return Business.objects.select_related("vendor").prefetch_related(
+        "images",
+        Prefetch(
+            "business_categories",
+            queryset=BusinessCategory.objects.select_related("category", "business"),
+        ),
+    )
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="List vendor applications (administrators)",
+    description=(
+        "Defaults to applications waiting for review, oldest first. "
+        "Use ?status= with a verification status, or all."
+    ),
+    parameters=[
+        OpenApiParameter(
+            "status",
+            str,
+            description=(
+                "pending (default), changes_requested, approved, suspended, "
+                "rejected, draft or all."
+            ),
+        ),
+    ],
+)
+class AdminBusinessListView(generics.ListAPIView):
+    serializer_class = AdminBusinessReviewSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = AdminBusinessPagination
+
+    def get_queryset(self):
+        queryset = admin_business_queryset().order_by("created_at")
+        value = self.request.query_params.get("status", "pending").strip().lower()
+
+        if value == "all":
+            return queryset
+
+        if value not in Business.VerificationStatus.values:
+            raise serializers.ValidationError({
+                "status": (
+                    "Choose one of: all, "
+                    + ", ".join(Business.VerificationStatus.values) + "."
+                )
+            })
+
+        return queryset.filter(verification_status=value)
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Review one vendor application (administrators)",
+)
+class AdminBusinessDetailView(generics.RetrieveAPIView):
+    serializer_class = AdminBusinessReviewSerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        return admin_business_queryset()
+    
+    
+    
+class AdminBusinessDecisionView(generics.GenericAPIView):
+    serializer_class = BusinessDecisionInputSerializer
+    permission_classes = (IsAdmin,)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        # Lock the row so two admins can't decide on the same state at once.
+        business = get_object_or_404(Business.objects.select_for_update(), pk=pk)
+
+        serializer = BusinessDecisionInputSerializer(
+            data=request.data,
+            context={"business": business},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        reason = data.get("reason", "")
+
+        business.verification_status = data["to_status"]
+        business.decision_reason = reason
+        business.reviewed_at = timezone.now()
+        business.save(update_fields=[
+            "verification_status", "decision_reason", "reviewed_at", "updated_at",
+        ])
+
+        decision = BusinessDecision.objects.create(
+            business=business,
+            decided_by=request.user,
+            action=data["action"],
+            from_status=data["from_status"],
+            to_status=data["to_status"],
+            reason=reason,
+        )
+
+        vendor_approved = sync_vendor_approval(business.vendor)
+
+        return Response({
+            "business_id": str(business.pk),
+            "verification_status": business.verification_status,
+            "vendor_approved": vendor_approved,
+            "decision": BusinessDecisionHistorySerializer(decision).data,
+        })
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Decision history for a business (administrators)",
+)
+class AdminBusinessDecisionHistoryView(generics.ListAPIView):
+    serializer_class = BusinessDecisionHistorySerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return BusinessDecision.objects.none()
+
+        business = get_object_or_404(Business, pk=self.kwargs["pk"])
+        return business.decisions.select_related("decided_by")
