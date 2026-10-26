@@ -3,6 +3,10 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from businesses.views import BusinessRegistrationView
 
+from .verification_views import (
+    ResendVerificationView,
+    VerifyEmailView,
+)
 from .views import (
     AdminLoginView,
     AdminRegistrationView,
@@ -16,11 +20,6 @@ from .views import (
     PasswordResetRequestView,
     VendorLoginView,
     VendorRegistrationView,
-)
-
-from .verification_views import (
-    ResendVerificationView,
-    VerifyEmailView,
 )
 
 urlpatterns = [
