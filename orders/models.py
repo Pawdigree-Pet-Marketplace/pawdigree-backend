@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 from common.models import TimeStampedModel
 
@@ -111,6 +112,10 @@ class OrderItem(TimeStampedModel):
             models.UniqueConstraint(
                 fields=("vendor_order", "product"),
                 name="unique_product_per_vendor_order",
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gte=1),
+                name="order_item_quantity_gte_1",
             ),
         )
 
