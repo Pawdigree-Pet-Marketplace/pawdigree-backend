@@ -109,14 +109,15 @@ class BusinessDetailView(generics.RetrieveUpdateAPIView):
         return Business.objects.filter(vendor=self.request.user)
 
     def perform_update(self, serializer):
-    # Editing sends a business back for review, but never lets a
-    # suspended or rejected one reopen itself.
-        resubmittable = (
-            Business.VerificationStatus.DRAFT,
+        # Editing a live or under-review business sends it back for review.
+        # Drafts stay drafts until submitted, and suspended or rejected
+        # businesses can't reopen themselves by editing.
+        goes_back_to_review = (
+            Business.VerificationStatus.PENDING,
             Business.VerificationStatus.CHANGES_REQUESTED,
             Business.VerificationStatus.APPROVED,
         )
-        if serializer.instance.verification_status in resubmittable:
+        if serializer.instance.verification_status in goes_back_to_review:
             serializer.save(
                 verification_status=Business.VerificationStatus.PENDING,
                 reviewed_at=None,
