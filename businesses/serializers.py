@@ -9,7 +9,7 @@ from categories.models import Category
 from common.phone import normalize_phone_number
 from common.validators import validate_image_upload
 
-from .models import Business, BusinessCategory, BusinessDecision
+from .models import Business, BusinessCategory, BusinessDecision, BusinessImage
 
 DAYS = (
     "monday",
@@ -344,6 +344,55 @@ DECISION_RULES = {
         "reason_required": False,
     },
 }
+
+
+
+class BusinessImageReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessImage
+        fields = ("id", "image", "alt_text", "display_order")
+        read_only_fields = fields
+
+
+class AdminBusinessReviewSerializer(serializers.ModelSerializer):
+    """Everything an admin needs to review one vendor application."""
+
+    vendor_email = serializers.EmailField(source="vendor.email", read_only=True)
+    vendor_username = serializers.CharField(
+        source="vendor.username", read_only=True
+    )
+    images = BusinessImageReadSerializer(many=True, read_only=True)
+    categories = BusinessCategoryStatusSerializer(
+        source="business_categories", many=True, read_only=True
+    )
+
+    class Meta:
+        model = Business
+        fields = (
+            "id",
+            "vendor_email",
+            "vendor_username",
+            "name",
+            "description",
+            "contact",
+            "email",
+            "address",
+            "city_district",
+            "business_hours",
+            "logo",
+            "cover_image",
+            "images",
+            "categories",
+            "verification_status",
+            "decision_reason",
+            "vendor_response",
+            "reviewed_at",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
 
 
 class BusinessDecisionInputSerializer(serializers.Serializer):
