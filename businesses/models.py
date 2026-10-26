@@ -140,3 +140,37 @@ class BusinessImage(TimeStampedModel):
 
     def __str__(self):
         return f"Image for {self.business.name}"
+    
+
+class BusinessDecision(TimeStampedModel):
+    """One admin decision about a business, kept as history."""
+
+    class Action(models.TextChoices):
+        APPROVE = "approve", "Approve"
+        REQUEST_CHANGES = "request_changes", "Request changes"
+        SUSPEND = "suspend", "Suspend"
+        REAPPROVE = "reapprove", "Re-approve"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="decisions",
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="business_decisions",
+    )
+    action = models.CharField(max_length=20, choices=Action.choices)
+    from_status = models.CharField(max_length=20)
+    to_status = models.CharField(max_length=20)
+    reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.business.name}: {self.action}"
+    
+    
