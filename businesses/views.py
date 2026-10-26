@@ -10,7 +10,7 @@ from rest_framework.response import Response
 
 
 from common.permissions import IsAdmin, IsVendor
-
+from .services import sync_vendor_approval
 from .models import Business, BusinessCategory, BusinessDecision
 from .serializers import (
     BusinessSerializer,
@@ -20,6 +20,8 @@ from .serializers import (
     CategoryRequestSerializer,
     PublicBusinessSerializer,
     VendorResponseSerializer,
+    BusinessDecisionHistorySerializer,
+    BusinessDecisionInputSerializer,
 )
 
 PARSERS = (MultiPartParser, FormParser, JSONParser)
@@ -222,3 +224,75 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK,
         )
+        
+        
+@extend_schema(
+    tags=["businesses"],
+    summary="Decide on a vendor application (administrators)",
+    request=BusinessDecisionInputSerializer,
+    description=(
+        "Actions: approve (from pending), request_changes (from pending or "
+        "approved, reason required), suspend (from approved, reason required) "
+        "and reapprove (from suspended). The decision and reason are saved "
+        "on the business and in its decision history, and the vendor's "
+        "approved flag is updated."
+    ),
+)
+class AdminBusinessDecisionView(generics.GenericAPIView):
+    serializer_class = BusinessDecisionInputSerializer
+    permission_classes = (IsAdmin,)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        # Lock the row so two admins can't decide on the same state at once.
+        business = get_object_or_404(Business.objects.select_for_update(), pk=pk)
+
+        serializer = BusinessDecisionInputSerializer(
+            data=request.data,
+            context={"business": business},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        reason = data.get("reason", "")
+
+        business.verification_status = data["to_status"]
+        business.decision_reason = reason
+        business.reviewed_at = timezone.now()
+        business.save(update_fields=[
+            "verification_status", "decision_reason", "reviewed_at", "updated_at",
+        ])
+
+        decision = BusinessDecision.objects.create(
+            business=business,
+            decided_by=request.user,
+            action=data["action"],
+            from_status=data["from_status"],
+            to_status=data["to_status"],
+            reason=reason,
+        )
+
+        vendor_approved = sync_vendor_approval(business.vendor)
+
+        return Response({
+            "business_id": str(business.pk),
+            "verification_status": business.verification_status,
+            "vendor_approved": vendor_approved,
+            "decision": BusinessDecisionHistorySerializer(decision).data,
+        })
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Decision history for a business (administrators)",
+)
+class AdminBusinessDecisionHistoryView(generics.ListAPIView):
+    serializer_class = BusinessDecisionHistorySerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return BusinessDecision.objects.none()
+
+        business = get_object_or_404(Business, pk=self.kwargs["pk"])
+        return business.decisions.select_related("decided_by")
