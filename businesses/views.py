@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics, status
+from rest_framework import generics, status, serializers
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -250,6 +250,44 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
         "approved flag is updated."
     ),
 )
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Submit a business for review",
+    request=None,
+    responses=BusinessVerificationStatusSerializer,
+    description=(
+        "Moves a draft business to pending so administrators can review it. "
+        "After requested changes, use the response endpoint instead."
+    ),
+)
+class BusinessSubmitView(generics.GenericAPIView):
+    serializer_class = BusinessVerificationStatusSerializer
+    permission_classes = (IsVendor,)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        business = get_object_or_404(
+            Business.objects.select_for_update(),
+            pk=pk,
+            vendor=request.user,
+        )
+
+        if business.verification_status != Business.VerificationStatus.DRAFT:
+            raise serializers.ValidationError(
+                "Only a draft business can be submitted for review."
+            )
+
+        business.verification_status = Business.VerificationStatus.PENDING
+        business.reviewed_at = None
+        business.save(update_fields=[
+            "verification_status", "reviewed_at", "updated_at",
+        ])
+
+        return Response(BusinessVerificationStatusSerializer(business).data)
+    
+    
 class AdminBusinessDecisionView(generics.GenericAPIView):
     serializer_class = BusinessDecisionInputSerializer
     permission_classes = (IsAdmin,)
