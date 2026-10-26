@@ -303,7 +303,7 @@ class BusinessSubmitView(generics.GenericAPIView):
     
     
     
-    class AdminBusinessPagination(PageNumberPagination):
+class AdminBusinessPagination(PageNumberPagination):
         page_size = 20
 
 
