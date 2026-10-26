@@ -1,24 +1,19 @@
-from email.mime.image import MIMEImage
-from pathlib import Path
-
 from django.conf import settings
-from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
+from django.db import transaction
 from django.template.loader import render_to_string
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from django.db import transaction
 
 from common.permissions import IsCustomer, IsSystemAdmin
 
-from .verification import start_verification
-from .password_reset import PasswordResetTokenGeneratorService
-from .token_utils import revoke_user_tokens
 from .emails import send_welcome_email
+from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
     AdminLoginSerializer,
     AdminRegistrationSerializer,
@@ -33,6 +28,8 @@ from .serializers import (
     VendorLoginSerializer,
     VendorRegistrationSerializer,
 )
+from .token_utils import revoke_user_tokens
+from .verification import start_verification
 
 User = get_user_model()
 
@@ -252,6 +249,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
             context = {
                 'user': user,
                 'reset_url': reset_url,
+                'logo_url': settings.EMAIL_LOGO_URL,
             }
 
             # Load the plain-text email template.
@@ -274,19 +272,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
                 to=[user.email],
             )
 
-            logo_path = (
-                Path(__file__).parent / 'email_assets' / 'pawdigree-logo.svg'
-            )
-            with logo_path.open('rb') as logo_file:
-                logo = MIMEImage(logo_file.read(), _subtype='svg+xml')
-            logo.add_header('Content-ID', '<pawdigree-logo>')
-            logo.add_header(
-                'Content-Disposition',
-                'inline',
-                filename='pawdigree-logo.svg',
-            )
-            email_message.attach(logo)
-
+          
             # Attach your HTML design as an alternative.
             email_message.attach_alternative(
                 html_content,

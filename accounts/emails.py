@@ -1,6 +1,4 @@
 import logging
-from email.mime.image import MIMEImage
-from pathlib import Path
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -70,6 +68,7 @@ def send_verification_email(user, code, expires_minutes):
         "code": code,
         "expires_minutes": expires_minutes,
         "frontend_url": settings.FRONTEND_URL,
+        "logo_url": settings.EMAIL_LOGO_URL,
     }
 
     try:
@@ -86,18 +85,7 @@ def send_verification_email(user, code, expires_minutes):
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[user.email],
         )
-        logo_path = (
-            Path(__file__).parent / "email_assets" / "pawdigree-logo.svg"
-        )
-        with logo_path.open("rb") as logo_file:
-            logo = MIMEImage(logo_file.read(), _subtype="svg+xml")
-        logo.add_header("Content-ID", "<pawdigree-logo>")
-        logo.add_header(
-            "Content-Disposition",
-            "inline",
-            filename="pawdigree-logo.svg",
-        )
-        message.attach(logo)
+        
 
         message.attach_alternative(html_body, "text/html")
         message.send(fail_silently=False)

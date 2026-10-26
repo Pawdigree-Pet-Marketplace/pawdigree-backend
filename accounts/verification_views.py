@@ -107,3 +107,4 @@ class ResendVerificationView(generics.GenericAPIView):
             'expires_in': int(CODE_TTL.total_seconds()),
             'resend_available_in': int(RESEND_COOLDOWN.total_seconds()),
         })
+    
