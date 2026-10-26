@@ -9,7 +9,7 @@ from categories.models import Category
 from common.phone import normalize_phone_number
 from common.validators import validate_image_upload
 
-from .models import Business, BusinessCategory
+from .models import Business, BusinessCategory, BusinessDecision
 
 DAYS = (
     "monday",
@@ -317,3 +317,83 @@ class CategoryRequestSerializer(serializers.Serializer):
             unique_categories[category.pk] = category
 
         return list(unique_categories.values())
+    
+    
+Action = BusinessDecision.Action
+Status = Business.VerificationStatus
+
+DECISION_RULES = {
+    Action.APPROVE.value: {
+        "from": (Status.PENDING.value,),
+        "to": Status.APPROVED.value,
+        "reason_required": False,
+    },
+    Action.REQUEST_CHANGES.value: {
+        "from": (Status.PENDING.value, Status.APPROVED.value),
+        "to": Status.CHANGES_REQUESTED.value,
+        "reason_required": True,
+    },
+    Action.SUSPEND.value: {
+        "from": (Status.APPROVED.value,),
+        "to": Status.SUSPENDED.value,
+        "reason_required": True,
+    },
+    Action.REAPPROVE.value: {
+        "from": (Status.SUSPENDED.value,),
+        "to": Status.APPROVED.value,
+        "reason_required": False,
+    },
+}
+
+
+class BusinessDecisionInputSerializer(serializers.Serializer):
+    """Validates an admin decision. Needs context={"business": business}."""
+
+    action = serializers.ChoiceField(choices=BusinessDecision.Action.choices)
+    reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+        max_length=5000,
+    )
+
+    def validate(self, attrs):
+        business = self.context["business"]
+        rule = DECISION_RULES[attrs["action"]]
+        current = business.verification_status
+
+        if current not in rule["from"]:
+            raise serializers.ValidationError({
+                "action": (
+                    "You can't do this to a business that is "
+                    f"{current.replace('_', ' ')}."
+                )
+            })
+
+        if rule["reason_required"] and not attrs.get("reason"):
+            raise serializers.ValidationError({
+                "reason": "A reason is required for this decision."
+            })
+
+        attrs["from_status"] = current
+        attrs["to_status"] = rule["to"]
+        return attrs
+
+
+class BusinessDecisionHistorySerializer(serializers.ModelSerializer):
+    decided_by_email = serializers.EmailField(
+        source="decided_by.email", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = BusinessDecision
+        fields = (
+            "id",
+            "action",
+            "from_status",
+            "to_status",
+            "reason",
+            "decided_by_email",
+            "created_at",
+        )
+        read_only_fields = fields
