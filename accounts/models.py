@@ -16,6 +16,7 @@ class User(AbstractUser):
         choices=Role.choices,
         default=Role.CUSTOMER,
     )
+    approved = models.BooleanField(default=False)
 
     phone = models.CharField(
         max_length=20,
