@@ -2,6 +2,8 @@ from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework.pagination import PageNumberPagination
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status, serializers
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -17,6 +19,7 @@ from .serializers import (
     BusinessCategoryStatusSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
+    AdminBusinessReviewSerializer,
     CategoryRequestSerializer,
     PublicBusinessSerializer,
     VendorResponseSerializer,
@@ -297,6 +300,75 @@ class BusinessSubmitView(generics.GenericAPIView):
         ])
 
         return Response(BusinessVerificationStatusSerializer(business).data)
+    
+    
+    
+    class AdminBusinessPagination(PageNumberPagination):
+        page_size = 20
+
+
+def admin_business_queryset():
+    return Business.objects.select_related("vendor").prefetch_related(
+        "images",
+        Prefetch(
+            "business_categories",
+            queryset=BusinessCategory.objects.select_related("category", "business"),
+        ),
+    )
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="List vendor applications (administrators)",
+    description=(
+        "Defaults to applications waiting for review, oldest first. "
+        "Use ?status= with a verification status, or all."
+    ),
+    parameters=[
+        OpenApiParameter(
+            "status",
+            str,
+            description=(
+                "pending (default), changes_requested, approved, suspended, "
+                "rejected, draft or all."
+            ),
+        ),
+    ],
+)
+class AdminBusinessListView(generics.ListAPIView):
+    serializer_class = AdminBusinessReviewSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = AdminBusinessPagination
+
+    def get_queryset(self):
+        queryset = admin_business_queryset().order_by("created_at")
+        value = self.request.query_params.get("status", "pending").strip().lower()
+
+        if value == "all":
+            return queryset
+
+        if value not in Business.VerificationStatus.values:
+            raise serializers.ValidationError({
+                "status": (
+                    "Choose one of: all, "
+                    + ", ".join(Business.VerificationStatus.values) + "."
+                )
+            })
+
+        return queryset.filter(verification_status=value)
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Review one vendor application (administrators)",
+)
+class AdminBusinessDetailView(generics.RetrieveAPIView):
+    serializer_class = AdminBusinessReviewSerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        return admin_business_queryset()
+    
     
     
 class AdminBusinessDecisionView(generics.GenericAPIView):
