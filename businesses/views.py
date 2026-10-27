@@ -279,13 +279,33 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
 
         changed = created + reopened
 
-        if changed:
-            message = f"{changed} category request(s) sent for review."
-        else:
+        sent_back = False
+        if (
+            changed
+            and business.verification_status
+            == Business.VerificationStatus.APPROVED
+        ):
+            # New categories mean the business is reviewed again.
+            business.verification_status = Business.VerificationStatus.PENDING
+            business.reviewed_at = None
+            business.save(update_fields=[
+                "verification_status", "reviewed_at", "updated_at",
+            ])
+            sync_vendor_approval(business.vendor)
+            sent_back = True
+
+        if not changed:
             message = (
                 "These categories were already requested. "
                 "No changes were made."
             )
+        elif sent_back:
+            message = (
+                f"{changed} category request(s) sent. Your business is back "
+                "in review until they are decided."
+            )
+        else:
+            message = f"{changed} category request(s) sent for review."
 
         response_serializer = BusinessCategoryStatusSerializer(
             saved_categories,
@@ -297,6 +317,8 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
                 "message": message,
                 "new_requests": created,
                 "reopened": reopened,
+                "sent_back_to_review": sent_back,
+                "verification_status": business.verification_status,
                 "categories": response_serializer.data,
             },
             status=(
