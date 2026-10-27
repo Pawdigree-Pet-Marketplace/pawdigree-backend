@@ -47,3 +47,10 @@ class ServiceSerializer(serializers.ModelSerializer):
                 "Duration must be greater than zero."
             )
         return value
+
+    def validate_price(self, value):
+        if value < 0:
+            raise serializers.ValidationError(
+                "Price must not be negative."
+            )
+        return value
