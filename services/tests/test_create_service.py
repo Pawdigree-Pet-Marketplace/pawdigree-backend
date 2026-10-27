@@ -226,6 +226,45 @@ class CreateServiceTests(TestCase):
         self.assertIn("price", response.data)
         self.assertEqual(Service.objects.count(), 0)
 
+    def test_negative_duration_is_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {**self.service_data, "duration": -30}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("duration", response.data)
+        self.assertEqual(Service.objects.count(), 0)
+
+    def test_negative_price_is_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {**self.service_data, "price": "-100.00"}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("price", response.data)
+        self.assertEqual(Service.objects.count(), 0)
+
+    def test_price_with_too_many_decimal_places_is_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {**self.service_data, "price": "100.999"}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("price", response.data)
+        self.assertEqual(Service.objects.count(), 0)
+
     def test_invalid_availability_status_is_rejected(self):
         self.client.force_authenticate(user=self.vendor)
         data = {
