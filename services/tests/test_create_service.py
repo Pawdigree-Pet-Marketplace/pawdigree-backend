@@ -170,3 +170,74 @@ class CreateServiceTests(TestCase):
             status.HTTP_400_BAD_REQUEST,
         )
         self.assertEqual(Service.objects.count(), 0)
+
+    def test_missing_required_fields_are_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+
+        required_fields = (
+            "business",
+            "name",
+            "service_type",
+            "description",
+            "price",
+            "duration",
+        )
+
+        for field in required_fields:
+            with self.subTest(field=field):
+                data = {
+                    **self.service_data,
+                    field: "",
+                }
+                response = self.client.post(
+                    self.url, data, format="json"
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                )
+                self.assertIn(field, response.data)
+                self.assertEqual(Service.objects.count(), 0)
+
+    def test_zero_duration_is_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {**self.service_data, "duration": 0}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("duration", response.data)
+        self.assertEqual(Service.objects.count(), 0)
+
+    def test_invalid_price_is_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {**self.service_data, "price": "not-a-price"}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("price", response.data)
+        self.assertEqual(Service.objects.count(), 0)
+
+    def test_invalid_availability_status_is_rejected(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {
+            **self.service_data,
+            "availability_status": "sometimes",
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("availability_status", response.data)
+        self.assertEqual(Service.objects.count(), 0)
