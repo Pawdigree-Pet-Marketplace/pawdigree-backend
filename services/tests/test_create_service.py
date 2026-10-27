@@ -155,3 +155,18 @@ class CreateServiceTests(TestCase):
             status.HTTP_400_BAD_REQUEST,
         )
         self.assertEqual(Service.objects.count(), 0)
+
+    def test_vendor_cannot_create_service_for_nonexistent_business(self):
+        self.client.force_authenticate(user=self.vendor)
+        data = {
+            **self.service_data,
+            "business": 999999,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(Service.objects.count(), 0)
