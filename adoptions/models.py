@@ -1,0 +1,77 @@
+import uuid
+
+from django.conf import settings
+from django.db import models
+from django.db.models import Q
+
+from common.models import TimeStampedModel
+
+ACTIVE_STATUSES = ('PENDING', 'INFO_REQUESTED')
+
+
+class AdoptionApplication(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        INFO_REQUESTED = 'INFO_REQUESTED', 'More information requested'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    class HomeType(models.TextChoices):
+        APARTMENT = 'APARTMENT', 'Apartment'
+        HOUSE = 'HOUSE', 'House'
+        OTHER = 'OTHER', 'Other'
+
+    class Experience(models.TextChoices):
+        NONE = 'NONE', 'First-time owner'
+        SOME = 'SOME', 'Some experience'
+        EXPERIENCED = 'EXPERIENCED', 'Experienced'
+
+    application_id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False
+    )
+    pet = models.ForeignKey(
+        'pets.Pet',
+        on_delete=models.CASCADE,
+        related_name='adoption_applications',
+    )
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='adoption_applications',
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+
+    home_type = models.CharField(max_length=20, choices=HomeType.choices)
+    has_outdoor_space = models.BooleanField(default=False)
+    has_other_pets = models.BooleanField(default=False)
+    other_pets_details = models.CharField(max_length=200, blank=True)
+    previous_pet_experience = models.CharField(
+        max_length=20, choices=Experience.choices
+    )
+    message = models.TextField(max_length=2000)
+
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='decided_applications',
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['customer', 'pet'],
+                condition=Q(status__in=ACTIVE_STATUSES),
+                name='one_open_application_per_customer_pet',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.customer} -> {self.pet} ({self.status})'
