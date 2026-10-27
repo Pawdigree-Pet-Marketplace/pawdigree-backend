@@ -105,12 +105,14 @@ class PublicPetSerializer(serializers.ModelSerializer):
     """Customer-facing listing: no vendor id and no internal flags."""
 
     images = PetImageSerializer(many=True, read_only=True)
+    business_name = serializers.CharField(source="business.name", read_only=True)
 
     class Meta:
         model = Pet
         fields = (
             "pet_id",
             "business",
+            "business_name",
             "listing_type",
             "name",
             "species",

@@ -1,6 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, serializers, status
@@ -8,9 +7,11 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from common.permissions import IsAdmin, IsVendor
 
+from .filters import SORT_OPTIONS, filter_public_pets, public_locations
 from .models import Pet, PetImage
 from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
@@ -113,8 +114,19 @@ class PetDetailView(generics.DestroyAPIView):
 
 class PublicPetPagination(PageNumberPagination):
     page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 50
 
-# Public views for browsing listings. 
+
+def public_pet_queryset():
+    return (
+        Pet.objects.publicly_visible()
+        .select_related("business")
+        .prefetch_related("images")
+    )
+
+
+# Public views for browsing listings.
 # These are separate from the vendor and admin views, so that permissions and serializers can be different.
 @extend_schema(
     tags=["pets"],
@@ -122,7 +134,8 @@ class PublicPetPagination(PageNumberPagination):
     description=(
         "Public list of approved, active pet listings. Open to everyone, "
         "logged in or not. Deactivated and unapproved listings are never "
-        "included, whatever filters are used."
+        "included, whatever filters are used. Pets with no price (adoption "
+        "listings) are left out whenever a price filter is used."
     ),
     parameters=[
         OpenApiParameter(
@@ -131,10 +144,36 @@ class PublicPetPagination(PageNumberPagination):
             description="Matches name, breed, species or description.",
         ),
         OpenApiParameter("breed", str, description="Exact breed, any case."),
+        OpenApiParameter(
+            "species",
+            str,
+            description="Species, any case. Repeat it or use commas: species=dog,cat.",
+        ),
+        OpenApiParameter(
+            "vendor",
+            str,
+            description="Part of the business name, any case.",
+        ),
+        OpenApiParameter(
+            "location",
+            str,
+            description="Town or district, any case. Repeat it or use commas.",
+        ),
         OpenApiParameter("gender", str, enum=Pet.Gender.values),
         OpenApiParameter("listing_type", str, enum=Pet.ListingType.values),
         OpenApiParameter("age_min", int, description="Minimum age in months."),
         OpenApiParameter("age_max", int, description="Maximum age in months."),
+        OpenApiParameter("price_min", float, description="Minimum price."),
+        OpenApiParameter("price_max", float, description="Maximum price."),
+        OpenApiParameter(
+            "sort",
+            str,
+            enum=list(SORT_OPTIONS),
+            description="popular means applied for by the most customers.",
+        ),
+        OpenApiParameter(
+            "page_size", int, description="Results per page (default 20, max 50)."
+        ),
     ],
 )
 class PublicPetListView(generics.ListAPIView):
@@ -144,80 +183,41 @@ class PublicPetListView(generics.ListAPIView):
     authentication_classes = ()
     pagination_class = PublicPetPagination
 
-    def _parse_months(self, name, errors):
-        raw = self.request.query_params.get(name, "").strip()
-        if not raw:
-            return None
-
-        try:
-            value = int(raw)
-        except ValueError:
-            value = -1
-
-        if value < 0:
-            errors[name] = "Enter a whole number of months (0 or more)."
-            return None
-
-        return value
-
     def get_queryset(self):
-        params = self.request.query_params
-        errors = {}
-
-        # Filters only narrow this queryset, so hidden pets can never
-        # come back through a search.
-        queryset = (
-            Pet.objects.publicly_visible()
-            .select_related("business")
-            .prefetch_related("images")
+        return filter_public_pets(
+            public_pet_queryset(), self.request.query_params
         )
 
-        search = params.get("search", "").strip()
-        if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search)
-                | Q(breed__icontains=search)
-                | Q(species__icontains=search)
-                | Q(description__icontains=search)
-            )
 
-        breed = params.get("breed", "").strip()
-        if breed:
-            queryset = queryset.filter(breed__iexact=breed)
+@extend_schema(
+    tags=["pets"],
+    summary="View one pet listing",
+    description=(
+        "Public detail of one approved, active pet listing. Open to "
+        "everyone. Deactivated and unapproved listings return 404."
+    ),
+)
+class PublicPetDetailView(generics.RetrieveAPIView):
+    serializer_class = PublicPetSerializer
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
 
-        gender = params.get("gender", "").strip().upper()
-        if gender:
-            if gender in Pet.Gender.values:
-                queryset = queryset.filter(gender=gender)
-            else:
-                errors["gender"] = (
-                    f"Choose one of: {', '.join(Pet.Gender.values)}."
-                )
+    def get_queryset(self):
+        return public_pet_queryset()
 
-        listing_type = params.get("listing_type", "").strip().upper()
-        if listing_type:
-            if listing_type in Pet.ListingType.values:
-                queryset = queryset.filter(listing_type=listing_type)
-            else:
-                errors["listing_type"] = (
-                    f"Choose one of: {', '.join(Pet.ListingType.values)}."
-                )
 
-        age_min = self._parse_months("age_min", errors)
-        age_max = self._parse_months("age_max", errors)
+@extend_schema(
+    tags=["pets"],
+    summary="Towns that have pet listings",
+    description="Sorted list of towns for the location filter and its suggestions.",
+    responses={200: {"type": "array", "items": {"type": "string"}}},
+)
+class PublicPetLocationListView(APIView):
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
 
-        if age_min is not None and age_max is not None and age_min > age_max:
-            errors["age_min"] = "age_min cannot be greater than age_max."
-
-        if errors:
-            raise serializers.ValidationError(errors)
-
-        if age_min is not None:
-            queryset = queryset.filter(age__gte=age_min)
-        if age_max is not None:
-            queryset = queryset.filter(age__lte=age_max)
-
-        return queryset
+    def get(self, request):
+        return Response(public_locations())
 
 @extend_schema(
     tags=["pets"],
