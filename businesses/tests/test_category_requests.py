@@ -26,7 +26,7 @@ class TestBusinessCategoryRequests:
             format="json",
         )
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
         assert BusinessCategory.objects.filter(
             business=business,
             category=category,
@@ -95,7 +95,7 @@ class TestBusinessCategoryRequests:
             format="json",
         )
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
         assert len(response.data["categories"]) == 1
         assert BusinessCategory.objects.filter(
             business=business,
@@ -116,7 +116,7 @@ class TestBusinessCategoryRequests:
         first_response = api_client.post(url, payload, format="json")
         second_response = api_client.post(url, payload, format="json")
 
-        assert first_response.status_code == status.HTTP_200_OK
+        assert first_response.status_code == status.HTTP_201_CREATED
         assert second_response.status_code == status.HTTP_200_OK
         assert BusinessCategory.objects.filter(
             business=business,

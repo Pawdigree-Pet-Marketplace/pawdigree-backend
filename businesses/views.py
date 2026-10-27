@@ -218,25 +218,94 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
     serializer_class = CategoryRequestSerializer
     permission_classes = (IsVendor,)
 
+    # A suspended or rejected business can't ask for new categories.
+    BLOCKED_STATUSES = (
+        Business.VerificationStatus.SUSPENDED,
+        Business.VerificationStatus.REJECTED,
+    )
+
+    @transaction.atomic
     def post(self, request, business_id):
+        # Lock the business, so an admin decision can't change its status
+        # while this request is half done.
         business = get_object_or_404(
-            Business,
+            Business.objects.select_for_update(),
             pk=business_id,
             vendor=request.user,
         )
 
+        if not business.is_active:
+            raise serializers.ValidationError(
+                "This business is inactive, so it can't request categories."
+            )
+
+        if business.verification_status in self.BLOCKED_STATUSES:
+            raise serializers.ValidationError(
+                "You can't request categories while this business is "
+                f"{business.verification_status.replace('_', ' ')}."
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        requested_categories = serializer.validated_data["category_ids"]
         saved_categories = []
+        created = 0
+        reopened = 0
 
-        for category in requested_categories:
-            business_category, _ = BusinessCategory.objects.get_or_create(
-                business=business,
-                category=category,
+        for category in serializer.validated_data["category_ids"]:
+            business_category, was_created = (
+                BusinessCategory.objects.get_or_create(
+                    business=business,
+                    category=category,
+                )
             )
+
+            if was_created:
+                created += 1
+            elif (
+                business_category.approval_status
+                == BusinessCategory.ApprovalStatus.REJECTED
+            ):
+                # Applying again after a rejection sends it back for review.
+                business_category.approval_status = (
+                    BusinessCategory.ApprovalStatus.PENDING
+                )
+                business_category.save(
+                    update_fields=["approval_status", "updated_at"]
+                )
+                reopened += 1
+
             saved_categories.append(business_category)
+
+        changed = created + reopened
+
+        sent_back = False
+        if (
+            changed
+            and business.verification_status
+            == Business.VerificationStatus.APPROVED
+        ):
+            # New categories mean the business is reviewed again.
+            business.verification_status = Business.VerificationStatus.PENDING
+            business.reviewed_at = None
+            business.save(update_fields=[
+                "verification_status", "reviewed_at", "updated_at",
+            ])
+            sync_vendor_approval(business.vendor)
+            sent_back = True
+
+        if not changed:
+            message = (
+                "These categories were already requested. "
+                "No changes were made."
+            )
+        elif sent_back:
+            message = (
+                f"{changed} category request(s) sent. Your business is back "
+                "in review until they are decided."
+            )
+        else:
+            message = f"{changed} category request(s) sent for review."
 
         response_serializer = BusinessCategoryStatusSerializer(
             saved_categories,
@@ -245,10 +314,16 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
 
         return Response(
             {
-                "message": "Category requests submitted successfully.",
+                "message": message,
+                "new_requests": created,
+                "reopened": reopened,
+                "sent_back_to_review": sent_back,
+                "verification_status": business.verification_status,
                 "categories": response_serializer.data,
             },
-            status=status.HTTP_200_OK,
+            status=(
+                status.HTTP_201_CREATED if changed else status.HTTP_200_OK
+            ),
         )
         
         
