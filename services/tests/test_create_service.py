@@ -92,6 +92,21 @@ class CreateServiceTests(TestCase):
             self.service_data["availability_status"],
         )
         self.assertEqual(response.data["name"], service.name)
+        self.assertEqual(response.data["service_id"], service.service_id)
+        self.assertEqual(response.data["business"], self.business.pk)
+        self.assertEqual(response.data["service_type"], service.service_type)
+        self.assertEqual(response.data["description"], service.description)
+        self.assertEqual(
+            Decimal(response.data["price"]),
+            Decimal("50000.00"),
+        )
+        self.assertEqual(response.data["duration"], service.duration)
+        self.assertEqual(
+            response.data["availability_status"],
+            service.availability_status,
+        )
+        self.assertIn("created_at", response.data)
+        self.assertIn("updated_at", response.data)
         self.assertIsNotNone(service.created_at)
         self.assertIsNotNone(service.updated_at)
 
