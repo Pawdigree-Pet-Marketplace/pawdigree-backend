@@ -40,3 +40,10 @@ class ServiceSerializer(serializers.ModelSerializer):
             self.fields["business"].queryset = Business.objects.filter(
                 vendor=request.user,
             )
+
+    def validate_duration(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                "Duration must be greater than zero."
+            )
+        return value
