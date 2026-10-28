@@ -327,18 +327,6 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
         )
         
         
-@extend_schema(
-    tags=["businesses"],
-    summary="Decide on a vendor application (administrators)",
-    request=BusinessDecisionInputSerializer,
-    description=(
-        "Actions: approve (from pending), request_changes (from pending or "
-        "approved, reason required), suspend (from approved, reason required) "
-        "and reapprove (from suspended). The decision and reason are saved "
-        "on the business and in its decision history, and the vendor's "
-        "approved flag is updated."
-    ),
-)
 
 
 @extend_schema(
@@ -446,6 +434,19 @@ class AdminBusinessDetailView(generics.RetrieveAPIView):
     
     
     
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Decide on a vendor application (administrators)",
+    request=BusinessDecisionInputSerializer,
+    description=(
+        "Actions: approve (from pending), request_changes (from pending or "
+        "approved, reason required), suspend (from approved, reason required) "
+        "and reapprove (from suspended). The decision and reason are saved "
+        "on the business and in its decision history, and the vendor's "
+        "approved flag is updated."
+    ),
+)
 class AdminBusinessDecisionView(generics.GenericAPIView):
     serializer_class = BusinessDecisionInputSerializer
     permission_classes = (IsAdmin,)
@@ -504,3 +505,119 @@ class AdminBusinessDecisionHistoryView(generics.ListAPIView):
 
         business = get_object_or_404(Business, pk=self.kwargs["pk"])
         return business.decisions.select_related("decided_by")
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Withdraw a business from review",
+    request=None,
+    responses=BusinessVerificationStatusSerializer,
+    description=(
+        "Moves a pending business back to draft. Submit it again when "
+        "vendor is ready."
+    ),
+)
+
+class BusinessWithdrawView(generics.GenericAPIView):
+    serializer_class = BusinessVerificationStatusSerializer
+    permission_classes = (IsVendor,)
+    
+    @transaction.atomic
+    def post(self, request, pk):
+        # Look only among this vendor's own businesses, so someone else's
+        # business returns 404. select_for_update() locks the row until the
+        # request ends, so an admin decision can't change it meanwhile.
+        business = get_object_or_404(
+            Business.objects.select_for_update(),
+            pk=pk,
+            vendor=request.user,
+        )
+        
+        # Only a business that is waiting for review can be withdrawn.
+        if business.verification_status != Business.VerificationStatus.PENDING:
+            raise serializers.ValidationError (
+                "Only a business waiting for review can be withdrawn."
+            )
+        
+        # Back to draft. No review is waiting, so clear the review date.
+        business.verification_status = Business.VerificationStatus.DRAFT  
+        business.reviewed_at = None
+        
+        # update_fields writes only these columns. updated_at must be listed,
+        # because auto_now only refreshes fields that are being saved.
+        business.save(update_fields=["verification_status", "reviewd_at", "updated_at"])
+        
+        return Response(BusinessVerificationStatusSerializer(business).data)
+    
+
+class BusinessResubmitBaseView(generics.GenericAPIView):
+    """Shared logic for a vendor sending a business back to review.
+
+    A subclass sets from_status (the status the business must be in) and
+    error_message (shown when it is in any other status). This class is not
+    given a URL, so only its subclasses are reachable.
+    """
+
+    serializer_class = VendorResponseSerializer
+    permission_classes = (IsVendor,)
+
+    from_status = None
+    error_message = ""
+
+    @transaction.atomic
+    def post(self, request, pk):
+        # Own business only, row locked for the length of the request.
+        business = get_object_or_404(
+            Business.objects.select_for_update(),
+            pk=pk,
+            vendor=request.user,
+        )
+
+        # The subclass decides which status this move starts from.
+        if business.verification_status != self.from_status:
+            raise serializers.ValidationError(self.error_message)
+
+        # The vendor must explain why the business should be reconsidered.
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # decision_reason is left alone, so the admin's earlier reason
+        # stays on record next to the vendor's reply.
+        business.vendor_response = serializer.validated_data["vendor_response"]
+        business.verification_status = Business.VerificationStatus.PENDING
+        business.reviewed_at = None
+        business.save(update_fields=[
+            "vendor_response", "verification_status",
+            "reviewed_at", "updated_at",
+        ])
+
+        return Response(BusinessVerificationStatusSerializer(business).data)
+
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Appeal a suspension",
+    request=VendorResponseSerializer,
+    responses=BusinessVerificationStatusSerializer,
+    description=(
+        "Sends a suspended business back to pending, with a message for "
+        "the administrator. The suspension reason stays on record."
+    ),
+)
+class BusinessAppealView(BusinessResubmitBaseView):
+    from_status = Business.VerificationStatus.SUSPENDED
+    error_message = "Only a suspended business can appeal a suspension."
+        
+        
+@extend_schema(
+    tags=["businesses"],
+    summary="Reapply after a rejection",
+    request=VendorResponseSerializer,
+    responses=BusinessVerificationStatusSerializer,
+    description=(
+        "Sends a rejected business back to pending, with a message for "
+        "the administrator."
+    ),
+)
+class BusinessReapplyView(BusinessResubmitBaseView):
+    from_status = Business.VerificationStatus.REJECTED
+    error_message = "Only a rejected business can reapply."

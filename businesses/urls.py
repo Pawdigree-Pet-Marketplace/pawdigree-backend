@@ -5,13 +5,16 @@ from .views import (
     AdminBusinessDecisionHistoryView,
     AdminBusinessListView,
     AdminBusinessDetailView,
+    BusinessAppealView,
     BusinessCategoryRequestView,
     BusinessDetailView,
     BusinessListCreateView,
+    BusinessReapplyView,
     BusinessSubmitView,
     BusinessVerificationStatusView,
     PublicBusinessListView,
-    VendorBusinessResponseView,        
+    VendorBusinessResponseView,
+    BusinessWithdrawView,        
 )
 
 urlpatterns = [
@@ -26,4 +29,7 @@ urlpatterns = [
     path("admin/<uuid:pk>/", AdminBusinessDetailView.as_view(), name="business-admin-detail",),
     path("admin/<uuid:pk>/decision/", AdminBusinessDecisionView.as_view(), name="business-admin-decision",),
     path("admin/<uuid:pk>/decisions/", AdminBusinessDecisionHistoryView.as_view(), name="business-admin-decisions",),
+    path("<uuid:pk>/withdraw/", BusinessWithdrawView.as_view(), name="business-withdraw",),
+    path("<uuid:pk>/appeal/", BusinessAppealView.as_view(), name="business-appeal",),
+    path("<uuid:pk>/reapply/", BusinessReapplyView.as_view(), name="business-reapply",),
 ]
