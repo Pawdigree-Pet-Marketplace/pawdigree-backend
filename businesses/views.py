@@ -509,7 +509,7 @@ class AdminBusinessDecisionHistoryView(generics.ListAPIView):
     tags=["businesses"],
     summary="Withdraw a business from review",
     request=None,
-    responeses=BusinessVerificationStatusSerializer,
+    responses=BusinessVerificationStatusSerializer,
     description=(
         "Moves a pending business back to draft. Submit it again when "
         "vendor is ready."
