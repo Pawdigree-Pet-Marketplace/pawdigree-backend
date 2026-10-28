@@ -46,3 +46,5 @@ class StatusMoveTests(TestCase):
         """POST to one of the status-move routes for this business."""
         url = reverse(route, kwargs={"pk": self.business.pk})
         return self.client.post(url, body or {}, format="json")
+    
+    
