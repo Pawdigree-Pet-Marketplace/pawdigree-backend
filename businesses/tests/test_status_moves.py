@@ -121,4 +121,25 @@ class StatusMoveTests(TestCase):
         response = self.post("business-appeal", {"vendor_response": "Hi"})
 
         self.assertEqual(response.status_code, 404)
+        
+        
+        # --------------------reapply ----------------------
+
+    def test_reapply_moves_rejected_to_pending(self):
+        self.set_status(Status.REJECTED)
+
+        response = self.post("business-reapply", {"vendor_response": "Fixed."})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.current_status(), "pending")
+
+    def test_reapply_only_works_on_rejected(self):
+        for value in (Status.PENDING, Status.SUSPENDED, Status.APPROVED):
+            with self.subTest(status=value):
+                self.set_status(value)
+
+                response = self.post("business-reapply", {"vendor_response": "Hi"})
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), value)
     

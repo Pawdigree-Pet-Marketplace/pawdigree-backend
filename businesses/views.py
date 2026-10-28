@@ -606,3 +606,17 @@ class BusinessAppealView(BusinessResubmitBaseView):
     from_status = Business.VerificationStatus.SUSPENDED
     error_message = "Only a suspended business can appeal a suspension."
         
+        
+@extend_schema(
+    tags=["businesses"],
+    summary="Reapply after a rejection",
+    request=VendorResponseSerializer,
+    responses=BusinessVerificationStatusSerializer,
+    description=(
+        "Sends a rejected business back to pending, with a message for "
+        "the administrator."
+    ),
+)
+class BusinessReapplyView(BusinessResubmitBaseView):
+    from_status = Business.VerificationStatus.REJECTED
+    error_message = "Only a rejected business can reapply."
