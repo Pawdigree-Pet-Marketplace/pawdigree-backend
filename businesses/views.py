@@ -327,18 +327,6 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
         )
         
         
-@extend_schema(
-    tags=["businesses"],
-    summary="Decide on a vendor application (administrators)",
-    request=BusinessDecisionInputSerializer,
-    description=(
-        "Actions: approve (from pending), request_changes (from pending or "
-        "approved, reason required), suspend (from approved, reason required) "
-        "and reapprove (from suspended). The decision and reason are saved "
-        "on the business and in its decision history, and the vendor's "
-        "approved flag is updated."
-    ),
-)
 
 
 @extend_schema(
@@ -446,6 +434,19 @@ class AdminBusinessDetailView(generics.RetrieveAPIView):
     
     
     
+
+@extend_schema(
+    tags=["businesses"],
+    summary="Decide on a vendor application (administrators)",
+    request=BusinessDecisionInputSerializer,
+    description=(
+        "Actions: approve (from pending), request_changes (from pending or "
+        "approved, reason required), suspend (from approved, reason required) "
+        "and reapprove (from suspended). The decision and reason are saved "
+        "on the business and in its decision history, and the vendor's "
+        "approved flag is updated."
+    ),
+)
 class AdminBusinessDecisionView(generics.GenericAPIView):
     serializer_class = BusinessDecisionInputSerializer
     permission_classes = (IsAdmin,)
