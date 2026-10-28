@@ -544,7 +544,7 @@ class BusinessWithdrawView(generics.GenericAPIView):
         
         # update_fields writes only these columns. updated_at must be listed,
         # because auto_now only refreshes fields that are being saved.
-        business.save(update_fields=["verification_status", "reviewd_at", "updated_at"])
+        business.save(update_fields=["verification_status", "reviewed_at", "updated_at"])
         
         return Response(BusinessVerificationStatusSerializer(business).data)
     
