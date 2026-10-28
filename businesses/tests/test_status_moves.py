@@ -47,4 +47,31 @@ class StatusMoveTests(TestCase):
         url = reverse(route, kwargs={"pk": self.business.pk})
         return self.client.post(url, body or {}, format="json")
     
+    # --- Patch 1: withdraw ---
+
+    def test_withdraw_moves_pending_to_draft(self):
+        response = self.post("business-withdraw")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.current_status(), "draft")
+
+    def test_withdraw_only_works_on_pending(self):
+        for value in (Status.DRAFT, Status.APPROVED, Status.SUSPENDED):
+            with self.subTest(status=value):
+                self.set_status(value)
+
+                response = self.post("business-withdraw")
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), value)
+
+    def test_withdraw_another_vendors_business_returns_404(self):
+        self.client.force_authenticate(self.other)
+
+        self.assertEqual(self.post("business-withdraw").status_code, 404)
+
+    def test_admin_cannot_withdraw(self):
+        self.client.force_authenticate(self.admin)
+
+        self.assertEqual(self.post("business-withdraw").status_code, 403)
     
