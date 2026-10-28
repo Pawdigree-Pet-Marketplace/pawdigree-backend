@@ -23,13 +23,16 @@ class ServiceSerializer(serializers.ModelSerializer):
             "price",
             "duration",
             "availability_status",
+            "is_active",
             "created_at",
             "updated_at",
         )
         read_only_fields = (
             "service_id",
+            "is_active",
             "created_at",
             "updated_at",
+            
         )
 
     def __init__(self, *args, **kwargs):
@@ -54,3 +57,8 @@ class ServiceSerializer(serializers.ModelSerializer):
                 "Price must not be negative."
             )
         return value
+
+class ServiceUpdateSerializer(ServiceSerializer):
+    """Edit a service. The business it belongs to cannot be changed."""
+
+    business = serializers.PrimaryKeyRelatedField(read_only=True)

@@ -28,6 +28,7 @@ class Service(TimeStampedModel):
         choices=AvailabilityStatus.choices,
         default=AvailabilityStatus.AVAILABLE,
     )
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ("name",)

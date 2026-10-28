@@ -1,7 +1,8 @@
 from django.urls import path
 
-from .views import ServiceCreateView
+from .views import ServiceCreateView, ServiceDetailView
 
 urlpatterns = [
     path("", ServiceCreateView.as_view(), name="service-create"),
+    path("<int:pk>/", ServiceDetailView.as_view(), name="service-detail"),
 ]
