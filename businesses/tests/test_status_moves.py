@@ -47,7 +47,7 @@ class StatusMoveTests(TestCase):
         url = reverse(route, kwargs={"pk": self.business.pk})
         return self.client.post(url, body or {}, format="json")
     
-    # --- Patch 1: withdraw ---
+    # -----------------------withdraw -------------------------------------
 
     def test_withdraw_moves_pending_to_draft(self):
         response = self.post("business-withdraw")
@@ -74,4 +74,51 @@ class StatusMoveTests(TestCase):
         self.client.force_authenticate(self.admin)
 
         self.assertEqual(self.post("business-withdraw").status_code, 403)
+        
+    # -------------------------- appeal -----------------------------------
+
+    def test_appeal_moves_suspended_to_pending(self):
+        self.set_status(Status.SUSPENDED)
+
+        response = self.post("business-appeal", {"vendor_response": "Resolved."})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.current_status(), "pending")
+        self.assertEqual(self.business.vendor_response, "Resolved.")
+
+    def test_appeal_keeps_the_suspension_reason(self):
+        self.set_status(Status.SUSPENDED)
+        self.business.decision_reason = "Complaints"
+        self.business.save()
+
+        self.post("business-appeal", {"vendor_response": "Resolved."})
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.decision_reason, "Complaints")
+
+    def test_appeal_requires_a_message(self):
+        self.set_status(Status.SUSPENDED)
+
+        response = self.post("business-appeal", {})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.current_status(), "suspended")
+
+    def test_appeal_only_works_on_suspended(self):
+        for value in (Status.PENDING, Status.APPROVED, Status.REJECTED):
+            with self.subTest(status=value):
+                self.set_status(value)
+
+                response = self.post("business-appeal", {"vendor_response": "Hi"})
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), value)
+
+    def test_appeal_another_vendors_business_returns_404(self):
+        self.set_status(Status.SUSPENDED)
+        self.client.force_authenticate(self.other)
+
+        response = self.post("business-appeal", {"vendor_response": "Hi"})
+
+        self.assertEqual(response.status_code, 404)
     
