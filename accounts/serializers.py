@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from common.phone import normalize_phone_number
@@ -357,14 +358,16 @@ class LogoutSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         try:
-            refresh_token = RefreshToken(attrs['refresh'])
-            refresh_token.blacklist()
-        except Exception as exc:
+            self._token = RefreshToken(attrs['refresh'])
+        except TokenError as exc:
             raise serializers.ValidationError(
                 'Invalid or expired refresh token.'
             ) from exc
 
         return attrs
+
+    def save(self, **kwargs):
+        self._token.blacklist()
 
 
 class CurrentUserSerializer(serializers.ModelSerializer):
