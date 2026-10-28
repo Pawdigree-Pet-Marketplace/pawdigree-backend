@@ -1,6 +1,12 @@
 from django.db import IntegrityError, transaction
-from rest_framework.exceptions import NotFound, ValidationError
+from django.utils import timezone
+from rest_framework.exceptions import (
+    NotFound,
+    PermissionDenied,
+    ValidationError,
+)
 
+from accounts.models import User
 from pets.models import Pet
 
 from .models import ACTIVE_STATUSES, AdoptionApplication
@@ -37,3 +43,75 @@ def create_adoption_application(customer, pet_id, data):
     except IntegrityError:
         # Two submits at the same moment: the database rule stopped the second.
         raise ValidationError({'pet': ALREADY_APPLIED})
+    
+    
+def decide_adoption_application(
+    application_id,
+    actor,
+    decision,
+    decision_reason="",
+):
+    """Approve or reject an adoption application."""
+    with transaction.atomic():
+        try:
+            application = (
+                AdoptionApplication.objects
+                .select_for_update()
+                .select_related("pet__business")
+                .get(pk=application_id)
+            )
+        except AdoptionApplication.DoesNotExist:
+            raise NotFound("Adoption application not found.")
+
+        is_admin = (
+            actor.role in (User.Role.ADMIN, User.Role.SYSTEM_ADMIN)
+            or actor.is_superuser
+        )
+
+        if not is_admin:
+            if (
+                actor.role != User.Role.VENDOR
+                or application.pet.vendor_id != actor.pk
+                or application.pet.business.vendor_id != actor.pk
+            ):
+                raise PermissionDenied(
+                    "You can only decide applications for your own pets."
+                )
+
+        if application.status not in ACTIVE_STATUSES:
+            raise ValidationError({
+                "status": "This application has already been decided or closed."
+            })
+
+        pet = Pet.objects.select_for_update().get(
+            pk=application.pet_id
+        )
+
+        if decision == AdoptionApplication.Status.APPROVED:
+            if (
+                not pet.approved
+                or not pet.is_active
+                or pet.adoption_status != Pet.AdoptionStatus.AVAILABLE
+            ):
+                raise ValidationError({
+                    "pet": "This pet is no longer available for adoption."
+                })
+
+            pet.adoption_status = Pet.AdoptionStatus.ADOPTED
+            pet.save(update_fields=["adoption_status", "updated_at"])
+
+        application.status = decision
+        application.decided_by = actor
+        application.decided_at = timezone.now()
+        application.decision_reason = decision_reason
+        application.save(
+            update_fields=[
+                "status",
+                "decided_by",
+                "decided_at",
+                "decision_reason",
+                "updated_at",
+            ]
+        )
+
+        return application

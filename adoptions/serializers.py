@@ -35,3 +35,33 @@ class AdoptionApplicationSerializer(serializers.ModelSerializer):
             'created_at',
         )
         read_only_fields = fields
+
+        
+class AdoptionDecisionUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=[
+            AdoptionApplication.Status.APPROVED,
+            AdoptionApplication.Status.REJECTED,
+        ]
+    )
+    decision_reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=2000,
+    )
+
+
+class AdoptionDecisionResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AdoptionApplication
+        fields = (
+            'application_id',
+            'pet',
+            'status',
+            'decided_by',
+            'decided_at',
+            'decision_reason',
+        )
+        read_only_fields = fields
+
+
