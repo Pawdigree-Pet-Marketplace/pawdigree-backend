@@ -91,6 +91,7 @@ INSTALLED_APPS = [
     'orders',
     'documents',
     'notification',
+    'favourites',
     "phonenumber_field",
     "countries",
     "anymail",
