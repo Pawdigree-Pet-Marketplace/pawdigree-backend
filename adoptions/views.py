@@ -1,15 +1,17 @@
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from common.permissions import IsAdmin, IsCustomer, IsVendor
 
+from .models import AdoptionApplication
 from .serializers import (
     AdoptionApplicationCreateSerializer,
     AdoptionApplicationSerializer,
     AdoptionDecisionUpdateSerializer,
     AdoptionDecisionResponseSerializer,
+    VendorAdoptionApplicationSerializer,
 )
 from .services import (
     create_adoption_application,
@@ -69,3 +71,42 @@ class AdoptionApplicationDecisionView(generics.GenericAPIView):
             AdoptionDecisionResponseSerializer(application).data,
             status=status.HTTP_200_OK,
         )
+
+
+@extend_schema(
+    summary="List adoption applications for vendor pets",
+    responses={200: VendorAdoptionApplicationSerializer(many=True)},
+)
+class VendorAdoptionApplicationListView(generics.ListAPIView):
+    serializer_class = VendorAdoptionApplicationSerializer
+    permission_classes = (IsAuthenticated, IsVendor | IsAdmin)
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = AdoptionApplication.objects.all()
+
+        if not IsAdmin().has_permission(self.request, self):
+            queryset = queryset.filter(
+                pet__vendor=user,
+                pet__business__vendor=user,
+            )
+
+        queryset = (
+            queryset
+            .select_related("pet", "customer", "pet__business")
+            .order_by("-created_at")
+        )
+
+        pet_id = self.request.query_params.get("pet_id")
+
+        if pet_id is not None:
+            try:
+                pet_id = int(pet_id)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError({
+                    "pet_id": "Must be a valid integer."
+                })
+
+            queryset = queryset.filter(pet_id=pet_id)
+
+        return queryset
