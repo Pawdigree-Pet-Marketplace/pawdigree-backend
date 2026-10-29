@@ -15,6 +15,7 @@ from .services import (
     create_adoption_application,
     decide_adoption_application,
 )
+from .models import AdoptionApplication
 
 @extend_schema(
     summary='Submit an adoption application',
@@ -68,4 +69,26 @@ class AdoptionApplicationDecisionView(generics.GenericAPIView):
         return Response(
             AdoptionDecisionResponseSerializer(application).data,
             status=status.HTTP_200_OK,
+        )
+
+
+
+@extend_schema(
+    summary="List the current customer's adoption applications",
+    description=(
+        "Returns adoption applications belonging to the authenticated "
+        "customer, including each application's current status."
+    ),
+    responses={200: AdoptionApplicationSerializer(many=True)},
+)
+class CustomerAdoptionStatusView(generics.ListAPIView):
+    serializer_class = AdoptionApplicationSerializer
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    def get_queryset(self):
+        return (
+            AdoptionApplication.objects
+            .filter(customer=self.request.user)
+            .select_related("pet")
+            .order_by("-created_at")
         )
