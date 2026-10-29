@@ -1,3 +1,4 @@
+
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers, status
 from rest_framework.permissions import IsAuthenticated
@@ -18,12 +19,13 @@ from .services import (
     decide_adoption_application,
 )
 
+
 @extend_schema(
-    summary='Submit an adoption application',
+    summary="Submit an adoption application",
     description=(
-        'A customer applies to adopt or buy a pet. The pet must be '
-        'approved and available, and the customer can have only one open '
-        'application per pet.'
+        "A customer applies to adopt or buy a pet. The pet must be "
+        "approved and available, and the customer can have only one open "
+        "application per pet."
     ),
     responses={201: AdoptionApplicationSerializer},
 )
@@ -36,7 +38,7 @@ class AdoptionApplicationCreateView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         data = dict(serializer.validated_data)
-        pet_id = data.pop('pet')
+        pet_id = data.pop("pet")
 
         application = create_adoption_application(request.user, pet_id, data)
         return Response(
@@ -44,7 +46,7 @@ class AdoptionApplicationCreateView(generics.GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-    
+
 @extend_schema(
     summary="Approve or reject an adoption application",
     request=AdoptionDecisionUpdateSerializer,
@@ -74,6 +76,27 @@ class AdoptionApplicationDecisionView(generics.GenericAPIView):
 
 
 @extend_schema(
+    summary="List the current customer's adoption applications",
+    description=(
+        "Returns adoption applications belonging to the authenticated "
+        "customer, including each application's current status."
+    ),
+    responses={200: AdoptionApplicationSerializer(many=True)},
+)
+class CustomerAdoptionStatusView(generics.ListAPIView):
+    serializer_class = AdoptionApplicationSerializer
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    def get_queryset(self):
+        return (
+            AdoptionApplication.objects
+            .filter(customer=self.request.user)
+            .select_related("pet")
+            .order_by("-created_at")
+        )
+
+
+@extend_schema(
     summary="List adoption applications for vendor pets",
     responses={200: VendorAdoptionApplicationSerializer(many=True)},
 )
@@ -98,7 +121,6 @@ class VendorAdoptionApplicationListView(generics.ListAPIView):
         )
 
         pet_id = self.request.query_params.get("pet_id")
-
         if pet_id is not None:
             try:
                 pet_id = int(pet_id)
