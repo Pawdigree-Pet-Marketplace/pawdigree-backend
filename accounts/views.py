@@ -10,6 +10,7 @@ from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from common.permissions import IsCustomer, IsSystemAdmin
 
@@ -29,7 +30,7 @@ from .serializers import (
     VendorLoginSerializer,
     VendorRegistrationSerializer,
 )
-from .token_utils import revoke_user_tokens
+from .token_utils import SessionTokenRefreshSerializer, revoke_user_tokens
 from .verification import start_verification
 
 User = get_user_model()
@@ -333,3 +334,6 @@ class PasswordResetConfirmView(generics.GenericAPIView):
             {'detail': 'Password has been reset successfully.'},
             status=200,
         )
+
+class SessionTokenRefreshView(TokenRefreshView):
+    serializer_class = SessionTokenRefreshSerializer

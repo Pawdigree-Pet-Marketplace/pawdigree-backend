@@ -1,5 +1,6 @@
 from django.conf import settings
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken,
     OutstandingToken,
@@ -40,3 +41,8 @@ class SessionRefreshToken(RefreshToken):
         limit = int(settings.SESSION_MAX_LIFETIME.total_seconds())
         if now - int(started) > limit:
             raise TokenError('Your session has ended. Please log in again.')
+
+class SessionTokenRefreshSerializer(TokenRefreshSerializer):
+    """Refresh with SessionRefreshToken so the session cap is enforced."""
+
+    token_class = SessionRefreshToken

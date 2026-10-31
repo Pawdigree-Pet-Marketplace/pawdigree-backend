@@ -3,12 +3,12 @@ from rest_framework import generics, serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
     ResendVerificationSerializer,
     VerifyEmailSerializer,
 )
+from .token_utils import SessionRefreshToken
 from .verification import (
     CODE_TTL,
     RESEND_COOLDOWN,
@@ -50,7 +50,7 @@ class VerifyEmailView(generics.GenericAPIView):
         if not check_code(user, serializer.validated_data['code']):
             raise serializers.ValidationError({'code': INVALID_CODE})
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
