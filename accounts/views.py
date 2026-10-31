@@ -288,6 +288,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
             status=200,
         )
 
+
 class PasswordResetConfirmView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = PasswordResetConfirmSerializer
