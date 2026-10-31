@@ -215,6 +215,50 @@ class TestBusinessDocumentDownload:
         response.close()
         document.file.delete(save=False)
 
+    def test_missing_file_returns_404_not_500(
+        self, api_client, admin, vendor, vendor_business, settings, tmp_path
+    ):
+        settings.MEDIA_ROOT = tmp_path
+        document = BusinessDocument.objects.create(
+            business=vendor_business,
+            uploaded_by=vendor,
+            document_type="REGISTRATION",
+            file=make_document(),
+        )
+        # Simulate a redeploy wiping the disk: the record stays, the file goes.
+        document.file.storage.delete(document.file.name)
+        api_client.force_authenticate(user=admin)
+
+        response = api_client.get(
+            reverse(
+                "business-document-download",
+                kwargs={"document_id": document.document_id},
+            )
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "no longer available" in response.data["detail"]
+
+    def test_record_without_a_file_returns_404(
+        self, api_client, admin, vendor, vendor_business
+    ):
+        document = BusinessDocument.objects.create(
+            business=vendor_business,
+            uploaded_by=vendor,
+            document_type="REGISTRATION",
+            file="",
+        )
+        api_client.force_authenticate(user=admin)
+
+        response = api_client.get(
+            reverse(
+                "business-document-download",
+                kwargs={"document_id": document.document_id},
+            )
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_vendor_cannot_download_document(
         self, api_client, vendor, vendor_business, settings, tmp_path
     ):
