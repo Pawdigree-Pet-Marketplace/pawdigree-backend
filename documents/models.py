@@ -22,6 +22,12 @@ class BusinessDocument(TimeStampedModel):
         TAX = "TAX", "Tax document"
         OTHER = "OTHER", "Other"
 
+    class ReviewStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending review"
+        APPROVED = "APPROVED", "Approved"
+        CHANGES_REQUESTED = "CHANGES_REQUESTED", "Changes requested"
+        SUPERSEDED = "SUPERSEDED", "Superseded"
+
     document_id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -42,6 +48,28 @@ class BusinessDocument(TimeStampedModel):
         choices=DocumentType.choices,
         default=DocumentType.REGISTRATION,
     )
+    review_status = models.CharField(
+        max_length=25,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.PENDING,
+    )
+    correction_reason = models.TextField(blank=True)
+    version = models.PositiveIntegerField(default=1)
+    previous_version = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="replacement_versions",
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="reviewed_business_documents",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     file = models.FileField(
         storage=private_document_storage,
         upload_to=private_document_upload_path,
@@ -49,6 +77,41 @@ class BusinessDocument(TimeStampedModel):
 
     class Meta:
         ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("previous_version",),
+                condition=models.Q(previous_version__isnull=False),
+                name="unique_business_document_replacement",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.document_type} — {self.business.name}"
+
+
+class BusinessDocumentReview(TimeStampedModel):
+    class Action(models.TextChoices):
+        APPROVE = "APPROVE", "Approve"
+        REQUEST_CHANGES = "REQUEST_CHANGES", "Request changes"
+
+    document = models.ForeignKey(
+        BusinessDocument,
+        on_delete=models.PROTECT,
+        related_name="review_history",
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="business_document_reviews",
+    )
+    action = models.CharField(
+        max_length=20,
+        choices=Action.choices,
+    )
+    correction_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.action} — {self.document.document_id}"
