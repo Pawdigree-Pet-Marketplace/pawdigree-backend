@@ -189,7 +189,7 @@ class CustomerLoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-    
+
 
 class GoogleLoginSerializer(serializers.Serializer):
     credential = serializers.CharField(write_only=True)
@@ -253,12 +253,12 @@ class GoogleLoginSerializer(serializers.Serializer):
             user.is_email_verified = True
             user.save(update_fields=['is_email_verified'])
 
-        if user.has_usable_password():
-            # Google has verified the inbox, so any password set earlier
-            # may belong to someone else.
-            user.set_unusable_password()
-            user.save(update_fields=['password'])
-            revoke_user_tokens(user)
+            if user.has_usable_password():
+                # This account was never verified, so its password may
+                # belong to someone who doesn't own this inbox.
+                user.set_unusable_password()
+                user.save(update_fields=['password'])
+                revoke_user_tokens(user)
 
         refresh = RefreshToken.for_user(user)
 
@@ -373,6 +373,7 @@ class LogoutSerializer(serializers.Serializer):
 class CurrentUserSerializer(serializers.ModelSerializer):
     isActive = serializers.SerializerMethodField()
     accountStatus = serializers.SerializerMethodField()
+    businesses = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -384,8 +385,10 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             'email',
             'phone',
             'role',
+            'is_email_verified',
             'isActive',
             'accountStatus',
+            'businesses',
         )
         read_only_fields = fields
 
@@ -394,6 +397,19 @@ class CurrentUserSerializer(serializers.ModelSerializer):
 
     def get_accountStatus(self, obj) -> str:
         return 'active' if obj.is_active else 'inactive'
+
+    def get_businesses(self, obj) -> list:
+        if obj.role != User.Role.VENDOR:
+            return []
+
+        return [
+            {
+                'id': str(business.id),
+                'name': business.name,
+                'verification_status': business.verification_status,
+            }
+            for business in obj.businesses.filter(is_active=True)
+        ]
 
 
 class CustomerProfileSerializer(
