@@ -39,10 +39,33 @@ def resolve_login_email(email):
     user = User.objects.filter(email__iexact=email).order_by('id').first()
     return user.email if user else email
 
+def unique_username(email):
+    """Return a free username built from the part of the email before @."""
+    base = email.split('@')[0][:140] or 'user'
+    username = base
+    counter = 2
+
+    while User.objects.filter(username=username).exists():
+        username = f'{base}{counter}'
+        counter += 1
+
+    return username
+
+
+class OptionalUsernameMixin:
+    """Lets clients leave username out; one is made from the email."""
+
+    def validate(self, attrs):
+        if not attrs.get('username'):
+            attrs['username'] = unique_username(attrs['email'])
+
+        return super().validate(attrs)
+
 
 class CustomerRegistrationSerializer(
     PhoneValidationMixin,
     EmailNormalizationMixin,
+    OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -66,6 +89,7 @@ class CustomerRegistrationSerializer(
             'phone',
             'password',
         )
+        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -77,6 +101,7 @@ class CustomerRegistrationSerializer(
 class VendorRegistrationSerializer(
     PhoneValidationMixin,
     EmailNormalizationMixin,
+    OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -100,6 +125,7 @@ class VendorRegistrationSerializer(
             'phone',
             'password',
         )
+        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -196,15 +222,7 @@ class GoogleLoginSerializer(serializers.Serializer):
 
     @staticmethod
     def _unique_username(email):
-        base = email.split('@')[0][:140] or 'user'
-        username = base
-        counter = 2
-
-        while User.objects.filter(username=username).exists():
-            username = f'{base}{counter}'
-            counter += 1
-
-        return username
+        return unique_username(email)
 
     def validate(self, attrs):
         try:
@@ -267,7 +285,6 @@ class GoogleLoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-
 
 class VendorLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
