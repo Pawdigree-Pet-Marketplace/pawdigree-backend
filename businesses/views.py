@@ -373,6 +373,7 @@ class AdminBusinessPagination(PageNumberPagination):
 def admin_business_queryset():
     return Business.objects.select_related("vendor").prefetch_related(
         "images",
+        "documents",
         Prefetch(
             "business_categories",
             queryset=BusinessCategory.objects.select_related("category", "business"),

@@ -8,6 +8,7 @@ from rest_framework import serializers
 from categories.models import Category
 from common.phone import normalize_phone_number
 from common.validators import validate_image_upload
+from documents.serializers import BusinessDocumentReadSerializer
 
 from .models import Business, BusinessCategory, BusinessDecision, BusinessImage
 
@@ -362,6 +363,7 @@ class AdminBusinessReviewSerializer(serializers.ModelSerializer):
         source="vendor.username", read_only=True
     )
     images = BusinessImageReadSerializer(many=True, read_only=True)
+    documents = BusinessDocumentReadSerializer(many=True, read_only=True)
     categories = BusinessCategoryStatusSerializer(
         source="business_categories", many=True, read_only=True
     )
@@ -382,6 +384,7 @@ class AdminBusinessReviewSerializer(serializers.ModelSerializer):
             "logo",
             "cover_image",
             "images",
+            "documents",
             "categories",
             "verification_status",
             "decision_reason",
