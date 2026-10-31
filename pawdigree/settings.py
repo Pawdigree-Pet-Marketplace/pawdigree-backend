@@ -245,6 +245,10 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
+# A session ends this long after the actual login, however often the
+# refresh token has been rotated since.
+SESSION_MAX_LIFETIME = timedelta(days=30)
+
 # Allow the local and deployed frontends to communicate with Django
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",

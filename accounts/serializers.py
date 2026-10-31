@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.phone import normalize_phone_number
 
 from .google_auth import GoogleTokenError, verify_google_token
-from .token_utils import revoke_user_tokens
+from .token_utils import SessionRefreshToken, revoke_user_tokens
 
 User = get_user_model()
 
@@ -208,7 +208,7 @@ class CustomerLoginSerializer(serializers.Serializer):
                 'verification_required': True,
             }
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
@@ -278,7 +278,7 @@ class GoogleLoginSerializer(serializers.Serializer):
                 user.save(update_fields=['password'])
                 revoke_user_tokens(user)
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
@@ -322,7 +322,7 @@ class VendorLoginSerializer(serializers.Serializer):
                 'verification_required': True,
             }
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
@@ -361,7 +361,7 @@ class AdminLoginSerializer(serializers.Serializer):
                 'Invalid email or password.'
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
