@@ -215,6 +215,8 @@ REST_FRAMEWORK = {
         'verification': '10/minute',
         'verification_resend': '5/minute',
         'login': '10/minute',
+        'password_reset': '5/hour',
+        'password_reset_confirm': '10/hour',
     },
 }
 

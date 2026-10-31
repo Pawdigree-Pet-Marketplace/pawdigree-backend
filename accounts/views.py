@@ -219,6 +219,8 @@ class CurrentUserView(generics.RetrieveAPIView):
 class PasswordResetRequestView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = PasswordResetRequestSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'password_reset'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -286,10 +288,11 @@ class PasswordResetRequestView(generics.GenericAPIView):
             status=200,
         )
 
-
 class PasswordResetConfirmView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = PasswordResetConfirmSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'password_reset_confirm'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
