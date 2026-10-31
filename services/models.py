@@ -63,7 +63,7 @@ class AvailabilitySlot(TimeStampedModel):
     
     class Meta:
         # Week order first, then earliest slot of the day first.
-        odering = ("weekday", "start_time")
+        ordering = ("weekday", "start_time")
         constraints = (
             # Database-level safety nets. The serializer gives friendly
             # errors first; these protect the data if something bypasses it.
