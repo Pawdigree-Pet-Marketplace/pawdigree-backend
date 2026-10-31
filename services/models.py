@@ -1,8 +1,8 @@
 from django.db import models
+from django.db.models import F, Q
 
 from businesses.models import Business
 from common.models import TimeStampedModel
-from django.db.models import F, Q
 
 
 class Service(TimeStampedModel):
@@ -17,6 +17,13 @@ class Service(TimeStampedModel):
     business = models.ForeignKey(
         Business,
         on_delete=models.PROTECT,
+        related_name="services",
+    )
+    category = models.ForeignKey(
+        "categories.Category",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="services",
     )
     name = models.CharField(max_length=150)
