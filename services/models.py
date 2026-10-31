@@ -2,6 +2,7 @@ from django.db import models
 
 from businesses.models import Business
 from common.models import TimeStampedModel
+from django.db.models import F, Q
 
 
 class Service(TimeStampedModel):
@@ -35,3 +36,49 @@ class Service(TimeStampedModel):
 
     def __str__(self):
         return self.name
+    
+
+class AvailabilitySlot(TimeStampedModel):
+    """Weekly time window in which a service can be booked"""
+    
+    class Weekday(models.IntegerChoices):
+        #Match days to Python's date.weekday()
+        MONDAY = 0, "Monday"
+        TUESDAY = 1, "Tuesday"
+        WEDNESDAY = 2, "Wednesday"
+        THURSDAY = 3, "Thursday"
+        FRIDAY = 4, "Friday"
+        SATURDAY = 5, "Saturday"
+        SUNDAY = 6, "Sunday"
+        
+    slot_id = models.BigAutoField(primary_key=True)
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="availability_slots"
+    )
+    weekday = models.PositiveSmallIntegerField(choices=Weekday.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    
+    class Meta:
+        # Week order first, then earliest slot of the day first.
+        odering = ("weekday", "start_time")
+        constraints = (
+            # Database-level safety nets. The serializer gives friendly
+            # errors first; these protect the data if something bypasses it.
+            models.CheckConstraint(
+                condition=Q(end_time__gt=F("start_time")),
+                name="slot_end_after_start",
+            ),
+            models.UniqueConstraint(
+                fields=["service", "weekday", "start_time"],
+                name="unique_slot_start_per_service_day"
+            )
+        )
+        
+    def __str__(self):
+        return (
+            f"{self.service.name}: {self.get_weekday_display()}"
+            f"{self.start_time:%H:%M}-{self.end_time:%H:%M}"
+        )
