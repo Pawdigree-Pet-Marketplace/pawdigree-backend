@@ -200,28 +200,12 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
-
 class CurrentUserView(generics.RetrieveAPIView):
     serializer_class = CurrentUserSerializer
     permission_classes = (IsAuthenticated,)
 
-    def retrieve(self, request, *args, **kwargs):
-        user = request.user
-
-        return Response({
-            'id': user.id,
-            'username': user.username,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'email': user.email,
-            'phone': user.phone,
-            'role': user.role,
-            'isActive': user.is_active,
-            'accountStatus': (
-                'active' if user.is_active else 'inactive'
-            ),
-        })
-
+    def get_object(self):
+        return self.request.user
 
 class PasswordResetRequestView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
