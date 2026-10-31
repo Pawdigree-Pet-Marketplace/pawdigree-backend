@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
@@ -276,7 +278,15 @@ class PasswordResetRequestView(generics.GenericAPIView):
             )
 
             # Send the email.
-            email_message.send(fail_silently=False)
+            # A send failure is logged but never shown to the caller, so
+            # the response is the same whether or not the account exists.
+            try:
+                email_message.send(fail_silently=False)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    'Password reset email could not be sent for user %s',
+                    user.pk,
+                )
 
         return Response(
             {
