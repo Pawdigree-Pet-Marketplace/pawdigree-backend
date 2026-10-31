@@ -214,8 +214,29 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'verification': '10/minute',
         'verification_resend': '5/minute',
+        'login': '10/minute',
+        'password_reset': '5/hour',
+        'password_reset_confirm': '10/hour',
     },
 }
+
+# Throttle counters must be shared by every worker, so they cannot live in
+# per-process memory. The database cache works everywhere with no extra
+# service; set REDIS_URL to switch to Redis later without changing code.
+if os.getenv('REDIS_URL'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': os.getenv('REDIS_URL'),
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache',
+        }
+    }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
