@@ -2,8 +2,10 @@ from django.http import FileResponse
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers, status
+from rest_framework.exceptions import NotFound
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -53,8 +55,18 @@ class BusinessDocumentDownloadView(APIView):
             document_id=document_id,
         )
 
+        try:
+            file = document.file.open("rb")
+        except (FileNotFoundError, ValueError):
+            # The record exists but its file is gone (for example after a
+            # redeploy wiped the disk), or no file was ever attached.
+            raise NotFound(
+                "This document file is no longer available. "
+                "Please ask the vendor to upload it again."
+            )
+
         return FileResponse(
-            document.file.open("rb"),
+            file,
             as_attachment=True,
             filename=f"business-document-{document.document_id}",
         )
