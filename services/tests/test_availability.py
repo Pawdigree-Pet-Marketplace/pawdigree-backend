@@ -207,3 +207,60 @@ class RemoveSlotTests(AvailabilityTestCase):
         response = self.client.get(self.slots_url())
 
         self.assertEqual(rows(response), [])
+        
+        
+class CalendarTests(AvailabilityTestCase):
+    def calendar(self):
+        url = reverse("service-availability", kwargs={"service_id": self.service.pk})
+        return self.client.get(url)
+
+    def test_calendar_has_all_seven_days_starting_on_monday(self):
+        response = self.calendar()
+
+        self.assertEqual(response.status_code, 200)
+        days = response.json()["days"]
+        self.assertEqual(len(days), 7)
+        self.assertEqual(days[0]["day"], "Monday")
+        self.assertEqual(days[6]["day"], "Sunday")
+
+    def test_empty_schedule_gives_seven_empty_days(self):
+        days = self.calendar().json()["days"]
+
+        self.assertEqual([day["slots"] for day in days], [[]] * 7)
+
+    def test_slots_are_grouped_by_day_in_time_order(self):
+        AvailabilitySlot.objects.create(
+            service=self.service, weekday=0, start_time="13:00", end_time="15:00"
+        )
+        AvailabilitySlot.objects.create(
+            service=self.service, weekday=0, start_time="09:00", end_time="12:00"
+        )
+        AvailabilitySlot.objects.create(
+            service=self.service, weekday=2, start_time="09:00", end_time="12:00"
+        )
+
+        days = self.calendar().json()["days"]
+
+        self.assertEqual(
+            [slot["start_time"] for slot in days[0]["slots"]],
+            ["09:00:00", "13:00:00"],
+        )
+        self.assertEqual(days[1]["slots"], [])
+        self.assertEqual(len(days[2]["slots"]), 1)
+
+    def test_calendar_reports_the_service_details(self):
+        data = self.calendar().json()
+
+        self.assertEqual(data["service_name"], "Grooming")
+        self.assertEqual(data["duration"], 60)
+        self.assertEqual(data["availability_status"], "available")
+
+    def test_another_vendor_gets_404(self):
+        self.client.force_authenticate(self.other)
+
+        self.assertEqual(self.calendar().status_code, 404)
+
+    def test_customer_gets_403(self):
+        self.client.force_authenticate(self.customer)
+
+        self.assertEqual(self.calendar().status_code, 403)
