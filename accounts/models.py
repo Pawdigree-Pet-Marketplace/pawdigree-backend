@@ -53,3 +53,39 @@ class EmailVerificationCode(models.Model):
     expires_at = models.DateTimeField()
     attempts = models.PositiveSmallIntegerField(default=0)
     last_sent_at = models.DateTimeField()
+
+
+class AdminAuditLog(models.Model):
+    """A permanent record of one sensitive administrator action.
+
+    There is deliberately no field that could hold a password or token.
+    The email snapshots keep the record readable if an account is deleted.
+    """
+
+    class Action(models.TextChoices):
+        SYSTEM_ADMIN_CREATED = 'SYSTEM_ADMIN_CREATED', 'System admin created'
+        ADMIN_CREATED = 'ADMIN_CREATED', 'Admin created'
+        ADMIN_ACTIVATED = 'ADMIN_ACTIVATED', 'Admin activated'
+        ADMIN_DEACTIVATED = 'ADMIN_DEACTIVATED', 'Admin deactivated'
+
+    actor = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='admin_actions_performed',
+    )
+    actor_email = models.EmailField(blank=True)
+    target = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='admin_audit_entries',
+    )
+    target_email = models.EmailField()
+    action = models.CharField(max_length=30, choices=Action.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at', '-id')

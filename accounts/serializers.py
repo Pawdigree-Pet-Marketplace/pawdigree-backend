@@ -166,7 +166,10 @@ class AdminRegistrationSerializer(
         read_only_fields = ('id', 'role')
 
     def create(self, validated_data):
-        return create_admin_account(**validated_data)
+        return create_admin_account(
+            actor=self.context['request'].user,
+            **validated_data,
+        )
 
 
 class CustomerLoginSerializer(serializers.Serializer):

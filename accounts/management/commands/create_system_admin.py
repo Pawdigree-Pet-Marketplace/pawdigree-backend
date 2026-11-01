@@ -8,7 +8,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.validators import validate_email
 from django.db import transaction
 
+from accounts.models import AdminAuditLog
 from accounts.serializers import unique_username
+from accounts.services import record_admin_action
 
 User = get_user_model()
 
@@ -65,6 +67,11 @@ class Command(BaseCommand):
                 is_staff=False,
                 is_superuser=False,
                 is_email_verified=True,
+            )
+            record_admin_action(
+                actor=None,
+                target=user,
+                action=AdminAuditLog.Action.SYSTEM_ADMIN_CREATED,
             )
 
         self.stdout.write(self.style.SUCCESS(
