@@ -220,3 +220,20 @@ category = serializers.PrimaryKeyRelatedField(
     queryset=Category.objects.filter(is_active=True),
     required=False,
 )
+
+class CalendarDaySerializer(serializers.Serializer):
+    """One day of the weekly calendar and its slots."""
+
+    weekday = serializers.IntegerField()
+    day = serializers.CharField()
+    slots = AvailabilitySlotSerializer(many=True)
+
+
+class ServiceCalendarSerializer(serializers.Serializer):
+    """A service's weekly availability, grouped by day."""
+
+    service_id = serializers.IntegerField()
+    service_name = serializers.CharField()
+    duration = serializers.IntegerField()
+    availability_status = serializers.CharField()
+    days = CalendarDaySerializer(many=True)
