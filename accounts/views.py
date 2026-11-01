@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from common.permissions import IsCustomer, IsSystemAdmin
+from common.permissions import IsCustomer, IsSystemAdminRoleOnly
 
 from .emails import send_welcome_email
 from .password_reset import PasswordResetTokenGeneratorService
@@ -75,12 +75,12 @@ class VendorRegistrationView(WelcomeEmailMixin, generics.CreateAPIView):
     summary='Create an administrator account',
     description=(
         'Creates a new administrator account. '
-        'Only the system admin (superuser) may use this endpoint.'
+        'Only a user with the SYSTEM_ADMIN role may use this endpoint.'
     ),
 )
 class AdminRegistrationView(generics.CreateAPIView):
     serializer_class = AdminRegistrationSerializer
-    permission_classes = (IsAuthenticated, IsSystemAdmin)
+    permission_classes = (IsAuthenticated, IsSystemAdminRoleOnly)
 
 
 @extend_schema(

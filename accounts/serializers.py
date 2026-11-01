@@ -8,6 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.phone import normalize_phone_number
 
 from .google_auth import GoogleTokenError, verify_google_token
+from .services import create_admin_account
 from .token_utils import SessionRefreshToken, revoke_user_tokens
 
 User = get_user_model()
@@ -165,11 +166,7 @@ class AdminRegistrationSerializer(
         read_only_fields = ('id', 'role')
 
     def create(self, validated_data):
-        return User.objects.create_user(
-            role=User.Role.ADMIN,
-            is_staff=True,
-            **validated_data,
-        )
+        return create_admin_account(**validated_data)
 
 
 class CustomerLoginSerializer(serializers.Serializer):

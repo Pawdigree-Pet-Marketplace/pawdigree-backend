@@ -54,8 +54,8 @@ def role_system_admin(db):
 
 
 @pytest.mark.django_db
-def test_system_admin_can_create_admin_account(api_client, system_admin):
-    api_client.force_authenticate(user=system_admin)
+def test_system_admin_can_create_admin_account(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
         reverse("admin-register"),
@@ -256,3 +256,119 @@ def test_role_only_system_admin_permission_requires_role_only(
     for user in (system_admin, regular_admin):
         request = SimpleNamespace(user=user)
         assert permission.has_permission(request, None) is False
+
+
+
+def admin_payload(**overrides):
+    payload = {
+        "username": "created_admin",
+        "first_name": "Created",
+        "last_name": "Admin",
+        "email": "created_admin@example.com",
+        "phone": "0700000006",
+        "password": "StrongPass123!",
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.django_db
+def test_superuser_without_system_admin_role_cannot_create_admin_account(
+    api_client,
+):
+    superuser = User.objects.create_superuser(
+        username="plain_superuser",
+        email="plain_superuser@example.com",
+        password="SuperPass123!",
+    )
+    api_client.force_authenticate(user=superuser)
+
+    response = api_client.post(
+        reverse("admin-register"), admin_payload(), format="json"
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert not User.objects.filter(email="created_admin@example.com").exists()
+
+
+@pytest.mark.django_db
+def test_submitted_role_is_ignored(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        admin_payload(role="SYSTEM_ADMIN"),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    created = User.objects.get(email="created_admin@example.com")
+    assert created.role == User.Role.ADMIN
+    assert response.data["role"] == User.Role.ADMIN
+    assert User.objects.filter(role=User.Role.SYSTEM_ADMIN).count() == 1
+
+
+@pytest.mark.django_db
+def test_duplicate_email_is_rejected_ignoring_case(
+    api_client, role_system_admin, regular_admin
+):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        admin_payload(email=regular_admin.email.upper()),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert User.objects.filter(email__iexact=regular_admin.email).count() == 1
+
+
+@pytest.mark.django_db
+def test_password_is_hashed_and_never_returned(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"), admin_payload(), format="json"
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert "password" not in response.data
+    created = User.objects.get(email="created_admin@example.com")
+    assert created.password != "StrongPass123!"
+    assert created.check_password("StrongPass123!")
+
+
+@pytest.mark.django_db
+def test_weak_password_is_rejected(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        admin_payload(password="123"),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert not User.objects.filter(email="created_admin@example.com").exists()
+
+
+@pytest.mark.django_db
+def test_created_admin_is_active_and_can_log_in(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
+    api_client.post(reverse("admin-register"), admin_payload(), format="json")
+    api_client.force_authenticate(user=None)
+
+    created = User.objects.get(email="created_admin@example.com")
+    assert created.is_active is True
+    assert created.is_staff is True
+    assert created.is_superuser is False
+
+    response = api_client.post(
+        reverse("admin-login"),
+        {"email": "created_admin@example.com", "password": "StrongPass123!"},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["role"] == User.Role.ADMIN
