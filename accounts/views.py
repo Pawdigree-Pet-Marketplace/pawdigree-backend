@@ -153,6 +153,7 @@ class AdminLoginView(generics.GenericAPIView):
         return Response({
             'access': serializer.validated_data['access'],
             'refresh': serializer.validated_data['refresh'],
+            'role': serializer.validated_data['user'].role,
         })
 
 
