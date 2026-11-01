@@ -510,7 +510,6 @@ class AdministratorSerializer(PhoneValidationMixin, serializers.ModelSerializer)
             'role',
             'is_active',
             'date_joined',
-            'last_login',
         )
         read_only_fields = (
             'id',
@@ -519,5 +518,4 @@ class AdministratorSerializer(PhoneValidationMixin, serializers.ModelSerializer)
             'role',
             'is_active',
             'date_joined',
-            'last_login',
         )

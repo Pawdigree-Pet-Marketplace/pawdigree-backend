@@ -64,6 +64,48 @@ CASES = [
         },
     ),
     (
+        "administrator-list", "get", "administrator-list", {},
+        {
+            "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
+            "vendor": FORBIDDEN, "admin": FORBIDDEN, "system_admin": OK,
+        },
+    ),
+    (
+        "administrator-create", "post", "administrator-list", {},
+        {
+            "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
+            "vendor": FORBIDDEN, "admin": FORBIDDEN,
+            "system_admin": BAD_REQUEST,
+        },
+    ),
+    (
+        "administrator-detail", "get", "administrator-detail",
+        {"pk": MISSING_ID},
+        {
+            "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
+            "vendor": FORBIDDEN, "admin": FORBIDDEN,
+            "system_admin": NOT_FOUND,
+        },
+    ),
+    (
+        "administrator-activate", "post", "administrator-activate",
+        {"pk": MISSING_ID},
+        {
+            "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
+            "vendor": FORBIDDEN, "admin": FORBIDDEN,
+            "system_admin": NOT_FOUND,
+        },
+    ),
+    (
+        "administrator-deactivate", "post", "administrator-deactivate",
+        {"pk": MISSING_ID},
+        {
+            "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
+            "vendor": FORBIDDEN, "admin": FORBIDDEN,
+            "system_admin": NOT_FOUND,
+        },
+    ),
+    (
         "category-create", "post", "category-list", {},
         {
             "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
