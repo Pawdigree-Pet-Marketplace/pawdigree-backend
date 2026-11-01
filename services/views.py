@@ -12,6 +12,7 @@ from .serializers import (
     AvailabilitySlotSerializer,
     ServiceSerializer,
     ServiceUpdateSerializer,
+    ServiceCalendarSerializer,
 )
 
 
@@ -148,3 +149,47 @@ class ServiceSlotDeleteView(generics.DestroyAPIView):
             service__business__vendor=self.request.user,
             service__is_active=True,
         )
+        
+        
+@extend_schema(
+    tags=["services"],
+    summary="Weekly availability calendar for a service",
+    description=(
+        "Returns all seven days, Monday first, each with its time slots. "
+        "Days with no slots return an empty list."
+    ),
+    responses=ServiceCalendarSerializer,
+)
+class ServiceAvailabilityCalendarView(generics.GenericAPIView):
+    """The vendor's weekly calendar for one of their services."""
+
+    serializer_class = ServiceCalendarSerializer
+    permission_classes = (IsAuthenticated, IsVendor)
+
+    def get(self, request, service_id):
+        service = get_object_or_404(
+            Service.objects.filter(business__vendor=request.user, is_active=True),
+            pk=service_id,
+        )
+
+        # One query for all slots, then sorted into days in Python.
+        # The model's default ordering already puts them in time order.
+        slots = list(service.availability_slots.all())
+
+        days = [
+            {
+                "weekday": weekday.value,
+                "day": weekday.label,
+                "slots": [slot for slot in slots if slot.weekday == weekday.value],
+            }
+            for weekday in AvailabilitySlot.Weekday
+        ]
+
+        payload = {
+            "service_id": service.pk,
+            "service_name": service.name,
+            "duration": service.duration,
+            "availability_status": service.availability_status,
+            "days": days,
+        }
+        return Response(ServiceCalendarSerializer(payload).data)
