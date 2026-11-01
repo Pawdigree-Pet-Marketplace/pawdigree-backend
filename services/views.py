@@ -121,3 +121,30 @@ class ServiceSlotListCreateView(generics.ListCreateAPIView):
         serializer.save(service=service)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+@extend_schema(
+    tags=["services"],
+    summary="Remove a time slot",
+    description=(
+        "Deletes one weekly time slot of the authenticated vendor's own "
+        "service. Another vendor's slot returns 404."
+    ),
+)
+class ServiceSlotDeleteView(generics.DestroyAPIView):
+    """Remove one weekly time slot."""
+
+    serializer_class = AvailabilitySlotSerializer
+    permission_classes = (IsAuthenticated, IsVendor)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return AvailabilitySlot.objects.none()
+
+        # The slot must belong to the service named in the URL, and that
+        # service must be the vendor's own and still active. Otherwise it
+        # behaves as if it does not exist.
+        return AvailabilitySlot.objects.filter(
+            service_id=self.kwargs["service_id"],
+            service__business__vendor=self.request.user,
+            service__is_active=True,
+        )
