@@ -8,6 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.phone import normalize_phone_number
 
 from .google_auth import GoogleTokenError, verify_google_token
+from .services import create_admin_account
 from .token_utils import SessionRefreshToken, revoke_user_tokens
 
 User = get_user_model()
@@ -137,6 +138,7 @@ class VendorRegistrationSerializer(
 class AdminRegistrationSerializer(
     PhoneValidationMixin,
     EmailNormalizationMixin,
+    OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -163,11 +165,11 @@ class AdminRegistrationSerializer(
             'role',
         )
         read_only_fields = ('id', 'role')
+        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
 
     def create(self, validated_data):
-        return User.objects.create_user(
-            role=User.Role.ADMIN,
-            is_staff=True,
+        return create_admin_account(
+            actor=self.context['request'].user,
             **validated_data,
         )
 
@@ -492,3 +494,28 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 class ResendVerificationSerializer(serializers.Serializer):
     verification_token = serializers.CharField(write_only=True)
+
+class AdministratorSerializer(PhoneValidationMixin, serializers.ModelSerializer):
+    """Safe view of an administrator. Only the name and phone are editable."""
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'role',
+            'is_active',
+            'date_joined',
+        )
+        read_only_fields = (
+            'id',
+            'username',
+            'email',
+            'role',
+            'is_active',
+            'date_joined',
+        )

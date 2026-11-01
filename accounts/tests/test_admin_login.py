@@ -58,3 +58,19 @@ class AdminLoginAPITests(APITestCase):
         response = self.login('admin1@example.com', 'wrong-password')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_login_response_includes_role(self):
+        response = self.login('sysadmin1@example.com')
+        self.assertEqual(response.data['role'], User.Role.SYSTEM_ADMIN)
+
+        response = self.login('admin1@example.com')
+        self.assertEqual(response.data['role'], User.Role.ADMIN)
+
+    def test_inactive_admin_cannot_log_in(self):
+        self.system_admin.is_active = False
+        self.system_admin.save()
+
+        response = self.login('sysadmin1@example.com')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('access', response.data)

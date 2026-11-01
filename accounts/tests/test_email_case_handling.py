@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from accounts.models import User
@@ -55,9 +57,12 @@ def test_registration_rejects_email_differing_only_by_case(serializer_class):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("serializer_class", REGISTRATION)
-def test_registration_stores_email_lowercased(serializer_class):
+def test_registration_stores_email_lowercased(serializer_class, system_admin):
+    # The admin serializer records who created the account, so it needs the
+    # request's user in its context. The other two ignore the context.
     serializer = serializer_class(
-        data=registration_data("New@Example.COM")
+        data=registration_data("New@Example.COM"),
+        context={"request": SimpleNamespace(user=system_admin)},
     )
 
     assert serializer.is_valid(), serializer.errors
