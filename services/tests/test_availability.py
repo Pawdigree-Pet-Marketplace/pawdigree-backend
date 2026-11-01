@@ -149,3 +149,61 @@ class AddSlotTests(AvailabilityTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item["weekday"] for item in rows(response)], [0, 2])
+
+#--------------------------------remove a time slot--------------------------------
+class RemoveSlotTests(AvailabilityTestCase):
+    def setUp(self):
+        super().setUp()
+        self.slot = AvailabilitySlot.objects.create(
+            service=self.service, weekday=0,
+            start_time="09:00", end_time="12:00",
+        )
+
+    def detail_url(self, service=None, slot=None):
+        service = service or self.service
+        slot = slot or self.slot
+        return reverse(
+            "service-slot-detail",
+            kwargs={"service_id": service.pk, "pk": slot.pk},
+        )
+
+    def test_vendor_can_remove_a_slot(self):
+        response = self.client.delete(self.detail_url())
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(AvailabilitySlot.objects.filter(pk=self.slot.pk).exists())
+
+    def test_removing_twice_returns_404(self):
+        self.client.delete(self.detail_url())
+
+        self.assertEqual(self.client.delete(self.detail_url()).status_code, 404)
+
+    def test_another_vendor_cannot_remove_it(self):
+        self.client.force_authenticate(self.other)
+
+        self.assertEqual(self.client.delete(self.detail_url()).status_code, 404)
+        self.assertTrue(AvailabilitySlot.objects.filter(pk=self.slot.pk).exists())
+
+    def test_slot_with_the_wrong_service_in_the_url_returns_404(self):
+        second = Service.objects.create(
+            business=self.business, name="Walking",
+            service_type="walking", description="Walks",
+            price="10.00", duration=30,
+        )
+
+        response = self.client.delete(self.detail_url(service=second))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(AvailabilitySlot.objects.filter(pk=self.slot.pk).exists())
+
+    def test_customer_cannot_remove_a_slot(self):
+        self.client.force_authenticate(self.customer)
+
+        self.assertEqual(self.client.delete(self.detail_url()).status_code, 403)
+
+    def test_removed_slot_leaves_the_list(self):
+        self.client.delete(self.detail_url())
+
+        response = self.client.get(self.slots_url())
+
+        self.assertEqual(rows(response), [])
