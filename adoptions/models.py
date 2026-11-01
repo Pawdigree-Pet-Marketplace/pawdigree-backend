@@ -75,3 +75,39 @@ class AdoptionApplication(TimeStampedModel):
 
     def __str__(self):
         return f'{self.customer} -> {self.pet} ({self.status})'
+    
+
+
+class AdoptionInfoMessage(TimeStampedModel):
+    """One question or answer in an application's information exchange.
+
+    The vendor's requests and the customer's replies are stored as rows,
+    so the full conversation stays on the application as a record.
+    """
+
+    class Kind(models.TextChoices):
+        REQUEST = 'REQUEST', 'Information request'
+        REPLY = 'REPLY', 'Applicant reply'
+
+    application = models.ForeignKey(
+        AdoptionApplication,
+        on_delete=models.CASCADE,
+        related_name='info_messages',
+    )
+    # SET_NULL keeps the conversation if the author's account is deleted.
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='adoption_info_messages',
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    body = models.TextField(max_length=2000)
+
+    class Meta:
+        # Oldest first. The id breaks ties, so the order is always stable.
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return f'{self.kind} on {self.application_id}'
