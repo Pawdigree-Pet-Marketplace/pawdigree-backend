@@ -489,3 +489,30 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 class ResendVerificationSerializer(serializers.Serializer):
     verification_token = serializers.CharField(write_only=True)
+
+class AdministratorSerializer(PhoneValidationMixin, serializers.ModelSerializer):
+    """Safe view of an administrator. Only the name and phone are editable."""
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'role',
+            'is_active',
+            'date_joined',
+            'last_login',
+        )
+        read_only_fields = (
+            'id',
+            'username',
+            'email',
+            'role',
+            'is_active',
+            'date_joined',
+            'last_login',
+        )
