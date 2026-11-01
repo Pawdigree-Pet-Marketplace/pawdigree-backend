@@ -7,6 +7,8 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from common.views import HealthView
+
 urlpatterns = [
     path('', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('admin/', admin.site.urls),
@@ -23,6 +25,7 @@ urlpatterns = [
     path('api/docs/',SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui', ),
     path("api/notifications/", include("notification.urls")),
     path("api/country-codes/", include("countries.urls")),
+    path('api/health/', HealthView.as_view(), name='health'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

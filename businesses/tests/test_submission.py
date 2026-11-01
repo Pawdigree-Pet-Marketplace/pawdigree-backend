@@ -4,6 +4,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from businesses.models import Business
+from documents.models import BusinessDocument
 
 
 def make_business(vendor, name, status, email):
@@ -61,13 +62,40 @@ class SubmissionTests(TestCase):
 
     def test_submitted_business_appears_in_admin_queue(self):
         self.submit()
+        document = BusinessDocument.objects.create(
+            business=self.business,
+            uploaded_by=self.vendor,
+            document_type=BusinessDocument.DocumentType.REGISTRATION,
+            file="private_documents/registration.pdf",
+        )
         self.client.force_authenticate(self.admin)
 
         response = self.client.get(reverse("business-admin-list"))
 
         self.assertEqual(response.status_code, 200)
+        result = response.json()["results"][0]
         ids = [item["id"] for item in response.json()["results"]]
         self.assertEqual(ids, [str(self.business.pk)])
+        self.assertEqual(len(result["documents"]), 1)
+        document_data = result["documents"][0]
+        self.assertEqual(
+            document_data["document_id"],
+            str(document.document_id),
+        )
+        self.assertEqual(
+            document_data["document_type"],
+            BusinessDocument.DocumentType.REGISTRATION,
+        )
+        self.assertEqual(
+            document_data["review_status"],
+            BusinessDocument.ReviewStatus.PENDING,
+        )
+        self.assertIn("created_at", document_data)
+        self.assertEqual(
+            document_data["download_url"],
+            f"/api/documents/{document.document_id}/download/",
+        )
+        self.assertNotIn("private_documents", str(result["documents"]))
 
     def test_draft_is_not_in_admin_queue(self):
         self.client.force_authenticate(self.admin)

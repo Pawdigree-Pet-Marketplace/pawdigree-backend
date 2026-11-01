@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.phone import normalize_phone_number
 
 from .google_auth import GoogleTokenError, verify_google_token
-from .token_utils import revoke_user_tokens
+from .token_utils import SessionRefreshToken, revoke_user_tokens
 
 User = get_user_model()
 
@@ -39,10 +39,33 @@ def resolve_login_email(email):
     user = User.objects.filter(email__iexact=email).order_by('id').first()
     return user.email if user else email
 
+def unique_username(email):
+    """Return a free username built from the part of the email before @."""
+    base = email.split('@')[0][:140] or 'user'
+    username = base
+    counter = 2
+
+    while User.objects.filter(username=username).exists():
+        username = f'{base}{counter}'
+        counter += 1
+
+    return username
+
+
+class OptionalUsernameMixin:
+    """Lets clients leave username out; one is made from the email."""
+
+    def validate(self, attrs):
+        if not attrs.get('username'):
+            attrs['username'] = unique_username(attrs['email'])
+
+        return super().validate(attrs)
+
 
 class CustomerRegistrationSerializer(
     PhoneValidationMixin,
     EmailNormalizationMixin,
+    OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -66,6 +89,7 @@ class CustomerRegistrationSerializer(
             'phone',
             'password',
         )
+        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -77,6 +101,7 @@ class CustomerRegistrationSerializer(
 class VendorRegistrationSerializer(
     PhoneValidationMixin,
     EmailNormalizationMixin,
+    OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -100,6 +125,7 @@ class VendorRegistrationSerializer(
             'phone',
             'password',
         )
+        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -182,29 +208,21 @@ class CustomerLoginSerializer(serializers.Serializer):
                 'verification_required': True,
             }
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-    
+
 
 class GoogleLoginSerializer(serializers.Serializer):
     credential = serializers.CharField(write_only=True)
 
     @staticmethod
     def _unique_username(email):
-        base = email.split('@')[0][:140] or 'user'
-        username = base
-        counter = 2
-
-        while User.objects.filter(username=username).exists():
-            username = f'{base}{counter}'
-            counter += 1
-
-        return username
+        return unique_username(email)
 
     def validate(self, attrs):
         try:
@@ -253,21 +271,20 @@ class GoogleLoginSerializer(serializers.Serializer):
             user.is_email_verified = True
             user.save(update_fields=['is_email_verified'])
 
-        if user.has_usable_password():
-            # Google has verified the inbox, so any password set earlier
-            # may belong to someone else.
-            user.set_unusable_password()
-            user.save(update_fields=['password'])
-            revoke_user_tokens(user)
+            if user.has_usable_password():
+                # This account was never verified, so its password may
+                # belong to someone who doesn't own this inbox.
+                user.set_unusable_password()
+                user.save(update_fields=['password'])
+                revoke_user_tokens(user)
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-
 
 class VendorLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -305,7 +322,7 @@ class VendorLoginSerializer(serializers.Serializer):
                 'verification_required': True,
             }
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
@@ -344,7 +361,7 @@ class AdminLoginSerializer(serializers.Serializer):
                 'Invalid email or password.'
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = SessionRefreshToken.for_user(user)
 
         return {
             'user': user,
@@ -373,6 +390,7 @@ class LogoutSerializer(serializers.Serializer):
 class CurrentUserSerializer(serializers.ModelSerializer):
     isActive = serializers.SerializerMethodField()
     accountStatus = serializers.SerializerMethodField()
+    businesses = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -384,8 +402,10 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             'email',
             'phone',
             'role',
+            'is_email_verified',
             'isActive',
             'accountStatus',
+            'businesses',
         )
         read_only_fields = fields
 
@@ -394,6 +414,19 @@ class CurrentUserSerializer(serializers.ModelSerializer):
 
     def get_accountStatus(self, obj) -> str:
         return 'active' if obj.is_active else 'inactive'
+
+    def get_businesses(self, obj) -> list:
+        if obj.role != User.Role.VENDOR:
+            return []
+
+        return [
+            {
+                'id': str(business.id),
+                'name': business.name,
+                'verification_status': business.verification_status,
+            }
+            for business in obj.businesses.filter(is_active=True)
+        ]
 
 
 class CustomerProfileSerializer(

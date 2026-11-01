@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
@@ -9,6 +11,8 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from common.permissions import IsCustomer, IsSystemAdmin
 
@@ -28,7 +32,7 @@ from .serializers import (
     VendorLoginSerializer,
     VendorRegistrationSerializer,
 )
-from .token_utils import revoke_user_tokens
+from .token_utils import SessionTokenRefreshSerializer, revoke_user_tokens
 from .verification import start_verification
 
 User = get_user_model()
@@ -89,6 +93,8 @@ class AdminRegistrationView(generics.CreateAPIView):
 class CustomerLoginView(generics.GenericAPIView):
     serializer_class = CustomerLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -113,6 +119,8 @@ class CustomerLoginView(generics.GenericAPIView):
 class GoogleLoginView(generics.GenericAPIView):
     serializer_class = GoogleLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -135,6 +143,8 @@ class GoogleLoginView(generics.GenericAPIView):
 class AdminLoginView(generics.GenericAPIView):
     serializer_class = AdminLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -156,6 +166,8 @@ class AdminLoginView(generics.GenericAPIView):
 class VendorLoginView(generics.GenericAPIView):
     serializer_class = VendorLoginSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -200,32 +212,18 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
-
 class CurrentUserView(generics.RetrieveAPIView):
     serializer_class = CurrentUserSerializer
     permission_classes = (IsAuthenticated,)
 
-    def retrieve(self, request, *args, **kwargs):
-        user = request.user
-
-        return Response({
-            'id': user.id,
-            'username': user.username,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'email': user.email,
-            'phone': user.phone,
-            'role': user.role,
-            'isActive': user.is_active,
-            'accountStatus': (
-                'active' if user.is_active else 'inactive'
-            ),
-        })
-
+    def get_object(self):
+        return self.request.user
 
 class PasswordResetRequestView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = PasswordResetRequestSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'password_reset'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -281,7 +279,15 @@ class PasswordResetRequestView(generics.GenericAPIView):
             )
 
             # Send the email.
-            email_message.send(fail_silently=False)
+            # A send failure is logged but never shown to the caller, so
+            # the response is the same whether or not the account exists.
+            try:
+                email_message.send(fail_silently=False)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    'Password reset email could not be sent for user %s',
+                    user.pk,
+                )
 
         return Response(
             {
@@ -297,6 +303,8 @@ class PasswordResetRequestView(generics.GenericAPIView):
 class PasswordResetConfirmView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = PasswordResetConfirmSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'password_reset_confirm'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -336,3 +344,6 @@ class PasswordResetConfirmView(generics.GenericAPIView):
             {'detail': 'Password has been reset successfully.'},
             status=200,
         )
+
+class SessionTokenRefreshView(TokenRefreshView):
+    serializer_class = SessionTokenRefreshSerializer

@@ -6,7 +6,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from businesses.models import Business
+from businesses.models import Business, BusinessCategory
+from categories.models import Category
 from services.models import Service
 
 User = get_user_model()
@@ -45,9 +46,11 @@ class CreateServiceTests(TestCase):
             address="Another Road",
             city_district="Kampala",
         )
+        self.category = Category.objects.create(name="Grooming")
         self.url = reverse("service-create")
         self.service_data = {
             "business": self.business.pk,
+            "category": self.category.pk,
             "name": "Dog Grooming",
             "service_type": "Grooming",
             "description": "Bathing and grooming for dogs.",
@@ -76,6 +79,7 @@ class CreateServiceTests(TestCase):
 
         service = Service.objects.get()
         self.assertEqual(service.business, self.business)
+        self.assertEqual(service.category, self.category)
         self.assertEqual(service.name, self.service_data["name"])
         self.assertEqual(
             service.service_type,
@@ -94,6 +98,11 @@ class CreateServiceTests(TestCase):
         self.assertEqual(response.data["name"], service.name)
         self.assertEqual(response.data["service_id"], service.service_id)
         self.assertEqual(response.data["business"], self.business.pk)
+        self.assertEqual(response.data["category"], self.category.pk)
+        self.assertEqual(
+            response.data["category_status"],
+            BusinessCategory.ApprovalStatus.PENDING,
+        )
         self.assertEqual(response.data["service_type"], service.service_type)
         self.assertEqual(response.data["description"], service.description)
         self.assertEqual(
@@ -109,6 +118,15 @@ class CreateServiceTests(TestCase):
         self.assertIn("updated_at", response.data)
         self.assertIsNotNone(service.created_at)
         self.assertIsNotNone(service.updated_at)
+
+        link = BusinessCategory.objects.get(
+            business=self.business,
+            category=self.category,
+        )
+        self.assertEqual(
+            link.approval_status,
+            BusinessCategory.ApprovalStatus.PENDING,
+        )
 
     def test_anonymous_user_cannot_create_service(self):
         response = self.client.post(
@@ -176,6 +194,7 @@ class CreateServiceTests(TestCase):
 
         required_fields = (
             "business",
+            "category",
             "name",
             "service_type",
             "description",

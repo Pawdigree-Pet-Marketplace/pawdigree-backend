@@ -63,3 +63,19 @@ def system_admin(db):
         password="TestPassword123!",
         role=User.Role.SYSTEM_ADMIN,
     )
+
+
+@pytest.fixture(autouse=True)
+def clear_throttle_cache(settings):
+    # Login throttling counts attempts in the cache. Tests use an
+    # in-memory cache so they don't need database access.
+    from django.core.cache import cache
+
+    settings.CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    cache.clear()
+    yield
+    cache.clear()
