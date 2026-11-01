@@ -406,3 +406,20 @@ def test_supplied_username_is_kept(api_client, role_system_admin):
     assert User.objects.get(
         email="created_admin@example.com"
     ).username == "chosen_name"
+
+
+@pytest.mark.django_db
+def test_privilege_fields_in_request_are_ignored(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        admin_payload(is_superuser=True, is_active=False, role="SYSTEM_ADMIN"),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    created = User.objects.get(email="created_admin@example.com")
+    assert created.role == User.Role.ADMIN
+    assert created.is_superuser is False
+    assert created.is_active is True
