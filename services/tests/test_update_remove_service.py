@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from businesses.models import Business
+from categories.models import Category
 from services.models import Service
 
 User = get_user_model()
@@ -105,10 +106,12 @@ class UpdateRemoveServiceTests(TestCase):
 
     def test_vendor_can_replace_a_whole_service(self):
         self.client.force_authenticate(user=self.vendor)
+        category = Category.objects.create(name="Grooming")
 
         response = self.client.put(
             self.url,
             {
+                "category": category.pk,
                 "name": "Puppy Grooming",
                 "service_type": "Grooming",
                 "description": "Gentle grooming for puppies.",
