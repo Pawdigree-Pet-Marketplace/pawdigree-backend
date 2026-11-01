@@ -372,3 +372,37 @@ def test_created_admin_is_active_and_can_log_in(api_client, role_system_admin):
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["role"] == User.Role.ADMIN
+
+
+
+@pytest.mark.django_db
+def test_username_is_optional_and_generated_from_email(
+    api_client, role_system_admin
+):
+    api_client.force_authenticate(user=role_system_admin)
+    payload = admin_payload(email="no.username@example.com")
+    del payload["username"]
+
+    response = api_client.post(
+        reverse("admin-register"), payload, format="json"
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    created = User.objects.get(email="no.username@example.com")
+    assert created.username == "no.username"
+
+
+@pytest.mark.django_db
+def test_supplied_username_is_kept(api_client, role_system_admin):
+    api_client.force_authenticate(user=role_system_admin)
+
+    response = api_client.post(
+        reverse("admin-register"),
+        admin_payload(username="chosen_name"),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert User.objects.get(
+        email="created_admin@example.com"
+    ).username == "chosen_name"

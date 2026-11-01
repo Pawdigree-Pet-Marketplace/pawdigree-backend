@@ -138,6 +138,7 @@ class VendorRegistrationSerializer(
 class AdminRegistrationSerializer(
     PhoneValidationMixin,
     EmailNormalizationMixin,
+    OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
     password = serializers.CharField(
@@ -164,6 +165,7 @@ class AdminRegistrationSerializer(
             'role',
         )
         read_only_fields = ('id', 'role')
+        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
 
     def create(self, validated_data):
         return create_admin_account(
