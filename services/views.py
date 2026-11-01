@@ -82,7 +82,7 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
             "long as the service and can't overlap another slot that day."
         ),
         request=AvailabilitySlotSerializer,
-        response={201: AvailabilitySlotSerializer},
+        responses={201: AvailabilitySlotSerializer},
     ),
 )
 class ServiceSlotListCreateView(generics.ListCreateAPIView):

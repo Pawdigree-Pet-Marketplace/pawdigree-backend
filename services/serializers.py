@@ -215,8 +215,8 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
         return attrs
     
     
-    # Optional on edit, so older services and small edits keep working.
-    category = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.filter(is_active=True),
-        required=False,
-    )
+# Optional on edit, so older services and small edits keep working.
+category = serializers.PrimaryKeyRelatedField(
+    queryset=Category.objects.filter(is_active=True),
+    required=False,
+)
