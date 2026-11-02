@@ -218,6 +218,7 @@ REST_FRAMEWORK = {
         'password_reset': '5/hour',
         'password_reset_confirm': '10/hour',
     },
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '2')),
 }
 
 # Throttle counters must be shared by every worker, so they cannot live in
