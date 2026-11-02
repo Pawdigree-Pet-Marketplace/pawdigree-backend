@@ -1,0 +1,287 @@
+from django.test import TestCase
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APIClient
+
+from accounts.models import User
+from businesses.models import Business
+from categories.models import Category
+from products.models import Product
+
+
+class ProductViewsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.vendor = User.objects.create_user(
+            username="product_vendor",
+            email="vendor@example.com",
+            password="test-password-123",
+            role=User.Role.VENDOR,
+        )
+        cls.another_vendor = User.objects.create_user(
+            username="another_vendor",
+            email="another-vendor@example.com",
+            password="test-password-123",
+            role=User.Role.VENDOR,
+        )
+        cls.admin = User.objects.create_user(
+            username="product_admin",
+            email="admin@example.com",
+            password="test-password-123",
+            role=User.Role.ADMIN,
+        )
+        cls.system_admin = User.objects.create_user(
+            username="product_system_admin",
+            email="system-admin@example.com",
+            password="test-password-123",
+            role=User.Role.SYSTEM_ADMIN,
+        )
+        cls.customer = User.objects.create_user(
+            username="product_customer",
+            email="customer@example.com",
+            password="test-password-123",
+            role=User.Role.CUSTOMER,
+        )
+
+        cls.category = Category.objects.create(name="Pet Supplies")
+        cls.business = Business.objects.create(
+            vendor=cls.vendor,
+            name="Product Test Business",
+            description="Pet supplies and accessories",
+            contact="+256700000001",
+            email="product-business@example.com",
+            address="Kampala",
+            city_district="Central",
+        )
+        cls.another_business = Business.objects.create(
+            vendor=cls.another_vendor,
+            name="Another Product Business",
+            description="Other pet supplies",
+            contact="+256700000002",
+            email="another-product-business@example.com",
+            address="Entebbe",
+            city_district="Wakiso",
+        )
+
+    def setUp(self):
+        self.client = APIClient()
+        self.list_url = reverse("product-list")
+
+    def create_product(self, vendor=None, name="Rubber Ball", is_active=True):
+        business = (
+            self.another_business if vendor == self.another_vendor
+            else self.business
+        )
+        return Product.objects.create(
+            business=business,
+            category=self.category,
+            name=name,
+            description="A durable pet toy.",
+            price="15000.00",
+            is_active=is_active,
+        )
+
+    def get_results(self, response):
+        if isinstance(response.data, dict) and "results" in response.data:
+            return response.data["results"]
+
+        return response.data
+
+    def test_anonymous_user_can_list_active_products(self):
+        active = self.create_product(name="Active Ball")
+        self.create_product(name="Inactive Ball", is_active=False)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["id"] for item in self.get_results(response)],
+            [active.pk],
+        )
+
+    def test_admin_can_list_inactive_products(self):
+        active = self.create_product(name="Active Toy")
+        inactive = self.create_product(
+            name="Inactive Toy",
+            is_active=False,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {item["id"] for item in self.get_results(response)},
+            {active.pk, inactive.pk},
+        )
+
+    def test_admin_can_retrieve_inactive_product(self):
+        product = self.create_product(is_active=False)
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], product.pk)
+
+    def test_admin_can_create_product(self):
+        payload = {
+            "business": self.business.pk,
+            "category": self.category.pk,
+            "name": "New Product",
+            "description": "A newly managed product.",
+            "price": "12000.00",
+            "is_active": True,
+        }
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            self.list_url,
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Product.objects.filter(name="New Product").exists())
+
+    def test_admin_cannot_create_product_with_zero_price(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "business": self.business.pk,
+                "category": self.category.pk,
+                "name": "Zero Price Product",
+                "price": "0.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(
+            Product.objects.filter(name="Zero Price Product").exists()
+        )
+
+    def test_admin_cannot_create_product_with_negative_price(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "business": self.business.pk,
+                "category": self.category.pk,
+                "name": "Negative Price Product",
+                "price": "-10.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(
+            Product.objects.filter(name="Negative Price Product").exists()
+        )
+
+    def test_system_admin_can_create_product(self):
+        self.client.force_authenticate(user=self.system_admin)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "business": self.business.pk,
+                "category": self.category.pk,
+                "name": "System Admin Product",
+                "price": "12000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_admin_can_update_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"name": "Updated Rubber Ball"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product.refresh_from_db()
+        self.assertEqual(product.name, "Updated Rubber Ball")
+
+    def test_admin_deletes_product_by_deactivating_it(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.delete(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        product.refresh_from_db()
+        self.assertFalse(product.is_active)
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())
+
+    def test_vendor_cannot_create_product(self):
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.post(
+            self.list_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_customer_cannot_update_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.customer)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"name": "Unauthorized Change"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_anonymous_user_cannot_create_product(self):
+        response = self.client.post(
+            self.list_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_non_admin_cannot_retrieve_inactive_product(self):
+        product = self.create_product(is_active=False)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
