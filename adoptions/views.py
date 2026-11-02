@@ -92,6 +92,7 @@ class CustomerAdoptionStatusView(generics.ListAPIView):
             AdoptionApplication.objects
             .filter(customer=self.request.user)
             .select_related("pet")
+            .prefetch_related("info_messages")
             .order_by("-created_at")
         )
 
@@ -117,6 +118,7 @@ class VendorAdoptionApplicationListView(generics.ListAPIView):
         queryset = (
             queryset
             .select_related("pet", "customer", "pet__business")
+            .prefetch_related("info_messages")
             .order_by("-created_at")
         )
 
