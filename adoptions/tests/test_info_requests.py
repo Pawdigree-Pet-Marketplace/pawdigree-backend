@@ -88,3 +88,116 @@ class SerializerTests(InfoRequestTestCase):
         data = AdoptionApplicationSerializer(self.application).data
 
         self.assertEqual(data["info_messages"], [])
+        
+        
+#-----------------------------vendor reuqests for information-------------------------
+
+class RequestInfoTests(InfoRequestTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.vendor)
+
+    def request_info(self, message="Do you have a garden?", **kwargs):
+        return self.post("adoption-request-info", {"message": message}, **kwargs)
+
+    def test_vendor_can_request_information(self):
+        response = self.request_info()
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.current_status(), "INFO_REQUESTED")
+
+        row = AdoptionInfoMessage.objects.get()
+        self.assertEqual(row.kind, "REQUEST")
+        self.assertEqual(row.body, "Do you have a garden?")
+        self.assertEqual(row.author, self.vendor)
+        self.assertEqual(len(response.json()["info_messages"]), 1)
+
+    def test_message_is_trimmed(self):
+        self.request_info(message="   Any references?   ")
+
+        self.assertEqual(AdoptionInfoMessage.objects.get().body, "Any references?")
+
+    def test_blank_or_missing_message_is_rejected(self):
+        for body in ({"message": ""}, {"message": "   "}, {}):
+            with self.subTest(body=body):
+                response = self.post("adoption-request-info", body)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), "PENDING")
+                self.assertEqual(AdoptionInfoMessage.objects.count(), 0)
+
+    def test_message_over_2000_characters_is_rejected(self):
+        response = self.request_info(message="x" * 2001)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(AdoptionInfoMessage.objects.count(), 0)
+
+    def test_only_a_pending_application_can_be_asked(self):
+        for value in (
+            Status.INFO_REQUESTED, Status.APPROVED,
+            Status.REJECTED, Status.CANCELLED,
+        ):
+            with self.subTest(status=value):
+                self.set_status(value)
+
+                response = self.request_info()
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), value)
+                self.assertEqual(AdoptionInfoMessage.objects.count(), 0)
+
+    def test_pet_that_is_gone_cannot_be_asked_about(self):
+        self.pet.adoption_status = "ADOPTED"
+        self.pet.save()
+        self.assertEqual(self.request_info().status_code, 400)
+
+        self.pet.adoption_status = "AVAILABLE"
+        self.pet.is_active = False
+        self.pet.save()
+        self.assertEqual(self.request_info().status_code, 400)
+
+        self.assertEqual(self.current_status(), "PENDING")
+
+    def test_another_vendor_gets_404(self):
+        self.client.force_authenticate(self.other_vendor)
+
+        response = self.request_info()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.current_status(), "PENDING")
+        self.assertEqual(AdoptionInfoMessage.objects.count(), 0)
+
+    def test_pet_whose_business_belongs_to_someone_else_gets_404(self):
+        other_business = Business.objects.create(
+            vendor=self.other_vendor, name="Other Shop", description="Pets",
+            contact="0700000001", email="other@example.com",
+            address="2 Main St", city_district="Kampala",
+        )
+        self.pet.business = other_business
+        self.pet.save()
+
+        self.assertEqual(self.request_info().status_code, 404)
+
+    def test_other_roles_are_turned_away(self):
+        for user in (self.customer, self.other_customer, self.admin):
+            with self.subTest(user=user.username):
+                self.client.force_authenticate(user)
+
+                self.assertEqual(self.request_info().status_code, 403)
+
+        self.assertEqual(AdoptionInfoMessage.objects.count(), 0)
+
+    def test_anonymous_user_is_turned_away(self):
+        self.client.force_authenticate(None)
+
+        self.assertIn(self.request_info().status_code, (401, 403))
+
+    def test_unknown_application_returns_404(self):
+        import uuid
+
+        url = reverse(
+            "adoption-request-info", kwargs={"application_id": uuid.uuid4()}
+        )
+        response = self.client.post(url, {"message": "Hi"}, format="json")
+
+        self.assertEqual(response.status_code, 404)
