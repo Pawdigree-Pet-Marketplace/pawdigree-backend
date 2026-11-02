@@ -97,6 +97,7 @@ class VendorAdoptionApplicationSerializer(serializers.ModelSerializer):
     customer_username = serializers.ReadOnlyField(source="customer.username")
     customer_email = serializers.ReadOnlyField(source="customer.email")
     pet_name = serializers.ReadOnlyField(source="pet.name")
+    info_messages = InfoMessageSerializer(many=True, read_only=True)
 
     class Meta:
         model = AdoptionApplication
@@ -117,35 +118,6 @@ class VendorAdoptionApplicationSerializer(serializers.ModelSerializer):
             "created_at",
             "decided_at",
             "decision_reason",
-        )
-        read_only_fields = fields
-
-
-
-class VendorAdoptionApplicationSerializer(serializers.ModelSerializer):
-    customer_id = serializers.ReadOnlyField(source="customer.pk")
-    customer_username = serializers.ReadOnlyField(source="customer.username")
-    customer_email = serializers.ReadOnlyField(source="customer.email")
-    pet_name = serializers.ReadOnlyField(source="pet.name")
-
-    class Meta:
-        model = AdoptionApplication
-        fields = (
-            "application_id",
-            "pet",
-            "pet_name",
-            "customer_id",
-            "customer_username",
-            "customer_email",
-            "status",
-            "home_type",
-            "has_outdoor_space",
-            "has_other_pets",
-            "other_pets_details",
-            "previous_pet_experience",
-            "message",
-            "created_at",
-            "decided_at",
-            "decision_reason",
+            "info_messages",
         )
         read_only_fields = fields
