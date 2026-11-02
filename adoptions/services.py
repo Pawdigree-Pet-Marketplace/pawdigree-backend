@@ -12,6 +12,7 @@ from pets.models import Pet
 from .models import ACTIVE_STATUSES, AdoptionApplication, AdoptionInfoMessage
 
 ALREADY_APPLIED = 'You already have an open application for this pet.'
+NOT_ADOPTABLE = 'This pet is listed for sale, not for adoption.'
 
 
 def create_adoption_application(customer, pet_id, data):
@@ -24,6 +25,9 @@ def create_adoption_application(customer, pet_id, data):
         pet = Pet.objects.publicly_visible().get(pk=pet_id)
     except Pet.DoesNotExist:
         raise NotFound('This pet is not available.')
+
+    if pet.listing_type != Pet.ListingType.ADOPTION:
+        raise ValidationError({'pet': NOT_ADOPTABLE})
 
     already_applied = AdoptionApplication.objects.filter(
         customer=customer,
@@ -92,6 +96,7 @@ def decide_adoption_application(
                 not pet.approved
                 or not pet.is_active
                 or pet.adoption_status != Pet.AdoptionStatus.AVAILABLE
+                or pet.listing_type != Pet.ListingType.ADOPTION
             ):
                 raise ValidationError({
                     "pet": "This pet is no longer available for adoption."
