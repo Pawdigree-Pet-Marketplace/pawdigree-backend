@@ -4,8 +4,10 @@ from django.urls import path
 from .views import (
     AdoptionApplicationCreateView,
     AdoptionApplicationDecisionView,
+    AdoptionInfoRequestView,
     CustomerAdoptionStatusView,
     VendorAdoptionApplicationListView,
+    
 )
 
 urlpatterns = [
@@ -29,4 +31,5 @@ urlpatterns = [
         CustomerAdoptionStatusView.as_view(),
         name="customer-adoption-status",
     ),
+    path("<uuid:application_id>/request-info/", AdoptionInfoRequestView.as_view(), name="adoption-request-info",),
 ]

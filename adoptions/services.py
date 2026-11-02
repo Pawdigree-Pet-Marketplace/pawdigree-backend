@@ -9,7 +9,7 @@ from rest_framework.exceptions import (
 from accounts.models import User
 from pets.models import Pet
 
-from .models import ACTIVE_STATUSES, AdoptionApplication
+from .models import ACTIVE_STATUSES, AdoptionApplication, AdoptionInfoMessage
 
 ALREADY_APPLIED = 'You already have an open application for this pet.'
 
@@ -113,5 +113,70 @@ def decide_adoption_application(
                 "updated_at",
             ]
         )
+
+        return application
+    
+    
+    
+def request_adoption_info(application_id, actor, message):
+    """A vendor asks the applicant for more information.
+
+    The application moves from PENDING to INFO_REQUESTED and the question
+    is saved on it. Another vendor's application behaves as if it does not
+    exist (NotFound), so its existence is not revealed.
+    """
+    # The view already checks the role. This keeps the function safe if it
+    # is ever called from somewhere else.
+    if actor.role != User.Role.VENDOR:
+        raise PermissionDenied('Only vendors can request information.')
+
+    with transaction.atomic():
+        try:
+            # Search only among applications for this vendor's own pets, and
+            # lock the row, so a reply or a decision can't change the status
+            # while this request is half done.
+            application = (
+                AdoptionApplication.objects
+                .select_for_update(of=('self',))
+                .select_related('pet', 'customer')
+                .get(
+                    pk=application_id,
+                    pet__vendor=actor,
+                    pet__business__vendor=actor,
+                )
+            )
+        except AdoptionApplication.DoesNotExist:
+            raise NotFound('Adoption application not found.')
+
+        # Checked after the lock, so the status can't change underneath us.
+        if application.status == AdoptionApplication.Status.INFO_REQUESTED:
+            raise ValidationError({
+                'status': 'You are already waiting for the applicant to reply.'
+            })
+        if application.status != AdoptionApplication.Status.PENDING:
+            raise ValidationError({
+                'status': 'Information can only be requested for a pending '
+                          'application.'
+            })
+
+        # There is no point asking about a pet that is gone.
+        pet = application.pet
+        if (
+            not pet.is_active
+            or pet.adoption_status != Pet.AdoptionStatus.AVAILABLE
+        ):
+            raise ValidationError({'pet': 'This pet is no longer available.'})
+
+        # The server decides the author and the kind. The client only
+        # sends the text.
+        AdoptionInfoMessage.objects.create(
+            application=application,
+            author=actor,
+            kind=AdoptionInfoMessage.Kind.REQUEST,
+            body=message,
+        )
+
+        application.status = AdoptionApplication.Status.INFO_REQUESTED
+        application.save(update_fields=['status', 'updated_at'])
 
         return application

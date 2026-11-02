@@ -13,10 +13,12 @@ from .serializers import (
     AdoptionDecisionResponseSerializer,
     AdoptionDecisionUpdateSerializer,
     VendorAdoptionApplicationSerializer,
+    InfoMessageInputSerializer,
 )
 from .services import (
     create_adoption_application,
     decide_adoption_application,
+    request_adoption_info,
 )
 
 
@@ -134,3 +136,34 @@ class VendorAdoptionApplicationListView(generics.ListAPIView):
             queryset = queryset.filter(pet_id=pet_id)
 
         return queryset
+    
+    
+@extend_schema(
+    summary="Request more information from an applicant",
+    description=(
+        "The vendor who owns the pet asks the applicant a question. The "
+        "application moves to INFO_REQUESTED until the applicant replies. "
+        "Only a pending application can be asked."
+    ),
+    request=InfoMessageInputSerializer,
+    responses={201: VendorAdoptionApplicationSerializer},
+)
+class AdoptionInfoRequestView(generics.GenericAPIView):
+    serializer_class = InfoMessageInputSerializer
+    # Role check at the door. Ownership is checked inside the service.
+    permission_classes = (IsAuthenticated, IsVendor)
+
+    def post(self, request, application_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        application = request_adoption_info(
+            application_id=application_id,
+            actor=request.user,
+            message=serializer.validated_data['message'],
+        )
+
+        return Response(
+            VendorAdoptionApplicationSerializer(application).data,
+            status=status.HTTP_201_CREATED,
+        )
