@@ -180,3 +180,48 @@ def request_adoption_info(application_id, actor, message):
         application.save(update_fields=['status', 'updated_at'])
 
         return application
+    
+
+def reply_to_info_request(application_id, actor, message):
+    """The applicant answers a vendor's request for information.
+
+    The application moves from INFO_REQUESTED back to PENDING and the reply
+    is saved on it. Someone else's application behaves as if it does not
+    exist (NotFound).
+    """
+    if actor.role != User.Role.CUSTOMER:
+        raise PermissionDenied('Only the applicant can reply.')
+
+    with transaction.atomic():
+        try:
+            # Only this customer's own applications, row locked, so a
+            # decision made at the same moment can't be overwritten.
+            application = (
+                AdoptionApplication.objects
+                .select_for_update(of=('self',))
+                .select_related('pet')
+                .get(pk=application_id, customer=actor)
+            )
+        except AdoptionApplication.DoesNotExist:
+            raise NotFound('Adoption application not found.')
+
+        # Checked after the lock. If the vendor approved or rejected the
+        # application first, the reply is refused.
+        if application.status != AdoptionApplication.Status.INFO_REQUESTED:
+            raise ValidationError({
+                'status': 'There is no information request to reply to.'
+            })
+
+        AdoptionInfoMessage.objects.create(
+            application=application,
+            author=actor,
+            kind=AdoptionInfoMessage.Kind.REPLY,
+            body=message,
+        )
+
+        # Back to PENDING: the vendor can read the answer, then decide or
+        # ask again.
+        application.status = AdoptionApplication.Status.PENDING
+        application.save(update_fields=['status', 'updated_at'])
+
+        return application

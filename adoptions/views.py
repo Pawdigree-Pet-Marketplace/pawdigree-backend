@@ -19,6 +19,7 @@ from .services import (
     create_adoption_application,
     decide_adoption_application,
     request_adoption_info,
+    reply_to_info_request,
 )
 
 
@@ -165,5 +166,35 @@ class AdoptionInfoRequestView(generics.GenericAPIView):
 
         return Response(
             VendorAdoptionApplicationSerializer(application).data,
+            status=status.HTTP_201_CREATED,
+        )
+        
+        
+@extend_schema(
+    summary="Reply to a request for more information",
+    description=(
+        "The applicant answers the vendor's question. The application goes "
+        "back to PENDING. Only possible while information is requested."
+    ),
+    request=InfoMessageInputSerializer,
+    responses={201: AdoptionApplicationSerializer},
+)
+class AdoptionInfoReplyView(generics.GenericAPIView):
+    serializer_class = InfoMessageInputSerializer
+    # Role check at the door while ownership is checked inside the service.
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    def post(self, request, application_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        application = reply_to_info_request(
+            application_id=application_id,
+            actor=request.user,
+            message=serializer.validated_data['message'],
+        )
+
+        return Response(
+            AdoptionApplicationSerializer(application).data,
             status=status.HTTP_201_CREATED,
         )
