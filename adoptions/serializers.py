@@ -19,7 +19,34 @@ class AdoptionApplicationCreateSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=2000)
 
 
+
+class InfoMessageSerializer(serializers.ModelSerializer):
+    """One request or reply.
+
+    The author is left out on purpose, so no account details leak:
+    'kind' already says who wrote it.
+    """
+
+    class Meta:
+        model = AdoptionInfoMessage
+        fields = ('id', 'kind', 'body', 'created_at')
+        read_only_fields = fields
+
+
+class InfoMessageInputSerializer(serializers.Serializer):
+    """Validates the text of a request or a reply."""
+
+    # CharField refuses blank text and trims spaces at both ends, so a
+    # message made only of spaces is rejected.
+    message = serializers.CharField(max_length=2000, trim_whitespace=True)
+    
+    
+    
 class AdoptionApplicationSerializer(serializers.ModelSerializer):
+    
+    # The whole exchange, oldest first.
+    info_messages = InfoMessageSerializer(many=True, read_only=True)
+    
     class Meta:
         model = AdoptionApplication
         fields = (
@@ -33,6 +60,7 @@ class AdoptionApplicationSerializer(serializers.ModelSerializer):
             'previous_pet_experience',
             'message',
             'created_at',
+            'info_messages',
         )
         read_only_fields = fields
 
