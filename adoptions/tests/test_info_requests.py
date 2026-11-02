@@ -201,3 +201,135 @@ class RequestInfoTests(InfoRequestTestCase):
         response = self.client.post(url, {"message": "Hi"}, format="json")
 
         self.assertEqual(response.status_code, 404)
+        
+        
+#-----------------------------customer replies to vendor's request-------------------------
+class ReplyTests(InfoRequestTestCase):
+    def setUp(self):
+        super().setUp()
+        # Start with a question waiting for an answer.
+        self.set_status(Status.INFO_REQUESTED)
+        self.add_message("REQUEST", "Do you have a garden?", self.vendor)
+        self.client.force_authenticate(self.customer)
+
+    def reply(self, message="Yes, a fenced one.", **kwargs):
+        return self.post("adoption-reply", {"message": message}, **kwargs)
+
+    def test_customer_can_reply(self):
+        response = self.reply()
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.current_status(), "PENDING")
+
+        row = AdoptionInfoMessage.objects.get(kind="REPLY")
+        self.assertEqual(row.body, "Yes, a fenced one.")
+        self.assertEqual(row.author, self.customer)
+
+        kinds = [item["kind"] for item in response.json()["info_messages"]]
+        self.assertEqual(kinds, ["REQUEST", "REPLY"])
+
+    def test_blank_or_missing_reply_is_rejected(self):
+        for body in ({"message": ""}, {"message": "   "}, {}):
+            with self.subTest(body=body):
+                response = self.post("adoption-reply", body)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), "INFO_REQUESTED")
+
+        self.assertEqual(AdoptionInfoMessage.objects.filter(kind="REPLY").count(), 0)
+
+    def test_reply_over_2000_characters_is_rejected(self):
+        self.assertEqual(self.reply(message="x" * 2001).status_code, 400)
+
+    def test_can_only_reply_while_information_is_requested(self):
+        for value in (
+            Status.PENDING, Status.APPROVED, Status.REJECTED, Status.CANCELLED,
+        ):
+            with self.subTest(status=value):
+                self.set_status(value)
+
+                response = self.reply()
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.current_status(), value)
+
+        self.assertEqual(AdoptionInfoMessage.objects.filter(kind="REPLY").count(), 0)
+
+    def test_replying_twice_is_rejected(self):
+        self.assertEqual(self.reply().status_code, 201)
+
+        self.assertEqual(self.reply().status_code, 400)
+        self.assertEqual(AdoptionInfoMessage.objects.filter(kind="REPLY").count(), 1)
+
+    def test_reply_after_the_vendor_decided_is_refused(self):
+        # The vendor approves while the question is still open.
+        self.set_status(Status.APPROVED)
+
+        response = self.reply()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.current_status(), "APPROVED")
+
+    def test_another_customer_gets_404(self):
+        self.client.force_authenticate(self.other_customer)
+
+        response = self.reply()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.current_status(), "INFO_REQUESTED")
+        self.assertEqual(AdoptionInfoMessage.objects.filter(kind="REPLY").count(), 0)
+
+    def test_other_roles_are_turned_away(self):
+        for user in (self.vendor, self.other_vendor, self.admin):
+            with self.subTest(user=user.username):
+                self.client.force_authenticate(user)
+
+                self.assertEqual(self.reply().status_code, 403)
+
+    def test_anonymous_user_is_turned_away(self):
+        self.client.force_authenticate(None)
+
+        self.assertIn(self.reply().status_code, (401, 403))
+
+    def test_unknown_application_returns_404(self):
+        import uuid
+
+        url = reverse("adoption-reply", kwargs={"application_id": uuid.uuid4()})
+        response = self.client.post(url, {"message": "Hi"}, format="json")
+
+        self.assertEqual(response.status_code, 404)
+
+
+class ExchangeFlowTests(InfoRequestTestCase):
+    def test_full_exchange_in_several_rounds(self):
+        # Round 1: the vendor asks, the customer answers.
+        self.client.force_authenticate(self.vendor)
+        self.post("adoption-request-info", {"message": "Do you have a garden?"})
+        self.assertEqual(self.current_status(), "INFO_REQUESTED")
+
+        self.client.force_authenticate(self.customer)
+        self.post("adoption-reply", {"message": "Yes, a fenced one."})
+        self.assertEqual(self.current_status(), "PENDING")
+
+        # Round 2: the vendor asks again and sees the earlier answer.
+        self.client.force_authenticate(self.vendor)
+        response = self.post("adoption-request-info", {"message": "Any references?"})
+
+        self.assertEqual(response.status_code, 201)
+        kinds = [item["kind"] for item in response.json()["info_messages"]]
+        self.assertEqual(kinds, ["REQUEST", "REPLY", "REQUEST"])
+        bodies = [item["body"] for item in response.json()["info_messages"]]
+        self.assertEqual(
+            bodies,
+            ["Do you have a garden?", "Yes, a fenced one.", "Any references?"],
+        )
+
+    def test_customer_sees_the_vendors_question_in_the_reply_response(self):
+        self.client.force_authenticate(self.vendor)
+        self.post("adoption-request-info", {"message": "Do you have a garden?"})
+
+        self.client.force_authenticate(self.customer)
+        response = self.post("adoption-reply", {"message": "Yes."})
+
+        bodies = [item["body"] for item in response.json()["info_messages"]]
+        self.assertEqual(bodies, ["Do you have a garden?", "Yes."])
