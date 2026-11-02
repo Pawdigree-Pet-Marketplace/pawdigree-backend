@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AdoptionApplication
+from .models import AdoptionApplication, AdoptionInfoMessage
 
 
 class AdoptionApplicationCreateSerializer(serializers.Serializer):
