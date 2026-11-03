@@ -233,18 +233,46 @@ class ProductViewsTests(TestCase):
         self.assertFalse(product.is_active)
         self.assertTrue(Product.objects.filter(pk=product.pk).exists())
 
-    def test_vendor_cannot_create_product(self):
+    def test_vendor_can_create_product_for_own_business(self):
         self.client.force_authenticate(user=self.vendor)
 
         response = self.client.post(
             self.list_url,
-            {},
+            {
+                "business": self.business.pk,
+                "category": self.category.pk,
+                "name": "Vendor Product",
+                "description": "A vendor-managed product.",
+                "price": "12000.00",
+            },
             format="json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            Product.objects.filter(
+                name="Vendor Product",
+                business=self.business,
+            ).exists()
+        )
+
+    def test_vendor_cannot_create_product_for_another_business(self):
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "business": self.another_business.pk,
+                "category": self.category.pk,
+                "name": "Unauthorized Product",
+                "price": "12000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Product.objects.filter(name="Unauthorized Product").exists()
         )
 
     def test_customer_cannot_update_product(self):
