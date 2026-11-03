@@ -1,8 +1,10 @@
 from django.urls import path
 
+from .public import PublicProductListView
 from .views import ProductDetailView, ProductListCreateView
 
 urlpatterns = [
     path("", ProductListCreateView.as_view(), name="product-list"),
+    path("public/",PublicProductListView.as_view(),name="product-public-list",),
     path("<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
 ]
