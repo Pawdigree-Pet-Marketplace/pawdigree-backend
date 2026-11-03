@@ -275,6 +275,80 @@ class ProductViewsTests(TestCase):
             Product.objects.filter(name="Unauthorized Product").exists()
         )
 
+    def test_vendor_can_retrieve_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], product.pk)
+
+    def test_vendor_cannot_retrieve_another_vendors_product(self):
+        product = self.create_product(vendor=self.another_vendor)
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_vendor_can_update_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"name": "Vendor Updated Product"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product.refresh_from_db()
+        self.assertEqual(product.name, "Vendor Updated Product")
+
+    def test_vendor_cannot_update_another_vendors_product(self):
+        product = self.create_product(vendor=self.another_vendor)
+        original_name = product.name
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"name": "Unauthorized Update"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.name, original_name)
+
+    def test_vendor_cannot_reassign_own_product_to_another_business(self):
+        product = self.create_product()
+        original_business = product.business
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"business": self.another_business.pk},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.business, original_business)
+
     def test_customer_cannot_update_product(self):
         product = self.create_product()
         self.client.force_authenticate(user=self.customer)
