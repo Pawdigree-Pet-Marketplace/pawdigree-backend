@@ -233,6 +233,30 @@ class ProductViewsTests(TestCase):
         self.assertFalse(product.is_active)
         self.assertTrue(Product.objects.filter(pk=product.pk).exists())
 
+    def test_vendor_can_deactivate_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.delete(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        product.refresh_from_db()
+        self.assertFalse(product.is_active)
+
+    def test_vendor_cannot_deactivate_another_vendors_product(self):
+        product = self.create_product(vendor=self.another_vendor)
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.delete(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        product.refresh_from_db()
+        self.assertTrue(product.is_active)
+
     def test_vendor_can_create_product_for_own_business(self):
         self.client.force_authenticate(user=self.vendor)
 
