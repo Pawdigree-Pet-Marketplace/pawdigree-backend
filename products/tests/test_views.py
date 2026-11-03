@@ -115,6 +115,23 @@ class ProductViewsTests(TestCase):
             {active.pk, inactive.pk},
         )
 
+    def test_vendor_can_only_list_own_products(self):
+        own_product = self.create_product(name="Own Product")
+        other_product = self.create_product(
+            vendor=self.another_vendor,
+            name="Other Vendor Product",
+        )
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product_ids = {
+            product["id"] for product in self.get_results(response)
+        }
+        self.assertIn(own_product.pk, product_ids)
+        self.assertNotIn(other_product.pk, product_ids)
+
     def test_admin_can_retrieve_inactive_product(self):
         product = self.create_product(is_active=False)
         self.client.force_authenticate(user=self.admin)
