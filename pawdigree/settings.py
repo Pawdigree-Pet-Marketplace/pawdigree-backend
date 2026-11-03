@@ -263,6 +263,15 @@ CORS_ALLOWED_ORIGINS += [
     for origin in extra_origins.split(",")
     if origin.strip()
 ]
+
+# Admin portal origin(s), kept separate from FRONTEND_URL because
+# FRONTEND_URL is also used to build password-reset links
+CORS_ALLOWED_ORIGINS += [
+    origin.strip()
+    for origin in os.environ.get("ADMIN_FRONTEND_URL", "").split(",")
+    if origin.strip()
+]
+
 # Development email configuration
 EMAIL_BACKEND = (
     os.getenv('EMAIL_BACKEND')
