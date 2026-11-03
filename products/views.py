@@ -1,6 +1,7 @@
 from rest_framework import generics
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from accounts.models import User
 from common.permissions import ADMIN_ROLES
 
 from .models import Product
@@ -8,7 +9,7 @@ from .serializers import ProductSerializer
 
 
 class ProductPermission(BasePermission):
-    """Allow public reads and admin/system-admin writes."""
+    """Allow public reads and vendor/admin product management."""
 
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
@@ -18,7 +19,7 @@ class ProductPermission(BasePermission):
         return bool(
             user
             and user.is_authenticated
-            and user.role in ADMIN_ROLES
+            and user.role in (*ADMIN_ROLES, User.Role.VENDOR)
         )
 
 
