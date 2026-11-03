@@ -59,3 +59,20 @@ class ProductSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+
+class VendorProductSerializer(ProductSerializer):
+    """Serialize products while restricting vendors to their own businesses."""
+
+    business = serializers.PrimaryKeyRelatedField(
+        queryset=Business.objects.none(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            self.fields["business"].queryset = Business.objects.filter(
+                vendor=request.user,
+            )
