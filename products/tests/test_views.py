@@ -115,6 +115,23 @@ class ProductViewsTests(TestCase):
             {active.pk, inactive.pk},
         )
 
+    def test_vendor_can_only_list_own_products(self):
+        own_product = self.create_product(name="Own Product")
+        other_product = self.create_product(
+            vendor=self.another_vendor,
+            name="Other Vendor Product",
+        )
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product_ids = {
+            product["id"] for product in self.get_results(response)
+        }
+        self.assertIn(own_product.pk, product_ids)
+        self.assertNotIn(other_product.pk, product_ids)
+
     def test_admin_can_retrieve_inactive_product(self):
         product = self.create_product(is_active=False)
         self.client.force_authenticate(user=self.admin)
@@ -233,19 +250,145 @@ class ProductViewsTests(TestCase):
         self.assertFalse(product.is_active)
         self.assertTrue(Product.objects.filter(pk=product.pk).exists())
 
-    def test_vendor_cannot_create_product(self):
+    def test_vendor_can_deactivate_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.delete(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        product.refresh_from_db()
+        self.assertFalse(product.is_active)
+
+    def test_vendor_cannot_deactivate_another_vendors_product(self):
+        product = self.create_product(vendor=self.another_vendor)
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.delete(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        product.refresh_from_db()
+        self.assertTrue(product.is_active)
+
+    def test_vendor_can_create_product_for_own_business(self):
         self.client.force_authenticate(user=self.vendor)
 
         response = self.client.post(
             self.list_url,
-            {},
+            {
+                "business": self.business.pk,
+                "category": self.category.pk,
+                "name": "Vendor Product",
+                "description": "A vendor-managed product.",
+                "price": "12000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            Product.objects.filter(
+                name="Vendor Product",
+                business=self.business,
+            ).exists()
+        )
+
+    def test_vendor_cannot_create_product_for_another_business(self):
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "business": self.another_business.pk,
+                "category": self.category.pk,
+                "name": "Unauthorized Product",
+                "price": "12000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Product.objects.filter(name="Unauthorized Product").exists()
+        )
+
+    def test_vendor_can_retrieve_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], product.pk)
+
+    def test_vendor_cannot_retrieve_another_vendors_product(self):
+        product = self.create_product(vendor=self.another_vendor)
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_vendor_can_update_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"name": "Vendor Updated Product"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product.refresh_from_db()
+        self.assertEqual(product.name, "Vendor Updated Product")
+
+    def test_vendor_cannot_update_another_vendors_product(self):
+        product = self.create_product(vendor=self.another_vendor)
+        original_name = product.name
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"name": "Unauthorized Update"},
             format="json",
         )
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_404_NOT_FOUND,
         )
+        product.refresh_from_db()
+        self.assertEqual(product.name, original_name)
+
+    def test_vendor_cannot_reassign_own_product_to_another_business(self):
+        product = self.create_product()
+        original_business = product.business
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.patch(
+            reverse("product-detail", kwargs={"pk": product.pk}),
+            {"business": self.another_business.pk},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.business, original_business)
 
     def test_customer_cannot_update_product(self):
         product = self.create_product()
