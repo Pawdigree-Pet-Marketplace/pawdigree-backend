@@ -66,6 +66,12 @@ class ProductDetailView(
     serializer_class = ProductSerializer
     permission_classes = (ProductPermission,)
 
+    def get_serializer_class(self):
+        user_role = getattr(self.request.user, "role", None)
+        if user_role == User.Role.VENDOR:
+            return VendorProductSerializer
+        return ProductSerializer
+
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
