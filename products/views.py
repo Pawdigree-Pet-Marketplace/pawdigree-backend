@@ -5,7 +5,7 @@ from accounts.models import User
 from common.permissions import ADMIN_ROLES
 
 from .models import Product
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer, VendorProductSerializer
 
 
 class ProductPermission(BasePermission):
@@ -24,28 +24,37 @@ class ProductPermission(BasePermission):
 
 
 class ProductQuerysetMixin:
-    """Show inactive products only to administrators."""
+    """Filter products based on user role and ownership."""
 
     def get_queryset(self):
         queryset = Product.objects.select_related(
             "business",
             "category",
         ).prefetch_related("images")
-        user_role = getattr(self.request.user, "role", None)
-        if user_role not in ADMIN_ROLES:
-            queryset = queryset.filter(is_active=True)
+        user = self.request.user
+        user_role = getattr(user, "role", None)
+        if user_role in ADMIN_ROLES:
+            return queryset
+        if user_role == User.Role.VENDOR:
+            return queryset.filter(business__vendor=user)
 
-        return queryset
+        return queryset.filter(is_active=True)
 
 
 class ProductListCreateView(
     ProductQuerysetMixin,
     generics.ListCreateAPIView,
 ):
-    """List products or create a product as an administrator."""
+    """List products or create products for vendors and administrators."""
 
     serializer_class = ProductSerializer
     permission_classes = (ProductPermission,)
+
+    def get_serializer_class(self):
+        user_role = getattr(self.request.user, "role", None)
+        if user_role == User.Role.VENDOR:
+            return VendorProductSerializer
+        return ProductSerializer
 
 
 class ProductDetailView(
