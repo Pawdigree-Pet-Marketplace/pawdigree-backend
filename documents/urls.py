@@ -5,6 +5,7 @@ from .views import (
     BusinessDocumentReviewView,
     BusinessDocumentResubmissionView,
     BusinessDocumentUploadView,
+    BusinessDocumentListView,
 )
 
 urlpatterns = [
@@ -12,6 +13,11 @@ urlpatterns = [
         "",
         BusinessDocumentUploadView.as_view(),
         name="business-document-upload",
+    ),
+        path(
+        "business/<uuid:business_id>/",
+        BusinessDocumentListView.as_view(),
+        name="business-document-list",
     ),
     path(
         "<uuid:document_id>/download/",

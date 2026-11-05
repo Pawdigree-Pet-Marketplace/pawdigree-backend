@@ -192,6 +192,118 @@ class TestBusinessDocumentUpload:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+@pytest.mark.django_db
+class TestBusinessDocumentList:
+    def get_documents(self, api_client, business):
+        return api_client.get(
+            reverse(
+                "business-document-list",
+                kwargs={"business_id": business.pk},
+            )
+        )
+
+    def create_document(self, business, vendor, document_type):
+        return BusinessDocument.objects.create(
+            business=business,
+            uploaded_by=vendor,
+            document_type=document_type,
+            file=f"private_documents/{document_type.lower()}.pdf",
+        )
+
+    def test_vendor_can_retrieve_own_business_documents(
+        self, api_client, vendor, vendor_business
+    ):
+        self.create_document(
+            vendor_business,
+            vendor,
+            BusinessDocument.DocumentType.REGISTRATION,
+        )
+        self.create_document(
+            vendor_business,
+            vendor,
+            BusinessDocument.DocumentType.TAX,
+        )
+        api_client.force_authenticate(user=vendor)
+
+        response = self.get_documents(api_client, vendor_business)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data) == 2
+
+        returned_types = {
+            item["document_type"] for item in response.data
+        }
+        assert returned_types == {"REGISTRATION", "TAX"}
+
+    def test_vendor_cannot_retrieve_another_vendors_documents(
+        self, api_client, vendor, another_vendor_business
+    ):
+        api_client.force_authenticate(user=vendor)
+
+        response = self.get_documents(api_client, another_vendor_business)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_business_without_documents_returns_empty_list(
+        self, api_client, vendor, vendor_business
+    ):
+        api_client.force_authenticate(user=vendor)
+
+        response = self.get_documents(api_client, vendor_business)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+    def test_superseded_documents_are_not_returned(
+        self, api_client, vendor, vendor_business
+    ):
+        current_document = self.create_document(
+            vendor_business,
+            vendor,
+            BusinessDocument.DocumentType.REGISTRATION,
+        )
+        old_document = self.create_document(
+            vendor_business,
+            vendor,
+            BusinessDocument.DocumentType.TAX,
+        )
+
+        old_document.review_status = (
+            BusinessDocument.ReviewStatus.SUPERSEDED
+        )
+        old_document.save(update_fields=["review_status"])
+
+        api_client.force_authenticate(user=vendor)
+
+        response = self.get_documents(api_client, vendor_business)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        returned_ids = {
+            item["document_id"] for item in response.data
+        }
+
+        assert str(current_document.document_id) in returned_ids
+        assert str(old_document.document_id) not in returned_ids
+
+    def test_customer_cannot_retrieve_business_documents(
+        self, api_client, customer, vendor_business
+    ):
+        api_client.force_authenticate(user=customer)
+
+        response = self.get_documents(api_client, vendor_business)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_unauthenticated_user_cannot_retrieve_documents(
+        self, api_client, vendor_business
+    ):
+        response = self.get_documents(api_client, vendor_business)
+
+        assert response.status_code in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        )
 
 @pytest.mark.django_db
 class TestBusinessDocumentDownload:

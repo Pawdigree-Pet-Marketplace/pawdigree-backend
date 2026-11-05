@@ -49,5 +49,6 @@ def valid_business_data(business_hours):
         "email": "newbusiness@example.com",
         "address": "Kampala Road",
         "city_district": "Kampala",
+        "business_type": "PRODUCT_SELLER",
         "business_hours": business_hours,
     }

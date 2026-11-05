@@ -325,10 +325,6 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
                 status.HTTP_201_CREATED if changed else status.HTTP_200_OK
             ),
         )
-        
-        
-
-
 @extend_schema(
     tags=["businesses"],
     summary="Submit a business for review",
@@ -356,6 +352,41 @@ class BusinessSubmitView(generics.GenericAPIView):
                 "Only a draft business can be submitted for review."
             )
 
+        if not business.business_type:
+            raise serializers.ValidationError({
+                "business_type": "Please select a business type before submitting."
+            })
+
+        required_documents = {
+            "REGISTRATION": "Business Trading Licence",
+            "TAX": "Tax Records",
+        }
+
+        if business.business_type == Business.BusinessType.SERVICE_PROVIDER:
+            required_documents["PROFESSIONAL_CERTIFICATE"] = (
+                "Professional Certificate"
+            )
+
+        uploaded_types = set(
+            business.documents
+            .exclude(review_status="SUPERSEDED")
+            .values_list("document_type", flat=True)
+        )
+
+        missing_documents = [
+            name
+            for document_type, name in required_documents.items()
+            if document_type not in uploaded_types
+        ]
+
+        if missing_documents:
+            raise serializers.ValidationError({
+                "documents": (
+                    "Please upload all required documents: "
+                    + ", ".join(missing_documents)
+                )
+            })
+
         business.verification_status = Business.VerificationStatus.PENDING
         business.reviewed_at = None
         business.save(update_fields=[
@@ -363,7 +394,6 @@ class BusinessSubmitView(generics.GenericAPIView):
         ])
 
         return Response(BusinessVerificationStatusSerializer(business).data)
-    
     
     
 class AdminBusinessPagination(PageNumberPagination):
@@ -521,35 +551,35 @@ class AdminBusinessDecisionHistoryView(generics.ListAPIView):
 class BusinessWithdrawView(generics.GenericAPIView):
     serializer_class = BusinessVerificationStatusSerializer
     permission_classes = (IsVendor,)
-    
+
     @transaction.atomic
     def post(self, request, pk):
-        # Look only among this vendor's own businesses, so someone else's
-        # business returns 404. select_for_update() locks the row until the
-        # request ends, so an admin decision can't change it meanwhile.
         business = get_object_or_404(
             Business.objects.select_for_update(),
             pk=pk,
             vendor=request.user,
         )
-        
-        # Only a business that is waiting for review can be withdrawn.
+
+        # Only businesses waiting for review can be withdrawn.
         if business.verification_status != Business.VerificationStatus.PENDING:
-            raise serializers.ValidationError (
+            raise serializers.ValidationError(
                 "Only a business waiting for review can be withdrawn."
             )
-        
-        # Back to draft. No review is waiting, so clear the review date.
-        business.verification_status = Business.VerificationStatus.DRAFT  
+
+        # Move the business back to draft.
+        business.verification_status = Business.VerificationStatus.DRAFT
         business.reviewed_at = None
-        
-        # update_fields writes only these columns. updated_at must be listed,
-        # because auto_now only refreshes fields that are being saved.
-        business.save(update_fields=["verification_status", "reviewed_at", "updated_at"])
-        
+
+        business.save(
+            update_fields=[
+                "verification_status",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
+
         return Response(BusinessVerificationStatusSerializer(business).data)
     
-
 class BusinessResubmitBaseView(generics.GenericAPIView):
     """Shared logic for a vendor sending a business back to review.
 

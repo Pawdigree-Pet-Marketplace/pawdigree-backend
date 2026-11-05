@@ -6,12 +6,16 @@ from accounts.models import User
 from businesses.models import Business
 from documents.models import BusinessDocument
 
-
 def make_business(vendor, name, status, email):
     return Business.objects.create(
-        vendor=vendor, name=name, description="Pets",
-        contact="0700000000", email=email,
-        address="1 Main St", city_district="Kampala",
+        vendor=vendor,
+        name=name,
+        description="Pets",
+        contact="0700000000",
+        email=email,
+        address="1 Main St",
+        city_district="Kampala",
+        business_type=Business.BusinessType.PRODUCT_SELLER,
         verification_status=status,
     )
 
@@ -38,6 +42,22 @@ class SubmissionTests(TestCase):
         self.client.force_authenticate(self.vendor)
 
     def submit(self):
+        required_types = (
+            BusinessDocument.DocumentType.REGISTRATION,
+            BusinessDocument.DocumentType.TAX,
+        )
+
+        for document_type in required_types:
+            if not self.business.documents.filter(
+                document_type=document_type
+            ).exists():
+                BusinessDocument.objects.create(
+                    business=self.business,
+                    uploaded_by=self.vendor,
+                    document_type=document_type,
+                    file=f"private_documents/{document_type.lower()}.pdf",
+                )
+
         url = reverse("business-submit", kwargs={"pk": self.business.pk})
         return self.client.post(url)
 
@@ -62,11 +82,9 @@ class SubmissionTests(TestCase):
 
     def test_submitted_business_appears_in_admin_queue(self):
         self.submit()
-        document = BusinessDocument.objects.create(
-            business=self.business,
-            uploaded_by=self.vendor,
-            document_type=BusinessDocument.DocumentType.REGISTRATION,
-            file="private_documents/registration.pdf",
+
+        document = self.business.documents.get(
+            document_type=BusinessDocument.DocumentType.REGISTRATION
         )
         self.client.force_authenticate(self.admin)
 
@@ -76,8 +94,11 @@ class SubmissionTests(TestCase):
         result = response.json()["results"][0]
         ids = [item["id"] for item in response.json()["results"]]
         self.assertEqual(ids, [str(self.business.pk)])
-        self.assertEqual(len(result["documents"]), 1)
-        document_data = result["documents"][0]
+        self.assertEqual(len(result["documents"]), 2)
+        document_data = next(
+            item for item in result["documents"]
+            if item["document_id"] == str(document.document_id)
+        )
         self.assertEqual(
             document_data["document_id"],
             str(document.document_id),

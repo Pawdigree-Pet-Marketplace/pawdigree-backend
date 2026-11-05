@@ -54,6 +54,7 @@ class BusinessRegistrationAPITests(APITestCase):
             'email': 'business@example.com',
             'address': 'Plot 10, Example Road',
             'city_district': 'Kampala',
+            'business_type': 'PRODUCT_SELLER',
             'business_hours': make_hours(),
         }
 
