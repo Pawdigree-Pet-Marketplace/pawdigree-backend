@@ -95,6 +95,7 @@ INSTALLED_APPS = [
     "phonenumber_field",
     "countries",
     "anymail",
+    'cart'
 ]
 
 ANYMAIL = {
