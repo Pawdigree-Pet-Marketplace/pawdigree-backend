@@ -16,22 +16,39 @@ from .serializers import (
 )
 
 
-@extend_schema(
-    tags=["services"],
-    summary="Add a service",
-    description=(
-        "Creates a service for a business owned by the "
-        "authenticated vendor."
+@extend_schema_view(
+    get=extend_schema(
+        tags=["services"],
+        summary="List my services",
+        description=(
+            "Lists all active services belonging to businesses "
+            "owned by the authenticated vendor."
+        ),
+        responses={200: ServiceSerializer(many=True)},
     ),
-    request=ServiceSerializer,
-    responses={201: ServiceSerializer},
+    post=extend_schema(
+        tags=["services"],
+        summary="Add a service",
+        description=(
+            "Creates a service for a business owned by the "
+            "authenticated vendor."
+        ),
+        request=ServiceSerializer,
+        responses={201: ServiceSerializer},
+    ),
 )
-class ServiceCreateView(generics.CreateAPIView):
-    """Create a service for the authenticated vendor's business."""
+class ServiceCreateView(generics.ListCreateAPIView):
+    """List or create services for the authenticated vendor."""
 
-    queryset = Service.objects.select_related("business")
     serializer_class = ServiceSerializer
     permission_classes = (IsAuthenticated, IsVendor)
+
+    def get_queryset(self):
+        return Service.objects.select_related("business").filter(
+            business__vendor=self.request.user,
+            is_active=True,
+        )
+
 
 @extend_schema_view(
     get=extend_schema(

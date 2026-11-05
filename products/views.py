@@ -1,14 +1,15 @@
 from rest_framework import generics
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from accounts.models import User
 from common.permissions import ADMIN_ROLES
 
 from .models import Product
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer, VendorProductSerializer
 
 
 class ProductPermission(BasePermission):
-    """Allow public reads and admin/system-admin writes."""
+    """Allow public reads and vendor/admin product management."""
 
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
@@ -18,33 +19,42 @@ class ProductPermission(BasePermission):
         return bool(
             user
             and user.is_authenticated
-            and user.role in ADMIN_ROLES
+            and user.role in (*ADMIN_ROLES, User.Role.VENDOR)
         )
 
 
 class ProductQuerysetMixin:
-    """Show inactive products only to administrators."""
+    """Filter products based on user role and ownership."""
 
     def get_queryset(self):
         queryset = Product.objects.select_related(
             "business",
             "category",
         ).prefetch_related("images")
-        user_role = getattr(self.request.user, "role", None)
-        if user_role not in ADMIN_ROLES:
-            queryset = queryset.filter(is_active=True)
+        user = self.request.user
+        user_role = getattr(user, "role", None)
+        if user_role in ADMIN_ROLES:
+            return queryset
+        if user_role == User.Role.VENDOR:
+            return queryset.filter(business__vendor=user)
 
-        return queryset
+        return queryset.filter(is_active=True)
 
 
 class ProductListCreateView(
     ProductQuerysetMixin,
     generics.ListCreateAPIView,
 ):
-    """List products or create a product as an administrator."""
+    """List products or create products for vendors and administrators."""
 
     serializer_class = ProductSerializer
     permission_classes = (ProductPermission,)
+
+    def get_serializer_class(self):
+        user_role = getattr(self.request.user, "role", None)
+        if user_role == User.Role.VENDOR:
+            return VendorProductSerializer
+        return ProductSerializer
 
 
 class ProductDetailView(
@@ -55,6 +65,12 @@ class ProductDetailView(
 
     serializer_class = ProductSerializer
     permission_classes = (ProductPermission,)
+
+    def get_serializer_class(self):
+        user_role = getattr(self.request.user, "role", None)
+        if user_role == User.Role.VENDOR:
+            return VendorProductSerializer
+        return ProductSerializer
 
     def perform_destroy(self, instance):
         instance.is_active = False
