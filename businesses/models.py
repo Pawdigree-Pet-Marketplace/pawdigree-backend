@@ -1,4 +1,3 @@
-
 import uuid
 
 from django.conf import settings
@@ -19,6 +18,10 @@ class Business(TimeStampedModel):
         SUSPENDED = "suspended", "Suspended"
         REJECTED = "rejected", "Rejected"
 
+    class BusinessType(models.TextChoices):
+        PRODUCT_SELLER = "PRODUCT_SELLER", "Product Seller"
+        SERVICE_PROVIDER = "SERVICE_PROVIDER", "Service Provider"
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -35,6 +38,12 @@ class Business(TimeStampedModel):
     email = models.EmailField()
     address = models.CharField(max_length=255)
     city_district = models.CharField(max_length=100)
+    business_type = models.CharField(
+        max_length=20,
+        choices=BusinessType.choices,
+        null=True,
+        blank=True,
+    )
     business_hours = models.JSONField(default=dict, blank=True)
     verification_status = models.CharField(
         max_length=20,

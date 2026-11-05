@@ -1,3 +1,4 @@
+
 import uuid
 
 from django.conf import settings
@@ -18,9 +19,14 @@ def private_document_upload_path(instance, filename):
 
 class BusinessDocument(TimeStampedModel):
     class DocumentType(models.TextChoices):
-        REGISTRATION = "REGISTRATION", "Business registration"
-        TAX = "TAX", "Tax document"
+        REGISTRATION = "REGISTRATION", "Business Trading Licence"
+        TAX = "TAX", "Tax Records"
         OTHER = "OTHER", "Other"
+        PROFESSIONAL_CERTIFICATE = (
+            "PROFESSIONAL_CERTIFICATE",
+            "Professional Certificate",
+        )
+        SUPPORTING_DOCUMENT = "SUPPORTING_DOCUMENT", "Supporting Document"
 
     class ReviewStatus(models.TextChoices):
         PENDING = "PENDING", "Pending review"
@@ -44,7 +50,7 @@ class BusinessDocument(TimeStampedModel):
         related_name="uploaded_business_documents",
     )
     document_type = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=DocumentType.choices,
         default=DocumentType.REGISTRATION,
     )

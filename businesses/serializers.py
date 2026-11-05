@@ -57,6 +57,10 @@ class BusinessSerializer(serializers.ModelSerializer):
     """Validates and serializes vendor business information."""
 
     description = serializers.CharField(max_length=500)
+    business_type = serializers.ChoiceField(
+        choices=Business.BusinessType.choices,
+        required=True,
+    )
     business_hours = BusinessHoursField(required=False, default=dict)
     logo = BinaryImageField(
         required=False,
@@ -84,6 +88,7 @@ class BusinessSerializer(serializers.ModelSerializer):
             "email",
             "address",
             "city_district",
+             "business_type",
             "business_hours",
             "logo",
             "cover_image",
@@ -219,6 +224,7 @@ class BusinessWriteSerializer(BusinessSerializer):
             "email",
             "address",
             "city_district",
+            "business_type",
             "business_hours",
             "logo",
             "cover_image",

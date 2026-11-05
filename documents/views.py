@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from businesses.models import Business
 from accounts.permissions import IsAdmin
 from common.permissions import IsVendor
 
@@ -39,6 +40,35 @@ class BusinessDocumentUploadView(generics.CreateAPIView):
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
 
+
+@extend_schema(
+    tags=["documents"],
+    summary="Retrieve a business's uploaded verification documents",
+    description=(
+        "Allows a vendor to retrieve the current verification documents "
+        "for a business they own, so they can resume onboarding."
+    ),
+    responses={200: BusinessDocumentReadSerializer(many=True)},
+)
+class BusinessDocumentListView(generics.ListAPIView):
+    serializer_class = BusinessDocumentReadSerializer
+    permission_classes = (IsVendor,)
+
+    def get_queryset(self):
+        business = get_object_or_404(
+            Business,
+            pk=self.kwargs["business_id"],
+            vendor=self.request.user,
+        )
+
+        return (
+            BusinessDocument.objects
+            .filter(business=business)
+            .exclude(
+                review_status=BusinessDocument.ReviewStatus.SUPERSEDED
+            )
+            .order_by("document_type", "-created_at")
+        )
 
 @extend_schema(
     tags=["documents"],
