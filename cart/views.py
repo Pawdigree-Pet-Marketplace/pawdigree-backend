@@ -2,6 +2,8 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
+from rest_framework.permissions import IsAuthenticated
+from common.permissions import IsCustomer
 
 from .permissions import IsCustomerOrGuest
 from .serializers import AddToCartSerializer, CartSerializer
@@ -10,6 +12,8 @@ from .services import (
     add_to_cart,
     get_cart_summary,
     owner_from_request,
+    guest_token_from_request,
+    merge_guest_cart,
 )
 from .throttles import GuestAddThrottle
 
@@ -92,3 +96,28 @@ class CartItemCreateView(generics.GenericAPIView):
             status.HTTP_201_CREATED if created else status.HTTP_200_OK,
             token=cart.guest_token,
         )
+        
+
+class CartMergeView(generics.GenericAPIView):
+    """Bring a guest cart into the logged-in customer's cart."""
+
+    serializer_class = CartSerializer
+    # Only a logged-in customer can merge.
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    @extend_schema(
+        tags=["cart"],
+        summary="Merge my guest cart into my account",
+        description=(
+            "Call this right after login, with the X-Cart-Token the browser "
+            "kept. The guest cart's lines move into the customer's cart and "
+            "the guest cart is deleted. Safe to call with no token or an "
+            "unknown token: nothing changes."
+        ),
+        parameters=[GUEST_TOKEN_PARAMETER],
+        request=None,
+        responses=CartSerializer,
+    )
+    def post(self, request):
+        merge_guest_cart(request.user, guest_token_from_request(request))
+        return cart_response(request)

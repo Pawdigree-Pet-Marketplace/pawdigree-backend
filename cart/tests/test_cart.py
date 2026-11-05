@@ -8,7 +8,7 @@ import uuid
 from accounts.models import User
 from products.models import Product
 
-from ..models import Cart, CartItem
+from ..models import MAX_LINES_PER_CART, Cart, CartItem
 from .helpers import make_business, make_category, make_product, make_user, money
 from ..services import product_is_visible, visible_products
 
@@ -444,3 +444,124 @@ class GuestCartTests(GuestCartTestCase):
             response = self.client.post(url, {"product": 999999}, format="json")
             self.assertEqual(response.status_code, 404)
 
+
+
+#------------------------------------test merge cart on login-----------------------------------------------
+class MergeGuestCartTests(GuestCartTestCase):
+    def merge(self, token=None, client=None):
+        client = client or self.client
+        return client.post(reverse("cart-merge"), **self.headers(token))
+
+    def test_guest_lines_move_into_the_customers_cart(self):
+        token = self.guest_with(
+            (self.product(name="Toy", price="10.00", stock=10), 2)
+        )
+
+        response = self.merge(token)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual([line["name"] for line in data["items"]], ["Toy"])
+        self.assertEqual(money(data["total"]), Decimal("20.00"))
+        self.assertFalse(Cart.objects.filter(guest_token=token).exists())
+        self.assertEqual(Cart.objects.get().customer, self.customer)
+
+    def test_quantities_for_the_same_product_are_added(self):
+        product = self.product(stock=10)
+        self.add_item(product, 3)
+        token = self.guest_with((product, 2))
+
+        self.merge(token)
+
+        self.assertEqual(CartItem.objects.get().quantity, 5)
+
+    def test_merged_quantity_is_capped_at_the_stock(self):
+        product = self.product(stock=4)
+        self.add_item(product, 3)
+        token = self.guest_with((product, 1))
+        product.stock_quantity = 4
+        product.save()
+        # Give the guest more than fits.
+        CartItem.objects.filter(cart__guest_token=token).update(quantity=2)
+
+        self.merge(token)
+
+        self.assertEqual(CartItem.objects.get().quantity, 4)
+
+    def test_merged_quantity_is_capped_at_99(self):
+        product = self.product(stock=500)
+        self.add_item(product, 90)
+        token = self.guest_with((product, 20))
+
+        self.merge(token)
+
+        self.assertEqual(CartItem.objects.get().quantity, 99)
+
+    def test_the_customers_own_quantity_is_never_lowered(self):
+        product = self.product(stock=10)
+        self.add_item(product, 5)
+        token = self.guest_with((product, 1))
+        product.stock_quantity = 2
+        product.save()
+
+        self.merge(token)
+
+        self.assertEqual(CartItem.objects.get().quantity, 5)
+
+    def test_unavailable_products_are_skipped(self):
+        gone = self.product(name="Gone")
+        empty = self.product(name="Empty")
+        token = self.guest_with((gone, 1), (empty, 1))
+        gone.is_active = False
+        gone.save()
+        empty.stock_quantity = 0
+        empty.save()
+
+        self.merge(token)
+
+        self.assertEqual(CartItem.objects.count(), 0)
+        self.assertFalse(Cart.objects.filter(guest_token=token).exists())
+
+    def test_merge_respects_the_50_line_limit(self):
+        cart = Cart.objects.create(customer=self.customer)
+        for number in range(MAX_LINES_PER_CART):
+            CartItem.objects.create(
+                cart=cart, product=self.product(name=f"Item {number}"), quantity=1
+            )
+        token = self.guest_with((self.product(name="One too many"), 1))
+
+        self.merge(token)
+
+        self.assertEqual(CartItem.objects.count(), MAX_LINES_PER_CART)
+        self.assertFalse(Cart.objects.filter(guest_token=token).exists())
+
+    def test_unknown_token_changes_nothing_and_creates_no_cart(self):
+        response = self.merge(uuid.uuid4())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_no_token_changes_nothing(self):
+        response = self.merge()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_merging_twice_does_nothing_the_second_time(self):
+        token = self.guest_with((self.product(stock=10), 2))
+        self.merge(token)
+
+        self.assertEqual(self.merge(token).status_code, 200)
+        self.assertEqual(CartItem.objects.get().quantity, 2)
+
+    def test_a_guest_cannot_merge(self):
+        response = self.merge(client=self.guest)
+
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_vendors_and_admins_cannot_merge(self):
+        for user in (self.vendor, self.admin):
+            with self.subTest(user=user.username):
+                self.client.force_authenticate(user)
+
+                self.assertEqual(self.merge().status_code, 403)
