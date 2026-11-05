@@ -22,12 +22,22 @@ class PhoneValidationMixin:
 
 
 class EmailNormalizationMixin:
-    """Stores emails lowercased and rejects case-only duplicates."""
+    """Stores emails lowercased and rejects duplicates.
+
+    Set email_role on a serializer to reject a duplicate only within
+    that role. Without it, a duplicate in any role is rejected.
+    """
+
+    email_role = None
 
     def validate_email(self, value):
         value = value.strip().lower()
 
-        if User.objects.filter(email__iexact=value).exists():
+        accounts = User.objects.filter(email__iexact=value)
+        if self.email_role is not None:
+            accounts = accounts.filter(role=self.email_role)
+
+        if accounts.exists():
             raise serializers.ValidationError(
                 'user with this email already exists.'
             )
@@ -35,10 +45,24 @@ class EmailNormalizationMixin:
         return value
 
 
-def resolve_login_email(email):
-    """Return the stored spelling of an email, matched ignoring case."""
-    user = User.objects.filter(email__iexact=email).order_by('id').first()
-    return user.email if user else email
+def authenticate_for_roles(email, password, *roles):
+    """Authenticate an email within the given role(s).
+
+    Returns the user, or None if there is no such account, the password
+    is wrong, or the account is inactive.
+    """
+    for role in roles:
+        candidate = User.objects.by_email_role(email, role)
+
+        if candidate is None:
+            continue
+
+        user = authenticate(username=candidate.username, password=password)
+
+        if user is not None:
+            return user
+
+    return None
 
 def unique_username(email):
     """Return a free username built from the part of the email before @."""
@@ -69,6 +93,7 @@ class CustomerRegistrationSerializer(
     OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
+    email_role = User.Role.CUSTOMER
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -90,7 +115,7 @@ class CustomerRegistrationSerializer(
             'phone',
             'password',
         )
-        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
+        extra_kwargs = {'username': {'required': False}}  
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -105,6 +130,7 @@ class VendorRegistrationSerializer(
     OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
+    email_role = User.Role.VENDOR
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -126,7 +152,7 @@ class VendorRegistrationSerializer(
             'phone',
             'password',
         )
-        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
+        extra_kwargs = {'username': {'required': False}}  
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -165,7 +191,7 @@ class AdminRegistrationSerializer(
             'role',
         )
         read_only_fields = ('id', 'role')
-        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
+        extra_kwargs = {'username': {'required': False}}  
 
     def create(self, validated_data):
         return create_admin_account(
@@ -184,21 +210,12 @@ class CustomerLoginSerializer(serializers.Serializer):
         email = attrs['email']
         password = attrs['password']
 
-        user = authenticate(
-            email=resolve_login_email(email),
-            password=password,
-        )
+        user = authenticate_for_roles(email, password, User.Role.CUSTOMER)
 
         if user is None:
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
-
-        if user.role != user.Role.CUSTOMER:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
         if not user.is_active:
             raise serializers.ValidationError(
                 'Invalid email or password.'
@@ -238,7 +255,7 @@ class GoogleLoginSerializer(serializers.Serializer):
                 'Google account has no email address.'
             )
 
-        user = User.objects.filter(email__iexact=email).first()
+        user = User.objects.by_email_role(email, User.Role.CUSTOMER)
 
         if user is None:
             try:
@@ -254,7 +271,7 @@ class GoogleLoginSerializer(serializers.Serializer):
                     user.save()
             except IntegrityError:
                 # A concurrent request created the account first.
-                user = User.objects.filter(email__iexact=email).first()
+                user = User.objects.by_email_role(email, User.Role.CUSTOMER)
                 if user is None:
                     raise serializers.ValidationError(
                         'Could not sign in. Please try again.'
@@ -298,17 +315,9 @@ class VendorLoginSerializer(serializers.Serializer):
         email = attrs['email']
         password = attrs['password']
 
-        user = authenticate(
-            email=resolve_login_email(email),
-            password=password,
-        )
+        user = authenticate_for_roles(email, password, User.Role.VENDOR)
 
         if user is None:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
-        if user.role != user.Role.VENDOR:
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
@@ -343,17 +352,14 @@ class AdminLoginSerializer(serializers.Serializer):
         email = attrs['email']
         password = attrs['password']
 
-        user = authenticate(
-            email=resolve_login_email(email),
-            password=password,
+        user = authenticate_for_roles(
+            email,
+            password,
+            User.Role.ADMIN,
+            User.Role.SYSTEM_ADMIN,
         )
 
         if user is None:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
-        if user.role not in (user.Role.ADMIN, user.Role.SYSTEM_ADMIN):
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
@@ -456,9 +462,12 @@ class CustomerProfileSerializer(
     def validate_email(self, value):
         user = self.instance
 
-        if User.objects.filter(email__iexact=value).exclude(pk=user.pk).exists():
+        if (
+            User.objects.filter(email__iexact=value, role=user.role)
+            .exclude(pk=user.pk)
+            .exists()
+        ):
             raise serializers.ValidationError("This email already has an account")
-
         return value
 
 

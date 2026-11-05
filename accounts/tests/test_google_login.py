@@ -56,19 +56,26 @@ class GoogleLoginAPITests(APITestCase):
         )
 
     @patch('accounts.serializers.verify_google_token')
-    def test_vendor_email_cannot_use_google_customer_login(self, mock_verify):
+    def test_vendor_email_gets_separate_customer_account(self, mock_verify):
         mock_verify.return_value = GOOGLE_INFO
-        User.objects.create_user(
+        vendor = User.objects.create_user(
             username='vendor1',
-            email='newcustomer@example.com',
+            email=GOOGLE_INFO['email'],
             password='TestPass123!Secure',
             role=User.Role.VENDOR,
         )
 
         response = self.login()
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertNotIn('access', response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer = User.objects.get(
+            email__iexact=GOOGLE_INFO['email'],
+            role=User.Role.CUSTOMER,
+        )
+        self.assertNotEqual(customer.pk, vendor.pk)
+        vendor.refresh_from_db()
+        self.assertEqual(vendor.role, User.Role.VENDOR)
+        self.assertTrue(vendor.has_usable_password())
 
     @patch('accounts.serializers.verify_google_token')
     def test_invalid_google_token_is_rejected(self, mock_verify):

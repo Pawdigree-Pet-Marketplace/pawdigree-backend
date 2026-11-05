@@ -231,12 +231,12 @@ class PasswordResetRequestView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         email = serializer.validated_data['email']
-        user = User.objects.filter(
+        users = User.objects.filter(
             email__iexact=email,
             is_active=True,
-        ).first()
+        )
 
-        if user:
+        for user in users:
             token_service = PasswordResetTokenGeneratorService()
             token = token_service.generate_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -325,11 +325,12 @@ class PasswordResetConfirmView(generics.GenericAPIView):
                 ).first()
             except (TypeError, ValueError, OverflowError):
                 user = None
+                
         elif email:
-            user = User.objects.filter(
-                email__iexact=email,
-                is_active=True,
-            ).first()
+            matches = list(
+                User.objects.filter(email__iexact=email, is_active=True)[:2]
+            )
+            user = matches[0] if len(matches) == 1 else None
         token_service = PasswordResetTokenGeneratorService()
 
         if not user or not token_service.validate_token(user, token):
