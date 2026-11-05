@@ -36,6 +36,8 @@ class CartSerializer(serializers.Serializer):
     total_quantity = serializers.IntegerField()
     total = serializers.DecimalField(max_digits=16, decimal_places=2)
     has_unavailable_items = serializers.BooleanField()
+    # The guest's secret token. Only set when a guest adds to a cart.
+    cart_token = serializers.UUIDField(read_only=True)
     
     
 
