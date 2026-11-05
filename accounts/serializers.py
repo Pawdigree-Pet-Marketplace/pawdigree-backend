@@ -22,12 +22,22 @@ class PhoneValidationMixin:
 
 
 class EmailNormalizationMixin:
-    """Stores emails lowercased and rejects case-only duplicates."""
+    """Stores emails lowercased and rejects duplicates.
+
+    Set email_role on a serializer to reject a duplicate only within
+    that role. Without it, a duplicate in any role is rejected.
+    """
+
+    email_role = None
 
     def validate_email(self, value):
         value = value.strip().lower()
 
-        if User.objects.filter(email__iexact=value).exists():
+        accounts = User.objects.filter(email__iexact=value)
+        if self.email_role is not None:
+            accounts = accounts.filter(role=self.email_role)
+
+        if accounts.exists():
             raise serializers.ValidationError(
                 'user with this email already exists.'
             )
@@ -83,6 +93,7 @@ class CustomerRegistrationSerializer(
     OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
+    email_role = User.Role.CUSTOMER
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -119,6 +130,7 @@ class VendorRegistrationSerializer(
     OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
+    email_role = User.Role.VENDOR
     password = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -243,7 +255,7 @@ class GoogleLoginSerializer(serializers.Serializer):
                 'Google account has no email address.'
             )
 
-        user = User.objects.filter(email__iexact=email).first()
+        user = User.objects.by_email_role(email, User.Role.CUSTOMER)
 
         if user is None:
             try:
@@ -259,7 +271,7 @@ class GoogleLoginSerializer(serializers.Serializer):
                     user.save()
             except IntegrityError:
                 # A concurrent request created the account first.
-                user = User.objects.filter(email__iexact=email).first()
+                user = User.objects.by_email_role(email, User.Role.CUSTOMER)
                 if user is None:
                     raise serializers.ValidationError(
                         'Could not sign in. Please try again.'
@@ -450,9 +462,12 @@ class CustomerProfileSerializer(
     def validate_email(self, value):
         user = self.instance
 
-        if User.objects.filter(email__iexact=value).exclude(pk=user.pk).exists():
+        if (
+            User.objects.filter(email__iexact=value, role=user.role)
+            .exclude(pk=user.pk)
+            .exists()
+        ):
             raise serializers.ValidationError("This email already has an account")
-
         return value
 
 

@@ -20,20 +20,20 @@ def sign_in_with_google(monkeypatch, email):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("role", [User.Role.VENDOR, User.Role.ADMIN, User.Role.SYSTEM_ADMIN])
-def test_google_login_does_not_reveal_non_customer_accounts(monkeypatch, role):
-    User.objects.create_user(
+def test_google_login_ignores_non_customer_accounts(monkeypatch, role):
+    other = User.objects.create_user(
         username="other", email="other@example.com", password="SecurePass123", role=role
     )
 
     response = sign_in_with_google(monkeypatch, "other@example.com")
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "access" not in response.data
-    assert GENERIC in str(response.data)
-
-    text = str(response.data).lower()
-    for word in ("customer", "vendor", "admin"):
-        assert word not in text
+    assert response.status_code == status.HTTP_200_OK
+    assert User.objects.filter(
+        email="other@example.com", role=User.Role.CUSTOMER
+    ).count() == 1
+    other.refresh_from_db()
+    assert other.role == role
+    assert other.has_usable_password()
 
 
 @pytest.mark.django_db

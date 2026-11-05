@@ -45,6 +45,7 @@ def test_registration_rejects_email_differing_only_by_case(serializer_class):
         username="existing",
         email="taken@example.com",
         password=PASSWORD,
+        role=getattr(serializer_class, "email_role", None) or User.Role.CUSTOMER,
     )
 
     serializer = serializer_class(
