@@ -290,3 +290,157 @@ class VisibilityRuleTests(CartTestCase):
                 self.assertEqual(
                     product_is_visible(loaded), loaded.pk in visible_ids
                 )
+                
+ #-------------------------test guest cart--------------------------------               
+class GuestCartTestCase(CartTestCase):
+    """A visitor who is not logged in. self.guest is the anonymous client."""
+
+    def setUp(self):
+        super().setUp()
+        self.guest = APIClient()
+
+    def headers(self, token):
+        # This is how the test client spells the X-Cart-Token header.
+        return {"HTTP_X_CART_TOKEN": str(token)} if token else {}
+
+    def guest_get(self, token=None):
+        return self.guest.get(reverse("cart"), **self.headers(token))
+
+    def guest_add(self, product, quantity=1, token=None):
+        return self.guest.post(
+            reverse("cart-items"),
+            {"product": product.pk, "quantity": quantity},
+            format="json",
+            **self.headers(token),
+        )
+
+    def guest_with(self, *pairs):
+        """A guest cart holding (product, quantity) pairs. Returns its token."""
+        token = None
+        for product, quantity in pairs:
+            token = self.guest_add(product, quantity, token=token).json()["cart_token"]
+        return token
+    
+ 
+class GuestCartTests(GuestCartTestCase):
+    def test_guest_sees_an_empty_cart_without_a_token(self):
+        response = self.guest_get()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["items"], [])
+        self.assertIsNone(response.json()["cart_token"])
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_first_add_creates_a_guest_cart_and_returns_its_token(self):
+        product = self.product(price="10.00", stock=5)
+
+        response = self.guest_add(product, quantity=2)
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(money(data["total"]), Decimal("20.00"))
+        cart = Cart.objects.get()
+        self.assertIsNone(cart.customer)
+        self.assertEqual(data["cart_token"], str(cart.guest_token))
+
+    def test_the_token_brings_the_cart_back(self):
+        product = self.product(price="10.00", stock=10)
+        token = self.guest_add(product, quantity=2).json()["cart_token"]
+
+        data = self.guest_get(token).json()
+
+        self.assertEqual(len(data["items"]), 1)
+        self.assertEqual(money(data["total"]), Decimal("20.00"))
+
+    def test_adding_again_with_the_token_uses_the_same_cart(self):
+        product = self.product(price="10.00", stock=10)
+        token = self.guest_add(product, quantity=2).json()["cart_token"]
+
+        response = self.guest_add(product, quantity=1, token=token)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Cart.objects.count(), 1)
+        self.assertEqual(CartItem.objects.get().quantity, 3)
+        self.assertEqual(response.json()["cart_token"], token)
+
+    def test_two_guests_do_not_see_each_others_carts(self):
+        first = self.guest_add(self.product(name="A")).json()["cart_token"]
+        second = self.guest_add(self.product(name="B")).json()["cart_token"]
+
+        self.assertNotEqual(first, second)
+        names = [line["name"] for line in self.guest_get(first).json()["items"]]
+        self.assertEqual(names, ["A"])
+
+    def test_unknown_token_shows_an_empty_cart_and_creates_nothing(self):
+        response = self.guest_get(uuid.uuid4())
+
+        self.assertEqual(response.json()["items"], [])
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_unusable_token_is_treated_as_no_token(self):
+        response = self.guest.get(reverse("cart"), HTTP_X_CART_TOKEN="not-a-uuid")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["items"], [])
+
+    def test_the_server_never_accepts_a_token_chosen_by_the_client(self):
+        chosen = uuid.uuid4()
+
+        response = self.guest_add(self.product(), token=chosen)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertNotEqual(response.json()["cart_token"], str(chosen))
+        self.assertFalse(Cart.objects.filter(guest_token=chosen).exists())
+
+    def test_stock_rules_apply_and_a_failed_add_leaves_no_cart(self):
+        response = self.guest_add(self.product(stock=2), quantity=3)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_hidden_product_cannot_be_added_by_a_guest(self):
+        response = self.guest_add(self.product(active=False))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_logged_in_customer_ignores_a_guest_token(self):
+        token = self.guest_add(self.product(name="Guest item")).json()["cart_token"]
+        self.add_item(self.product(name="Mine"), 1)
+
+        response = self.client.get(reverse("cart"), HTTP_X_CART_TOKEN=token)
+
+        names = [line["name"] for line in response.json()["items"]]
+        self.assertEqual(names, ["Mine"])
+
+    def test_vendors_and_admins_are_still_turned_away(self):
+        product = self.product()
+        for user in (self.vendor, self.admin):
+            with self.subTest(user=user.username):
+                self.client.force_authenticate(user)
+
+                self.assertEqual(self.get_cart().status_code, 403)
+                response = self.client.post(
+                    reverse("cart-items"), {"product": product.pk}, format="json"
+                )
+                self.assertEqual(response.status_code, 403)
+
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_a_guest_who_adds_too_fast_is_throttled(self):
+        url = reverse("cart-items")
+
+        for _ in range(30):
+            response = self.guest.post(url, {"product": 999999}, format="json")
+            self.assertEqual(response.status_code, 404)
+
+        response = self.guest.post(url, {"product": 999999}, format="json")
+        self.assertEqual(response.status_code, 429)
+
+    def test_logged_in_customers_are_not_throttled_like_guests(self):
+        url = reverse("cart-items")
+
+        for _ in range(31):
+            response = self.client.post(url, {"product": 999999}, format="json")
+            self.assertEqual(response.status_code, 404)
+
