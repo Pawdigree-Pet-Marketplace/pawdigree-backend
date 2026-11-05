@@ -1,6 +1,13 @@
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.db import models
 from django.db.models.functions import Upper
+
+
+class UserManager(DjangoUserManager):
+    def by_email_role(self, email, role):
+        """The one account for this email within a role, or None."""
+        return self.filter(email__iexact=email.strip(), role=role).first()
 
 
 class User(AbstractUser):
@@ -23,18 +30,20 @@ class User(AbstractUser):
         blank=True
     )
 
-    email = models.EmailField(
-        unique=True,
-    )
+    email = models.EmailField()
 
     is_email_verified = models.BooleanField(default=False)
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ('username',)
+    objects = UserManager()
 
     class Meta(AbstractUser.Meta):
         indexes = [
             models.Index(Upper('email'), name='user_email_upper_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                Upper('email'), 'role', name='unique_email_per_role'
+            ),
         ]
 
 

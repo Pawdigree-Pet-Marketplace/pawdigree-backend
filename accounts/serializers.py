@@ -35,10 +35,24 @@ class EmailNormalizationMixin:
         return value
 
 
-def resolve_login_email(email):
-    """Return the stored spelling of an email, matched ignoring case."""
-    user = User.objects.filter(email__iexact=email).order_by('id').first()
-    return user.email if user else email
+def authenticate_for_roles(email, password, *roles):
+    """Authenticate an email within the given role(s).
+
+    Returns the user, or None if there is no such account, the password
+    is wrong, or the account is inactive.
+    """
+    for role in roles:
+        candidate = User.objects.by_email_role(email, role)
+
+        if candidate is None:
+            continue
+
+        user = authenticate(username=candidate.username, password=password)
+
+        if user is not None:
+            return user
+
+    return None
 
 def unique_username(email):
     """Return a free username built from the part of the email before @."""
@@ -90,7 +104,7 @@ class CustomerRegistrationSerializer(
             'phone',
             'password',
         )
-        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
+        extra_kwargs = {'username': {'required': False}}  
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -126,7 +140,7 @@ class VendorRegistrationSerializer(
             'phone',
             'password',
         )
-        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
+        extra_kwargs = {'username': {'required': False}}  
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -165,7 +179,7 @@ class AdminRegistrationSerializer(
             'role',
         )
         read_only_fields = ('id', 'role')
-        extra_kwargs = {'username': {'required': False}}  # noqa: RUF012
+        extra_kwargs = {'username': {'required': False}}  
 
     def create(self, validated_data):
         return create_admin_account(
@@ -184,21 +198,12 @@ class CustomerLoginSerializer(serializers.Serializer):
         email = attrs['email']
         password = attrs['password']
 
-        user = authenticate(
-            email=resolve_login_email(email),
-            password=password,
-        )
+        user = authenticate_for_roles(email, password, User.Role.CUSTOMER)
 
         if user is None:
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
-
-        if user.role != user.Role.CUSTOMER:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
         if not user.is_active:
             raise serializers.ValidationError(
                 'Invalid email or password.'
@@ -298,17 +303,9 @@ class VendorLoginSerializer(serializers.Serializer):
         email = attrs['email']
         password = attrs['password']
 
-        user = authenticate(
-            email=resolve_login_email(email),
-            password=password,
-        )
+        user = authenticate_for_roles(email, password, User.Role.VENDOR)
 
         if user is None:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
-        if user.role != user.Role.VENDOR:
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
@@ -343,17 +340,14 @@ class AdminLoginSerializer(serializers.Serializer):
         email = attrs['email']
         password = attrs['password']
 
-        user = authenticate(
-            email=resolve_login_email(email),
-            password=password,
+        user = authenticate_for_roles(
+            email,
+            password,
+            User.Role.ADMIN,
+            User.Role.SYSTEM_ADMIN,
         )
 
         if user is None:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
-        if user.role not in (user.Role.ADMIN, user.Role.SYSTEM_ADMIN):
             raise serializers.ValidationError(
                 'Invalid email or password.'
             )
