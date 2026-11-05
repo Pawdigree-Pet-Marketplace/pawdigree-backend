@@ -246,3 +246,61 @@ def add_to_cart(owner, product_id, quantity):
         item.quantity = new_quantity
         item.save(update_fields=["quantity", "updated_at"])
         return cart, False
+    
+    
+def merge_guest_cart(customer, guest_token):
+    """Move a guest cart's lines into the customer's cart, then delete it.
+    Merging never fails: lines that can't be kept are skipped. Quantities are
+    added together but capped by stock and by the per-product limit, and the
+    customer's own quantity is never lowered."""
+    owner = CartOwner(customer=customer)
+    _check_owner(owner)
+
+    if guest_token is None:
+        return
+
+    # A cheap check first, so nothing is created when there is nothing to merge.
+    if not Cart.objects.filter(guest_token=guest_token).exists():
+        return
+
+    with transaction.atomic():
+        # Always the same lock order: the customer's cart first, then the
+        # guest cart. Two merges can't block each other forever.
+        cart = _get_or_create_cart(owner)
+        guest_cart = (
+            Cart.objects.select_for_update().filter(guest_token=guest_token).first()
+        )
+        if guest_cart is None:
+            return  # another request merged it in the meantime
+
+        existing = {item.product_id: item for item in cart.items.all()}
+        guest_items = guest_cart.items.select_related(
+            "product__business", "product__category"
+        )
+
+        for guest_item in guest_items:
+            product = guest_item.product
+
+            if not product_is_visible(product) or product.stock_quantity == 0:
+                continue
+
+            limit = min(product.stock_quantity, MAX_QUANTITY_PER_ITEM)
+            current = existing.get(product.pk)
+
+            if current is None:
+                if len(existing) >= MAX_LINES_PER_CART:
+                    continue
+                existing[product.pk] = CartItem.objects.create(
+                    cart=cart,
+                    product=product,
+                    quantity=min(guest_item.quantity, limit),
+                )
+                continue
+
+            merged = min(current.quantity + guest_item.quantity, limit)
+            # Only ever raise the customer's quantity.
+            if merged > current.quantity:
+                current.quantity = merged
+                current.save(update_fields=["quantity", "updated_at"])
+
+        guest_cart.delete()
