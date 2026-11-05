@@ -2,13 +2,14 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 from django.db import IntegrityError, transaction
-
-from ..models import Cart, CartItem
+from decimal import Decimal
 
 from accounts.models import User
+from products.models import Product
 
 from ..models import Cart, CartItem
-from .helpers import make_business, make_category, make_product, make_user
+from .helpers import make_business, make_category, make_product, make_user, money
+from ..services import product_is_visible, visible_products
 
 class CartTestCase(TestCase):
     """Shared setup: people, an approved business and a category."""
@@ -77,3 +78,191 @@ class CartModelTests(CartTestCase):
         Cart.objects.get().delete()
 
         self.assertEqual(CartItem.objects.count(), 0)
+        
+        
+#------------------------------------test views --------------------------------
+
+class ViewCartTests(CartTestCase):
+    def test_new_customer_gets_an_empty_cart(self):
+        response = self.get_cart()
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["items"], [])
+        self.assertEqual(data["total_quantity"], 0)
+        self.assertEqual(money(data["total"]), Decimal("0.00"))
+        self.assertFalse(data["has_unavailable_items"])
+        # Reading an empty cart creates nothing.
+        self.assertEqual(Cart.objects.count(), 0)
+
+    def test_total_is_the_sum_of_price_times_quantity(self):
+        self.add_item(self.product(name="Toy", price="10.00", stock=10), 2)
+        self.add_item(self.product(name="Bone", price="3.50", stock=10), 3)
+
+        data = self.get_cart().json()
+
+        totals = [money(line["line_total"]) for line in data["items"]]
+        self.assertEqual(totals, [Decimal("20.00"), Decimal("10.50")])
+        self.assertEqual(money(data["total"]), Decimal("30.50"))
+        self.assertEqual(data["total_quantity"], 5)
+
+    def test_decimal_arithmetic_has_no_rounding_errors(self):
+        # With floats, 0.10 * 3 would give 0.30000000000000004.
+        self.add_item(self.product(price="0.10", stock=10), 3)
+        data = self.get_cart().json()
+        self.assertEqual(money(data["total"]), Decimal("0.30"))
+
+    def test_total_follows_the_current_price(self):
+        product = self.product(price="10.00", stock=10)
+        self.add_item(product, 2)
+        self.assertEqual(money(self.get_cart().json()["total"]), Decimal("20.00"))
+
+        product.price = Decimal("12.50")
+        product.save()
+
+        data = self.get_cart().json()
+        self.assertEqual(money(data["total"]), Decimal("25.00"))
+        self.assertEqual(money(data["items"][0]["unit_price"]), Decimal("12.50"))
+
+    def test_line_shows_the_product_details(self):
+        product = self.product(name="Chew toy", price="10.00", stock=5)
+        item = self.add_item(product, 2)
+
+        line = self.get_cart().json()["items"][0]
+
+        self.assertEqual(line["id"], item.pk)
+        self.assertEqual(line["product_id"], product.pk)
+        self.assertEqual(line["name"], "Chew toy")
+        self.assertEqual(line["business_name"], "Paws Place")
+        self.assertEqual(line["quantity"], 2)
+        self.assertTrue(line["available"])
+        self.assertIsNone(line["issue"])
+        self.assertIsNone(line["image"])
+
+    def test_max_quantity_is_stock_capped_at_99(self):
+        self.add_item(self.product(name="Few", stock=3), 1)
+        self.add_item(self.product(name="Many", stock=500), 1)
+
+        lines = {line["name"]: line for line in self.get_cart().json()["items"]}
+
+        self.assertEqual(lines["Few"]["max_quantity"], 3)
+        self.assertEqual(lines["Many"]["max_quantity"], 99)
+
+    def test_unavailable_lines_are_flagged_and_left_out_of_the_total(self):
+        self.add_item(self.product(name="Good", price="10.00", stock=5), 2)
+
+        pending_business = make_business(
+            self.vendor, name="Pending Shop", approved=False
+        )
+        inactive_business = make_business(
+            self.vendor, name="Closed Shop", active=False
+        )
+        inactive_category = make_category(name="Retired", active=False)
+        unavailable = {
+            "Switched off": self.product(name="Switched off", active=False),
+            "Empty": self.product(name="Empty", stock=0),
+            "Unapproved shop": make_product(
+                pending_business, self.category, name="Unapproved shop"
+            ),
+            "Closed shop": make_product(
+                inactive_business, self.category, name="Closed shop"
+            ),
+            "Retired category": make_product(
+                self.business, inactive_category, name="Retired category"
+            ),
+        }
+        for product in unavailable.values():
+            self.add_item(product, 1)
+
+        data = self.get_cart().json()
+
+        # Only the good line is counted.
+        self.assertEqual(money(data["total"]), Decimal("20.00"))
+        self.assertEqual(data["total_quantity"], 2)
+        self.assertTrue(data["has_unavailable_items"])
+
+        lines = {line["name"]: line for line in data["items"]}
+        self.assertTrue(lines["Good"]["available"])
+        for name in unavailable:
+            with self.subTest(product=name):
+                self.assertFalse(lines[name]["available"])
+                self.assertIsNotNone(lines[name]["issue"])
+                self.assertEqual(lines[name]["max_quantity"] == 0, name != "Empty" or True)
+
+        self.assertEqual(lines["Empty"]["issue"], "This product is out of stock.")
+        self.assertEqual(
+            lines["Switched off"]["issue"], "This product is no longer available."
+        )
+
+    def test_quantity_above_stock_is_flagged_and_left_out(self):
+        # The customer added 5, then stock dropped to 2.
+        self.add_item(self.product(price="10.00", stock=2), 5)
+
+        data = self.get_cart().json()
+
+        line = data["items"][0]
+        self.assertFalse(line["available"])
+        self.assertEqual(line["issue"], "Only 2 left in stock.")
+        self.assertEqual(line["max_quantity"], 2)
+        self.assertEqual(money(data["total"]), Decimal("0.00"))
+
+    def test_customers_only_see_their_own_cart(self):
+        self.add_item(self.product(name="Mine"), 1, customer=self.customer)
+        self.add_item(self.product(name="Theirs"), 1, customer=self.other_customer)
+
+        names = [line["name"] for line in self.get_cart().json()["items"]]
+
+        self.assertEqual(names, ["Mine"])
+
+    def test_cart_is_still_there_after_a_refresh(self):
+        self.add_item(self.product(price="10.00", stock=10), 2)
+        before = self.get_cart().json()
+
+        # A brand new session for the same customer, like a page reload.
+        fresh = APIClient()
+        fresh.force_authenticate(self.customer)
+        after = fresh.get(reverse("cart")).json()
+
+        self.assertEqual(before, after)
+        self.assertEqual(len(after["items"]), 1)
+
+    def test_other_roles_are_turned_away(self):
+        for user in (self.vendor, self.admin):
+            with self.subTest(user=user.username):
+                self.client.force_authenticate(user)
+
+                self.assertEqual(self.get_cart().status_code, 403)
+
+    def test_anonymous_user_is_turned_away(self):
+        response = APIClient().get(reverse("cart"))
+
+        self.assertIn(response.status_code, (401, 403))
+
+
+class VisibilityRuleTests(CartTestCase):
+    def test_the_python_check_matches_the_database_query(self):
+        pending_business = make_business(
+            self.vendor, name="Pending Shop", approved=False
+        )
+        inactive_business = make_business(
+            self.vendor, name="Closed Shop", active=False
+        )
+        inactive_category = make_category(name="Retired", active=False)
+        products = [
+            self.product(name="Visible"),
+            self.product(name="Switched off", active=False),
+            make_product(pending_business, self.category, name="Unapproved"),
+            make_product(inactive_business, self.category, name="Closed"),
+            make_product(self.business, inactive_category, name="Retired"),
+        ]
+
+        visible_ids = set(visible_products().values_list("pk", flat=True))
+
+        for product in products:
+            loaded = Product.objects.select_related("business", "category").get(
+                pk=product.pk
+            )
+            with self.subTest(product=loaded.name):
+                self.assertEqual(
+                    product_is_visible(loaded), loaded.pk in visible_ids
+                )
