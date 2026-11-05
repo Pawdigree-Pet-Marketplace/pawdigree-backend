@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .models import MAX_QUANTITY_PER_ITEM
 
 class CartLineSerializer(serializers.Serializer):
     """One cart line. Reads from a CartLine built by the service."""
@@ -35,3 +36,15 @@ class CartSerializer(serializers.Serializer):
     total_quantity = serializers.IntegerField()
     total = serializers.DecimalField(max_digits=16, decimal_places=2)
     has_unavailable_items = serializers.BooleanField()
+    
+    
+
+class AddToCartSerializer(serializers.Serializer):
+    """Validates the request body. The client sends only these two values."""
+
+    product = serializers.IntegerField(min_value=1)
+    quantity = serializers.IntegerField(
+        min_value=1,
+        max_value=MAX_QUANTITY_PER_ITEM,
+        default=1,
+    )

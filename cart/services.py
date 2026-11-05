@@ -4,7 +4,12 @@ from decimal import Decimal
 from businesses.models import Business
 from products.models import Product
 
-from .models import MAX_QUANTITY_PER_ITEM, CartItem
+from .models import MAX_LINES_PER_CART, MAX_QUANTITY_PER_ITEM, Cart, CartItem
+
+from django.db import transaction
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+
+from accounts.models import User
 
 TWO_PLACES = Decimal("0.01")
 
@@ -114,3 +119,68 @@ def get_cart_summary(customer):
         .prefetch_related("product__images")
     )
     return build_cart_summary(items)
+
+
+def _require_customer(user):
+    """Checks for user role to be customer, raises PermissionDenied if not."""
+    if user.role != User.Role.CUSTOMER:
+        raise PermissionDenied("Only customers have a cart.")
+
+
+def add_to_cart(customer, product_id, quantity):
+    """Add a product to the cart, or raise its quantity if it's already there.
+    Returns (item, created). Everything happens in one transaction, so a
+    refused request leaves nothing behind, not even an empty cart. """
+    _require_customer(customer)
+
+    with transaction.atomic():
+        cart, _ = Cart.objects.get_or_create(customer=customer)
+
+        # Lock the cart row until the transaction ends. Two simultaneous adds
+        # take turns, so neither can read a stale quantity.
+        cart = Cart.objects.select_for_update().get(pk=cart.pk)
+
+        # Only products customers can see. A hidden or missing product looks
+        # the same: it doesn't exist as far as the customer is concerned.
+        try:
+            product = visible_products().get(pk=product_id)
+        except Product.DoesNotExist:
+            raise NotFound("This product is not available.")
+
+        if product.stock_quantity == 0:
+            raise ValidationError({"product": "This product is out of stock."})
+
+        item = CartItem.objects.filter(cart=cart, product=product).first()
+        existing = item.quantity if item else 0
+        new_quantity = existing + quantity
+
+        if new_quantity > MAX_QUANTITY_PER_ITEM:
+            raise ValidationError({
+                "quantity": (
+                    f"You can have at most {MAX_QUANTITY_PER_ITEM} of one "
+                    "product in your cart."
+                )
+            })
+
+        if new_quantity > product.stock_quantity:
+            message = f"Only {product.stock_quantity} in stock."
+            if existing:
+                message += f" You already have {existing} in your cart."
+            raise ValidationError({"quantity": message})
+
+        if item is None:
+            if cart.items.count() >= MAX_LINES_PER_CART:
+                raise ValidationError({
+                    "product": (
+                        f"Your cart can hold at most {MAX_LINES_PER_CART} "
+                        "different products."
+                    )
+                })
+            item = CartItem.objects.create(
+                cart=cart, product=product, quantity=quantity
+            )
+            return item, True
+
+        item.quantity = new_quantity
+        item.save(update_fields=["quantity", "updated_at"])
+        return item, False

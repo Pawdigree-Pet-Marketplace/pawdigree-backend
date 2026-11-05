@@ -10,17 +10,44 @@ MAX_QUANTITY_PER_ITEM = 99
 MAX_LINES_PER_CART = 50
 
 class Cart(TimeStampedModel):
-    """Each customer has exactly one cart"""
-    
-    #Have only one cart per customer, reject more than one cart
+    """A shopping cart can belong either to a customer or to a guest who is not logged in.
+    A guest is recognised by a secret token that only their browser knows."""
+
+    # null=True because a guest cart has no customer.
     customer = models.OneToOneField(
         settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
-        related_name="cart"
+        related_name="cart",
     )
-    
+    # Created by the server, never chosen by the client. unique=True means
+    # no two carts can share a token. NULL is allowed many times.
+    guest_token = models.UUIDField(
+        null=True,
+        blank=True,
+        unique=True,
+        editable=False,
+    )
+
+    class Meta:
+        constraints = (
+            # Exactly one owner: a customer or a guest token, never both
+            # and never neither.
+            models.CheckConstraint(
+                condition=(
+                    Q(customer__isnull=False, guest_token__isnull=True)
+                    | Q(customer__isnull=True, guest_token__isnull=False)
+                ),
+                name="cart_has_exactly_one_owner",
+            ),
+        )
+
     def __str__(self):
-        return f"Cart of {self.customer}"
+        if self.customer_id:
+            return f"Cart of {self.customer}"
+        return f"Guest cart {self.pk}"
+    
     
     
 class CartItem(TimeStampedModel):
