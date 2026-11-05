@@ -3,6 +3,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from django.db import IntegrityError, transaction
 from decimal import Decimal
+import uuid
 
 from accounts.models import User
 from products.models import Product
@@ -78,6 +79,29 @@ class CartModelTests(CartTestCase):
         Cart.objects.get().delete()
 
         self.assertEqual(CartItem.objects.count(), 0)
+        
+        
+class GuestCartModelTests(CartTestCase):
+    def test_a_cart_needs_an_owner(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Cart.objects.create()
+
+    def test_a_cart_cannot_have_both_owners(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Cart.objects.create(customer=self.customer, guest_token=uuid.uuid4())
+
+    def test_many_guest_carts_can_exist(self):
+        Cart.objects.create(guest_token=uuid.uuid4())
+        Cart.objects.create(guest_token=uuid.uuid4())
+
+        self.assertEqual(Cart.objects.count(), 2)
+
+    def test_two_guest_carts_cannot_share_a_token(self):
+        token = uuid.uuid4()
+        Cart.objects.create(guest_token=token)
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Cart.objects.create(guest_token=token)
         
         
 #------------------------------------test views --------------------------------
