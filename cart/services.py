@@ -304,3 +304,68 @@ def merge_guest_cart(customer, guest_token):
                 current.save(update_fields=["quantity", "updated_at"])
 
         guest_cart.delete()
+        
+
+def set_item_quantity(owner, item_id, quantity):
+    """Set the exact quantity of one cart line."""
+    _check_owner(owner)
+
+    with transaction.atomic():
+        cart = _find_cart(owner, lock=True)
+        if cart is None:
+            raise NotFound("Cart item not found.")
+
+        # The lookup includes the owner's own cart, so someone else's line
+        # behaves as if it doesn't exist (404).
+        try:
+            item = (
+                CartItem.objects
+                .select_related("product__business", "product__category")
+                .get(pk=item_id, cart=cart)
+            )
+        except CartItem.DoesNotExist:
+            raise NotFound("Cart item not found.")
+
+        product = item.product
+
+        if not product_is_visible(product):
+            raise ValidationError({
+                "quantity": (
+                    "This product is no longer available. "
+                    "Remove it from your cart."
+                )
+            })
+        if product.stock_quantity == 0:
+            raise ValidationError({"quantity": "This product is out of stock."})
+        if quantity > product.stock_quantity:
+            raise ValidationError({
+                "quantity": f"Only {product.stock_quantity} in stock."
+            })
+
+        item.quantity = quantity
+        item.save(update_fields=["quantity", "updated_at"])
+        return item
+
+
+def remove_cart_item(owner, item_id):
+    """Remove one line from the owner's cart."""
+    _check_owner(owner)
+
+    with transaction.atomic():
+        cart = _find_cart(owner, lock=True)
+        if cart is None:
+            raise NotFound("Cart item not found.")
+
+        deleted, _ = CartItem.objects.filter(pk=item_id, cart=cart).delete()
+        if not deleted:
+            raise NotFound("Cart item not found.")
+
+
+def clear_cart(owner):
+    """Remove every line. The cart itself stays, so a guest's token keeps working."""
+    _check_owner(owner)
+
+    with transaction.atomic():
+        cart = _find_cart(owner, lock=True)
+        if cart is not None:
+            cart.items.all().delete()

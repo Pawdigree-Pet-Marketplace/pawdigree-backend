@@ -6,14 +6,17 @@ from rest_framework.permissions import IsAuthenticated
 from common.permissions import IsCustomer
 
 from .permissions import IsCustomerOrGuest
-from .serializers import AddToCartSerializer, CartSerializer
+from .serializers import AddToCartSerializer, CartSerializer, UpdateCartItemSerializer
 from .services import (
     GUEST_HEADER,
     add_to_cart,
+    clear_cart,
     get_cart_summary,
     owner_from_request,
     guest_token_from_request,
     merge_guest_cart,
+    remove_cart_item,
+    set_item_quantity
 )
 from .throttles import GuestAddThrottle
 
@@ -56,6 +59,17 @@ class CartView(generics.GenericAPIView):
         responses=CartSerializer,
     )
     def get(self, request):
+        return cart_response(request)
+    
+    @extend_schema(
+    tags=["cart"],
+    summary="Empty my cart",
+    description="Removes every line and returns the empty cart.",
+    parameters=[GUEST_TOKEN_PARAMETER],
+    responses=CartSerializer,
+    )
+    def delete(self, request):
+        clear_cart(owner_from_request(request))
         return cart_response(request)
 
 
@@ -120,4 +134,43 @@ class CartMergeView(generics.GenericAPIView):
     )
     def post(self, request):
         merge_guest_cart(request.user, guest_token_from_request(request))
+        return cart_response(request)
+    
+    
+class CartItemDetailView(generics.GenericAPIView):
+    """Change or remove one line of the visitor's cart."""
+
+    serializer_class = UpdateCartItemSerializer
+    permission_classes = (IsCustomerOrGuest,)
+
+    @extend_schema(
+        tags=["cart"],
+        summary="Change the quantity of a cart line",
+        description=(
+            "Sets the exact quantity (1 to 99, and no more than the stock). "
+            "Returns the whole cart with fresh totals."
+        ),
+        parameters=[GUEST_TOKEN_PARAMETER],
+        request=UpdateCartItemSerializer,
+        responses=CartSerializer,
+    )
+    def patch(self, request, item_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        set_item_quantity(
+            owner=owner_from_request(request),
+            item_id=item_id,
+            quantity=serializer.validated_data["quantity"],
+        )
+        return cart_response(request)
+
+    @extend_schema(
+        tags=["cart"],
+        summary="Remove a line from my cart",
+        parameters=[GUEST_TOKEN_PARAMETER],
+        responses=CartSerializer,
+    )
+    def delete(self, request, item_id):
+        remove_cart_item(owner_from_request(request), item_id)
         return cart_response(request)

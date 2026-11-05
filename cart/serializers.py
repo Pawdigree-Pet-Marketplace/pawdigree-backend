@@ -50,3 +50,11 @@ class AddToCartSerializer(serializers.Serializer):
         max_value=MAX_QUANTITY_PER_ITEM,
         default=1,
     )
+    
+class UpdateCartItemSerializer(serializers.Serializer):
+    """Validates the new quantity. Zero is refused: use DELETE to remove a line."""
+
+    quantity = serializers.IntegerField(
+        min_value=1,
+        max_value=MAX_QUANTITY_PER_ITEM,
+    )
