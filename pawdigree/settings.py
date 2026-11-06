@@ -190,12 +190,18 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {"default_acl": "public-read"},
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+AWS_ACCESS_KEY_ID = os.getenv("SPACES_KEY")
+AWS_SECRET_ACCESS_KEY = os.getenv("SPACES_SECRET")
+AWS_STORAGE_BUCKET_NAME = os.getenv("SPACES_BUCKET")
+AWS_S3_ENDPOINT_URL = os.getenv("SPACES_ENDPOINT")
+AWS_QUERYSTRING_AUTH = False
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
