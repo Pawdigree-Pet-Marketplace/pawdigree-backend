@@ -11,6 +11,18 @@ class Category(TimeStampedModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True, blank=True)
     description = models.TextField(blank=True)
+    class Kind(models.TextChoices):
+        GENERAL = "general", "General"
+        PETS = "pets", "Pets"
+        MERCHANDISE = "merchandise", "Merchandise"
+        SERVICES = "services", "Services"
+
+    # The kind of category, which determines the type of products or services
+    kind = models.CharField(
+        max_length=20,
+        choices=Kind.choices,
+        default=Kind.GENERAL,
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
