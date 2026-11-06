@@ -77,3 +77,26 @@ class VendorProductSerializer(ProductSerializer):
             self.fields["business"].queryset = Business.objects.filter(
                 vendor=request.user,
             )
+
+    def validate_business(self, business):
+        # An existing product can stay with its current business even if
+        # that business is later suspended.
+        if self.instance is not None and self.instance.business_id == business.pk:
+            return business
+
+        if (
+            not business.is_active
+            or business.verification_status
+            != Business.VerificationStatus.APPROVED
+        ):
+            raise serializers.ValidationError(
+                "Your business must be approved before you can add products."
+            )
+
+        if business.business_type != Business.BusinessType.PRODUCT_SELLER:
+            raise serializers.ValidationError(
+                "Only Pet Merchandise businesses can add products."
+            )
+
+        return business
+    

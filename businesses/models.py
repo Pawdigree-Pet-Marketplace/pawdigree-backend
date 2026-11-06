@@ -19,8 +19,9 @@ class Business(TimeStampedModel):
         REJECTED = "rejected", "Rejected"
 
     class BusinessType(models.TextChoices):
-        PRODUCT_SELLER = "PRODUCT_SELLER", "Product Seller"
-        SERVICE_PROVIDER = "SERVICE_PROVIDER", "Service Provider"
+        PET_SALE_ADOPTION = "PET_SALE_ADOPTION", "Pet sale and adoption"
+        PRODUCT_SELLER = "PRODUCT_SELLER", "Pet Merchandise"
+        SERVICE_PROVIDER = "SERVICE_PROVIDER", "Pet Services"
 
     id = models.UUIDField(
         primary_key=True,
