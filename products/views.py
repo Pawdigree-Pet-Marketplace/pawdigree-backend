@@ -2,6 +2,7 @@ from rest_framework import generics
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from accounts.models import User
+from businesses.models import Business
 from common.permissions import ADMIN_ROLES
 
 from .models import Product
@@ -38,7 +39,12 @@ class ProductQuerysetMixin:
         if user_role == User.Role.VENDOR:
             return queryset.filter(business__vendor=user)
 
-        return queryset.filter(is_active=True)
+        return queryset.filter(
+            is_active=True,
+            category__is_active=True,
+            business__is_active=True,
+            business__verification_status=Business.VerificationStatus.APPROVED,
+        )
 
 
 class ProductListCreateView(
