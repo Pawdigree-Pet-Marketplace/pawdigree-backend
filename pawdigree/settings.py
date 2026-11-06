@@ -75,7 +75,9 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
     'django.contrib.staticfiles',
+    'cloudinary',
     'rest_framework',
     'drf_spectacular',
     'corsheaders',
@@ -189,19 +191,17 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STORAGES = {
-    "default": {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {"default_acl": "public-read"},
-    },
+    "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-AWS_ACCESS_KEY_ID = os.getenv("SPACES_KEY")
-AWS_SECRET_ACCESS_KEY = os.getenv("SPACES_SECRET")
-AWS_STORAGE_BUCKET_NAME = os.getenv("SPACES_BUCKET")
-AWS_S3_ENDPOINT_URL = os.getenv("SPACES_ENDPOINT")
-AWS_QUERYSTRING_AUTH = False
+
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
+    "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
+    "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
+}
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
