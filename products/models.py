@@ -30,6 +30,7 @@ class Product(TimeStampedModel):
 
     def __str__(self):
         return self.name
+    
     @property
     def is_available(self):
         return self.is_active and self.stock_quantity > 0
