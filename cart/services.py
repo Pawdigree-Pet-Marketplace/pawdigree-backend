@@ -8,6 +8,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from accounts.models import User
 from businesses.models import Business
 from products.models import Product
+from products.public import visible_products
 
 from .models import MAX_LINES_PER_CART, MAX_QUANTITY_PER_ITEM, Cart, CartItem
 
@@ -15,17 +16,6 @@ TWO_PLACES = Decimal("0.01")
 
 # The header a guest's browser sends to say which cart is theirs.
 GUEST_HEADER = "X-Cart-Token"
-
-
-def visible_products():
-    """Products a customer can see, as a database query.
-    The product, its category and its business must all be active, and the business must be approved."""
-    return Product.objects.filter(
-        is_active=True,
-        category__is_active=True,
-        business__is_active=True,
-        business__verification_status=Business.VerificationStatus.APPROVED,
-    )
 
 
 def product_is_visible(product):
