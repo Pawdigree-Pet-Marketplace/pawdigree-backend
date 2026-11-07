@@ -27,8 +27,12 @@ class ProductSerializer(serializers.ModelSerializer):
         queryset=Business.objects.all(),
     )
     category = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.filter(is_active=True),
+        queryset=Category.objects.filter(
+            is_active=True,
+            kind__in=(Category.Kind.MERCHANDISE, Category.Kind.GENERAL),
+        ),
     )
+    
     images = ProductImageSerializer(many=True, read_only=True)
 
     class Meta:

@@ -578,4 +578,63 @@ class ProductViewsTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("stock_quantity", response.data)
 
-    
+    def post_product_with_category(self, category):
+        self.client.force_authenticate(user=self.vendor)
+        return self.client.post(
+            self.list_url,
+            {
+                "business": self.business.pk,
+                "category": category.pk,
+                "name": "Kind Test Product",
+                "price": "12000.00",
+            },
+            format="json",
+        )
+
+    def test_vendor_can_create_product_in_merchandise_category(self):
+        category = Category.objects.create(
+            name="Merchandise Kind",
+            kind=Category.Kind.MERCHANDISE,
+        )
+
+        response = self.post_product_with_category(category)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_vendor_can_create_product_in_general_category(self):
+        category = Category.objects.create(
+            name="General Kind",
+            kind=Category.Kind.GENERAL,
+        )
+
+        response = self.post_product_with_category(category)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_vendor_cannot_create_product_in_services_category(self):
+        category = Category.objects.create(
+            name="Services Kind",
+            kind=Category.Kind.SERVICES,
+        )
+
+        response = self.post_product_with_category(category)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("category", response.data)
+        self.assertFalse(
+            Product.objects.filter(name="Kind Test Product").exists()
+        )
+
+    def test_vendor_cannot_create_product_in_pets_category(self):
+        category = Category.objects.create(
+            name="Pets Kind",
+            kind=Category.Kind.PETS,
+        )
+
+        response = self.post_product_with_category(category)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("category", response.data)
+        self.assertFalse(
+            Product.objects.filter(name="Kind Test Product").exists()
+        )
