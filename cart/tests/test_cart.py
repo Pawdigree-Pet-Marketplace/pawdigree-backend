@@ -10,7 +10,7 @@ from products.models import Product
 
 from ..models import MAX_LINES_PER_CART, Cart, CartItem
 from .helpers import make_business, make_category, make_product, make_user, money
-from ..services import product_is_visible, visible_products
+from ..services import product_is_visible
 
 class CartTestCase(TestCase):
     """Shared setup: people, an approved business and a category."""
@@ -276,7 +276,9 @@ class VisibilityRuleTests(CartTestCase):
             make_product(self.business, inactive_category, name="Retired"),
         ]
 
-        visible_ids = set(visible_products().values_list("pk", flat=True))
+        visible_ids = set(
+            Product.objects.publicly_visible().values_list("pk", flat=True)
+        )
 
         for product in products:
             loaded = Product.objects.select_related("business", "category").get(

@@ -118,4 +118,50 @@ class ProductImageUploadSerializer(serializers.ModelSerializer):
         read_only_fields = ("id",)
 
 
+class PublicProductSerializer(serializers.ModelSerializer):
+    """What a customer sees on the merchandise page."""
 
+    category_name = serializers.CharField(
+        source="category.name",
+        read_only=True,
+    )
+    business_name = serializers.CharField(
+        source="business.name",
+        read_only=True,
+    )
+    is_available = serializers.BooleanField(read_only=True)
+    main_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = (
+            "id",
+            "name",
+            "price",
+            "category",
+            "category_name",
+            "business_name",
+            "is_available",
+            "main_image",
+        )
+
+    def get_main_image(self, obj):
+        first = next(iter(obj.images.all()), None)
+        if first is None:
+            return None
+
+        request = self.context.get("request")
+        url = first.image.url
+        return request.build_absolute_uri(url) if request else url
+
+
+class PublicProductDetailSerializer(PublicProductSerializer):
+    """The full product page: the list fields plus description and images."""
+
+    images = ProductImageSerializer(many=True, read_only=True)
+
+    class Meta(PublicProductSerializer.Meta):
+        fields = PublicProductSerializer.Meta.fields + (
+            "description",
+            "images",
+        )
