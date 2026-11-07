@@ -50,6 +50,9 @@ Then edit `.env`:
 - `DATABASE_URL`: delete this line (or comment it out), so the default local
   database is used.
 - `FRONTEND_URL`: `http://localhost:5173`
+- `ADMIN_FRONTEND_URL`: only needed if the admin portal runs somewhere other
+  than `http://localhost:5173`. Set it to that address, with `http://` and no
+  trailing slash. Several addresses can be separated with commas.
 
 `.env` holds secrets. Never commit it or paste it into a chat.
 
@@ -69,7 +72,9 @@ Check it works: open `http://localhost:8000/api/health/`. You should get a
 
 In your frontend's `.env`, set the API URL to `http://localhost:8000/api`
 (keep the `/api` at the end). The backend allows requests from
-`http://localhost:5173`, the default Vite port.
+`http://localhost:5173`, the default Vite port. A frontend or the admin
+portal on any other address also needs `FRONTEND_URL` or
+`ADMIN_FRONTEND_URL` set in the backend's `.env` (see the variables above).
 
 ### 6. Create an admin account to log in with
 
