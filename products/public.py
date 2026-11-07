@@ -5,8 +5,6 @@ from rest_framework import generics, serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 
-from businesses.models import Business
-
 from .models import Product
 from .serializers import ProductImageSerializer
 
@@ -69,12 +67,7 @@ class PublicProductDetailSerializer(PublicProductSerializer):
 def visible_products():
     """Products a customer is allowed to see."""
     return (
-        Product.objects.filter(
-            is_active=True,
-            category__is_active=True,
-            business__is_active=True,
-            business__verification_status=Business.VerificationStatus.APPROVED,
-        )
+        Product.objects.publicly_visible()
         .select_related("business", "category")
         .prefetch_related("images")
     )
