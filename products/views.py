@@ -5,10 +5,10 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from accounts.models import User
-from businesses.models import Business
 from common.permissions import ADMIN_ROLES
 
 from .models import Product
+from .public import visible_products
 from .serializers import (
     ProductImageUploadSerializer,
     ProductSerializer,
@@ -48,12 +48,7 @@ class ProductQuerysetMixin:
         if user_role == User.Role.VENDOR:
             return queryset.filter(business__vendor=user)
 
-        return queryset.filter(
-            is_active=True,
-            category__is_active=True,
-            business__is_active=True,
-            business__verification_status=Business.VerificationStatus.APPROVED,
-        )
+        return visible_products()
 
 
 class ProductListCreateView(
