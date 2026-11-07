@@ -100,3 +100,18 @@ class VendorProductSerializer(ProductSerializer):
 
         return business
 
+class ProductImageUploadSerializer(serializers.ModelSerializer):
+    """Accept an uploaded image for a product."""
+
+    class Meta:
+        model = ProductImage
+        fields = (
+            "id",
+            "image",
+            "alt_text",
+            "display_order",
+        )
+        read_only_fields = ("id",)
+
+
+
