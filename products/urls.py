@@ -1,11 +1,12 @@
 from django.urls import path
 
-from .public import PublicProductDetailView, PublicProductListView
 from .views import (
     ProductDetailView,
     ProductImageCreateView,
     ProductImageDeleteView,
     ProductListCreateView,
+    PublicProductDetailView,
+    PublicProductListView,
 )
 
 urlpatterns = [

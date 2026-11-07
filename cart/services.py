@@ -8,7 +8,6 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from accounts.models import User
 from businesses.models import Business
 from products.models import Product
-from products.public import visible_products
 
 from .models import MAX_LINES_PER_CART, MAX_QUANTITY_PER_ITEM, Cart, CartItem
 
@@ -19,7 +18,7 @@ GUEST_HEADER = "X-Cart-Token"
 
 
 def product_is_visible(product):
-    """The same rule as visible_products(), for one product already loaded."""
+    """Same rule as Product.objects.publicly_visible(), for one loaded product."""
     business = product.business
     return (
         product.is_active
@@ -201,7 +200,7 @@ def add_to_cart(owner, product_id, quantity):
         # Only products customers can see. A hidden or missing product looks
         # the same: it doesn't exist as far as the visitor is concerned.
         try:
-            product = visible_products().get(pk=product_id)
+            product = Product.objects.publicly_visible().get(pk=product_id)
         except Product.DoesNotExist:
             raise NotFound("This product is not available.")
 
