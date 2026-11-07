@@ -566,3 +566,16 @@ class ProductViewsTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         product.refresh_from_db()
         self.assertEqual(product.name, "Edited While Suspended")
+
+    def test_vendor_can_see_stock_quantity_on_own_product(self):
+        product = self.create_product()
+        self.client.force_authenticate(user=self.vendor)
+
+        response = self.client.get(
+            reverse("product-detail", kwargs={"pk": product.pk})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("stock_quantity", response.data)
+
+    

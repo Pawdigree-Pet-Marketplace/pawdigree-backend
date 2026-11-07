@@ -99,4 +99,4 @@ class VendorProductSerializer(ProductSerializer):
             )
 
         return business
-    
+
