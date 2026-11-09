@@ -36,6 +36,7 @@ def send_welcome_email(user):
         "user": user,
         "intro": intro,
         "frontend_url": settings.FRONTEND_URL,
+        "logo_url": settings.EMAIL_LOGO_URL,
     }
 
     try:
