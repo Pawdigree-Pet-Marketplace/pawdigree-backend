@@ -1,13 +1,12 @@
+from datetime import date, datetime
+
 from django.db import transaction
 from rest_framework import serializers
 
-from businesses.models import Business
-from datetime import date, datetime
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
 
-from .models import Service, AvailabilitySlot
-from .models import Service
+from .models import AvailabilitySlot, Service
 
 # Same rule as the category request endpoint: a business in one of these
 # states can't ask for new categories.
@@ -24,7 +23,10 @@ class ServiceSerializer(serializers.ModelSerializer):
         queryset=Business.objects.none(),
     )
     category = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.filter(is_active=True),
+        queryset=Category.objects.filter(
+            is_active=True,
+            kind__in=(Category.Kind.SERVICES, Category.Kind.GENERAL),
+        ),
     )
     category_status = serializers.SerializerMethodField()
 
@@ -155,11 +157,11 @@ class ServiceUpdateSerializer(ServiceSerializer):
     """Edit a service. The business it belongs to cannot be changed."""
 
     business = serializers.PrimaryKeyRelatedField(read_only=True)
-    
-    
+
+
 class AvailabilitySlotSerializer(serializers.ModelSerializer):
-    """validates on weekly time slot. needs context={"service": service}."""
-    
+    """Validates one weekly time slot. Needs context={"service": service}."""
+
     class Meta:
         model = AvailabilitySlot
         fields = (
@@ -178,14 +180,14 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
         weekday = attrs["weekday"]
         start = attrs["start_time"]
         end = attrs["end_time"]
-        
-        #the slot must run forward in time.
+
+        # The slot must run forward in time.
         if end <= start:
             raise serializers.ValidationError({
                 "end_time": "End time must be after start time."
             })
-            
-        #the slot must be long enough for atleast one booking.
+
+        # The slot must be long enough for at least one booking.
         length = datetime.combine(date.min, end) - datetime.combine(date.min, start)
         minutes = int(length.total_seconds() // 60)
         if minutes < service.duration:
@@ -195,7 +197,8 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
                     f"takes {service.duration} minutes."
                 )
             })
-        #Two slots overlap when each one starts before the other ends.
+
+        # Two slots overlap when each one starts before the other ends.
         # Using strict < and > means back-to-back slots are allowed.
         clash = AvailabilitySlot.objects.filter(
             service=service,
@@ -213,13 +216,7 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
             })
 
         return attrs
-    
-    
-# Optional on edit, so older services and small edits keep working.
-category = serializers.PrimaryKeyRelatedField(
-    queryset=Category.objects.filter(is_active=True),
-    required=False,
-)
+
 
 class CalendarDaySerializer(serializers.Serializer):
     """One day of the weekly calendar and its slots."""

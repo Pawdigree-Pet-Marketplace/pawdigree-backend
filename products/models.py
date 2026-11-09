@@ -6,6 +6,17 @@ from common.models import TimeStampedModel
 from common.validators import validate_image_upload
 
 
+class ProductQuerySet(models.QuerySet):
+    def publicly_visible(self):
+        """Products a customer is allowed to see."""
+        return self.filter(
+            is_active=True,
+            category__is_active=True,
+            business__is_active=True,
+            business__verification_status=Business.VerificationStatus.APPROVED,
+        )
+
+
 class Product(TimeStampedModel):
     """Physical merchandise sold by a business on Pawdigree."""
 
@@ -25,11 +36,14 @@ class Product(TimeStampedModel):
     stock_quantity = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
+    objects = ProductQuerySet.as_manager()
+
     class Meta:
         ordering = ("name",)
 
     def __str__(self):
         return self.name
+    
     @property
     def is_available(self):
         return self.is_active and self.stock_quantity > 0

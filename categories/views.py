@@ -1,5 +1,6 @@
 from rest_framework import generics
-from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission
 
 from common.permissions import ADMIN_ROLES
 
@@ -48,3 +49,34 @@ class CategoryDetailView(CategoryQuerysetMixin, generics.RetrieveUpdateDestroyAP
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
+
+
+class PublicCategoryListView(generics.ListAPIView):
+    """Active categories for dropdowns, open to everyone.
+
+    ?kind=merchandise|services|pets returns that kind plus general
+    categories, because general ones are valid everywhere. ?kind=general
+    returns only general categories. Without kind, all active categories.
+    """
+
+    serializer_class = CategorySerializer
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+    pagination_class = None
+
+    def get_queryset(self):
+        queryset = Category.objects.filter(is_active=True)
+
+        kind = self.request.query_params.get("kind")
+        if not kind:
+            return queryset
+
+        if kind not in Category.Kind.values:
+            raise ValidationError(
+                {"kind": f"Choose one of: {', '.join(Category.Kind.values)}."}
+            )
+
+        if kind == Category.Kind.GENERAL:
+            return queryset.filter(kind=Category.Kind.GENERAL)
+
+        return queryset.filter(kind__in=(kind, Category.Kind.GENERAL))
