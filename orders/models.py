@@ -9,12 +9,17 @@ from common.models import TimeStampedModel
 
 
 class Order(TimeStampedModel):
-    """A customer's checkout, which may contain products from multiple businesses."""
+    """A customer's checkout, which may contain products from multiple businesses.
+
+    The status here is the payment state of the whole checkout. What the
+    vendors do afterwards is tracked on each VendorOrder.
+    """
 
     class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        COMPLETED = "COMPLETED", "Completed"
+        PENDING_PAYMENT = "PENDING_PAYMENT", "Pending payment"
+        PAID = "PAID", "Paid"
         CANCELLED = "CANCELLED", "Cancelled"
+        EXPIRED = "EXPIRED", "Expired"
 
     customer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -23,9 +28,9 @@ class Order(TimeStampedModel):
         limit_choices_to={"role": "CUSTOMER"},
     )
     status = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=Status.choices,
-        default=Status.PENDING,
+        default=Status.PENDING_PAYMENT,
     )
     items_subtotal = models.DecimalField(
         max_digits=12,
@@ -39,6 +44,17 @@ class Order(TimeStampedModel):
         default=Decimal("0.00"),
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    # The end of the payment window. After this time an unpaid order is
+    # expired and its stock goes back.
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    # Shipping and contact details given at checkout. The checkout
+    # serializer makes them required.
+    shipping_name = models.CharField(max_length=150, blank=True, default="")
+    shipping_phone = models.CharField(max_length=20, blank=True, default="")
+    shipping_address = models.CharField(max_length=255, blank=True, default="")
+    shipping_city_district = models.CharField(max_length=100, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
 
     class Meta:
         ordering = ("-created_at",)
@@ -51,9 +67,13 @@ class VendorOrder(TimeStampedModel):
     """A business's independently fulfillable portion of a customer's order."""
 
     class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        COMPLETED = "COMPLETED", "Completed"
+        PENDING_PAYMENT = "PENDING_PAYMENT", "Pending payment"
+        PAID = "PAID", "Paid"
+        PROCESSING = "PROCESSING", "Processing"
+        SHIPPED = "SHIPPED", "Shipped"
+        DELIVERED = "DELIVERED", "Delivered"
         CANCELLED = "CANCELLED", "Cancelled"
+        EXPIRED = "EXPIRED", "Expired"
 
     order = models.ForeignKey(
         Order,
@@ -66,9 +86,9 @@ class VendorOrder(TimeStampedModel):
         related_name="vendor_orders",
     )
     status = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=Status.choices,
-        default=Status.PENDING,
+        default=Status.PENDING_PAYMENT,
     )
 
     class Meta:

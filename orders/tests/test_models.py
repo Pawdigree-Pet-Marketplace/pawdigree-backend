@@ -34,12 +34,22 @@ class OrderModelTests(TestCase):
         order = Order.objects.create(customer=self.customer)
 
         self.assertEqual(order.customer, self.customer)
-        self.assertEqual(order.status, Order.Status.PENDING)
+        self.assertEqual(order.status, Order.Status.PENDING_PAYMENT)
         self.assertEqual(order.items_subtotal, 0)
         self.assertEqual(order.total_amount, 0)
         self.assertEqual(str(order), f"Order #{order.pk} - {self.customer}")
         self.assertIsNotNone(order.created_at)
         self.assertIsNotNone(order.updated_at)
+
+    def test_order_checkout_fields_default_to_empty(self):
+        order = Order.objects.create(customer=self.customer)
+
+        self.assertIsNone(order.expires_at)
+        self.assertEqual(order.shipping_name, "")
+        self.assertEqual(order.shipping_phone, "")
+        self.assertEqual(order.shipping_address, "")
+        self.assertEqual(order.shipping_city_district, "")
+        self.assertEqual(order.notes, "")
 
     def test_vendor_order_creation_and_relationships(self):
         order = Order.objects.create(customer=self.customer)
@@ -50,7 +60,7 @@ class OrderModelTests(TestCase):
 
         self.assertEqual(vendor_order.order, order)
         self.assertEqual(vendor_order.business, self.business)
-        self.assertEqual(vendor_order.status, VendorOrder.Status.PENDING)
+        self.assertEqual(vendor_order.status, VendorOrder.Status.PENDING_PAYMENT)
         self.assertEqual(
             str(vendor_order),
             f"Order #{order.pk} - {self.business.name}",
