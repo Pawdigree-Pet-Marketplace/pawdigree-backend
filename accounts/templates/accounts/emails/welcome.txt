@@ -1,15 +1,21 @@
-{% autoescape off %}Welcome{% if user.first_name %} {{ user.first_name }}{% endif %}!
+{% autoescape off %}Welcome aboard{% if user.first_name %}, {{ user.first_name }}{% endif %}!
 
 {{ intro }}
 
-Your registered email address is {{ user.email }}
-Your username is {{ user.username }}
+Explore Pawdigree: {{ frontend_url }}
 
-Thanks for creating an account. Have fun!
+A little heads-up!
 
-Continue to Pawdigree: {{ frontend_url }}
+Make sure you verify your email address to get the most out of your Pawdigree account.
 
-If you didn't create a Pawdigree account, you can safely ignore this email.
+Need a hand? Our team is happy to help.
 
-© Pawdigree. Pets, care and community.
+Didn't create a Pawdigree account?
+
+If you didn't sign up for Pawdigree, you can safely ignore this email. No action is needed on your part.
+
+Warm regards,
+The Pawdigree Team
+
+© Pawdigree. All rights reserved.
 {% endautoescape %}
