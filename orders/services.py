@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from accounts.models import User
-from cart.models import Cart
+from cart.models import Cart, CartItem
 from cart.services import product_is_visible
 from products.models import Product
 
@@ -189,3 +189,48 @@ def expire_overdue_orders():
                 _release_locked(order, Order.Status.EXPIRED)
                 expired += 1
     return expired
+
+def mark_paid(order_id):
+    """Record that an order has been paid.
+
+    The payment code calls this once the gateway confirms the payment. The
+    order and all its vendor orders become PAID, and the products that were
+    bought leave the customer's cart. The stock was already taken at
+    checkout, so it stays as it is.
+
+    An order that is already paid is returned unchanged, so a payment
+    confirmed twice is harmless. A cancelled or expired order is refused,
+    because its stock has already been given back: the caller must treat
+    that payment as one to refund.
+    """
+    with transaction.atomic():
+        order = Order.objects.select_for_update().filter(pk=order_id).first()
+        if order is None:
+            raise NotFound("Order not found.")
+
+        if order.status == Order.Status.PAID:
+            return order
+
+        if order.status != Order.Status.PENDING_PAYMENT:
+            raise ValidationError(
+                {"order": "This order can no longer be paid: it was cancelled or expired."}
+            )
+
+        order.status = Order.Status.PAID
+        order.save(update_fields=["status", "updated_at"])
+        order.vendor_orders.update(
+            status=VendorOrder.Status.PAID,
+            updated_at=timezone.now(),
+        )
+
+        # Remove only what was bought. Anything the customer added to the
+        # cart after checkout stays.
+        bought_product_ids = OrderItem.objects.filter(
+            vendor_order__order=order
+        ).values_list("product_id", flat=True)
+        CartItem.objects.filter(
+            cart__customer=order.customer,
+            product_id__in=list(bought_product_ids),
+        ).delete()
+
+        return order
