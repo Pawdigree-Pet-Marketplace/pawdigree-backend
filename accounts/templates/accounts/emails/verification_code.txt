@@ -1,7 +1,13 @@
 Hi {{ user.first_name|default:user.username }},
 
-Your Pawdigree verification code is:
+We're happy to have you here! Please use the verification code below to confirm your email address and continue signing in to Pawdigree.
 
+Your verification code:
 {{ code }}
 
-It expires in {{ expires_minutes }} minutes. If you did not try to log in, you can ignore this email.
+This code expires in {{ expires_minutes }} minutes.
+
+Keep your code safe: never share this code with anyone. If you didn't try to log in to Pawdigree, you can safely ignore this email.
+
+Take care,
+The Pawdigree team
