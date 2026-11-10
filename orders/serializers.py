@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from common.phone import normalize_phone_number
@@ -63,3 +65,50 @@ class OrderSerializer(serializers.ModelSerializer):
             "vendor_orders",
         )
         read_only_fields = fields
+
+
+class VendorOrderDetailSerializer(serializers.ModelSerializer):
+    """One vendor order, with what the vendor needs to pack and ship it."""
+
+    order_id = serializers.ReadOnlyField()
+    business_name = serializers.CharField(source="business.name", read_only=True)
+    shipping_name = serializers.CharField(source="order.shipping_name", read_only=True)
+    shipping_phone = serializers.CharField(source="order.shipping_phone", read_only=True)
+    shipping_address = serializers.CharField(
+        source="order.shipping_address", read_only=True
+    )
+    shipping_city_district = serializers.CharField(
+        source="order.shipping_city_district", read_only=True
+    )
+    notes = serializers.CharField(source="order.notes", read_only=True)
+    items = OrderItemSerializer(many=True, read_only=True)
+    total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VendorOrder
+        fields = (
+            "id",
+            "order_id",
+            "business_name",
+            "status",
+            "shipping_name",
+            "shipping_phone",
+            "shipping_address",
+            "shipping_city_district",
+            "notes",
+            "items",
+            "total",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_total(self, obj) -> str:
+        total = sum((item.subtotal for item in obj.items.all()), Decimal("0.00"))
+        return str(total.quantize(Decimal("0.01")))
+
+
+class VendorOrderStatusSerializer(serializers.Serializer):
+    """The new status a vendor wants to give an order."""
+
+    status = serializers.ChoiceField(choices=VendorOrder.Status.choices)

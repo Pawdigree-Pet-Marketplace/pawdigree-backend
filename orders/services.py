@@ -10,6 +10,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from accounts.models import User
 from cart.models import Cart, CartItem
 from cart.services import product_is_visible
+from common.permissions import ADMIN_ROLES
 from products.models import Product
 
 from .models import Order, OrderItem, VendorOrder
@@ -20,16 +21,13 @@ TWO_PLACES = Decimal("0.01")
 CHECKOUT_WINDOW = timedelta(minutes=10)
 
 
-def _release_locked(order, new_status):
-    """Put an unpaid order's stock back and set its final status.
+def _restock(rows):
+    """Put stock back. `rows` is an iterable of (product_id, quantity).
 
     The caller must already hold a lock on the order, inside
     transaction.atomic().
     """
     quantities = defaultdict(int)
-    rows = OrderItem.objects.filter(vendor_order__order=order).values_list(
-        "product_id", "quantity"
-    )
     for product_id, quantity in rows:
         quantities[product_id] += quantity
 
@@ -44,6 +42,19 @@ def _release_locked(order, new_status):
         Product.objects.filter(pk=product_id).update(
             stock_quantity=F("stock_quantity") + quantity
         )
+
+
+def _release_locked(order, new_status):
+    """Put an unpaid order's stock back and set its final status.
+
+    The caller must already hold a lock on the order, inside
+    transaction.atomic().
+    """
+    _restock(
+        OrderItem.objects.filter(vendor_order__order=order).values_list(
+            "product_id", "quantity"
+        )
+    )
 
     order.status = new_status
     order.save(update_fields=["status", "updated_at"])
@@ -234,3 +245,65 @@ def mark_paid(order_id):
         ).delete()
 
         return order
+
+
+# Where a vendor order can go once it is paid. Vendors and admins can only
+# set these statuses; the payment code sets PAID, CANCELLED and EXPIRED on
+# unpaid orders.
+_S = VendorOrder.Status
+MANUAL_TRANSITIONS = {
+    _S.PAID.value: (_S.PROCESSING.value, _S.CANCELLED.value),
+    _S.PROCESSING.value: (_S.SHIPPED.value, _S.CANCELLED.value),
+    _S.SHIPPED.value: (_S.DELIVERED.value,),
+}
+
+
+def change_status(vendor_order_id, new_status, actor):
+    """Move a paid vendor order to its next status.
+
+    A vendor can only change orders of their own businesses. Admins and
+    system admins can change any. An order that is not paid, or a move that
+    is not in MANUAL_TRANSITIONS, is refused. Cancelling gives the stock
+    back; the refund itself is handled by a person.
+    """
+    if actor.role not in (*ADMIN_ROLES, User.Role.VENDOR):
+        raise PermissionDenied("You cannot change order statuses.")
+
+    with transaction.atomic():
+        vendor_order = (
+            VendorOrder.objects.select_for_update(of=("self",))
+            .select_related("order", "business")
+            .filter(pk=vendor_order_id)
+            .first()
+        )
+        # A vendor gets "not found" for other vendors' orders, so they
+        # cannot tell whether an order exists.
+        if vendor_order is None or (
+            actor.role == User.Role.VENDOR
+            and vendor_order.business.vendor_id != actor.pk
+        ):
+            raise NotFound("Order not found.")
+
+        if vendor_order.order.status != Order.Status.PAID:
+            raise ValidationError({"status": "This order has not been paid."})
+
+        if new_status not in MANUAL_TRANSITIONS.get(vendor_order.status, ()):
+            raise ValidationError(
+                {
+                    "status": (
+                        f"An order that is {vendor_order.get_status_display().lower()} "
+                        f"cannot be changed to {new_status.lower()}."
+                    )
+                }
+            )
+
+        if new_status == _S.CANCELLED:
+            _restock(
+                OrderItem.objects.filter(vendor_order=vendor_order).values_list(
+                    "product_id", "quantity"
+                )
+            )
+
+        vendor_order.status = new_status
+        vendor_order.save(update_fields=["status", "updated_at"])
+        return vendor_order
