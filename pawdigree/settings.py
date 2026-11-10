@@ -313,6 +313,14 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SCHEMA_PATH_PREFIX': r'/api',
     'SERVE_INCLUDE_SCHEMA': False,
+    'ENUM_NAME_OVERRIDES': {
+        'AdoptionStatusEnum': 'pawdigree.schema_enums.AdoptionStatus',
+        'OrderStatusEnum': 'pawdigree.schema_enums.OrderStatus',
+        'VendorOrderStatusEnum': 'pawdigree.schema_enums.VendorOrderStatus',
+        'BusinessDecisionActionEnum': 'pawdigree.schema_enums.BusinessDecisionAction',
+        'AdminAuditActionEnum': 'pawdigree.schema_enums.AdminAuditAction',
+        'DocumentReviewActionEnum': 'pawdigree.schema_enums.DocumentReviewAction',
+    },
     'TAGS': [
         {'name': 'auth', 'description': 'Accounts, login and registration'},
         {'name': 'businesses', 'description': 'Vendor businesses'},

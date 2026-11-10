@@ -93,7 +93,7 @@ class AdoptionDecisionResponseSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class VendorAdoptionApplicationSerializer(serializers.ModelSerializer):
-    customer_id = serializers.ReadOnlyField(source="customer.pk")
+    customer_id = serializers.ReadOnlyField()
     customer_username = serializers.ReadOnlyField(source="customer.username")
     customer_email = serializers.ReadOnlyField(source="customer.email")
     pet_name = serializers.ReadOnlyField(source="pet.name")
