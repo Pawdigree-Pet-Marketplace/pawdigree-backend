@@ -1,3 +1,4 @@
+
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
@@ -48,6 +49,38 @@ class CheckoutView(generics.GenericAPIView):
             "vendor_orders__items__product",
         ).get(pk=order.pk)
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
+class CustomerOrderListView(generics.ListAPIView):
+    """List the authenticated customer's own orders."""
+
+    serializer_class = OrderSerializer
+    permission_classes = (IsCustomer,)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Order.objects.none()
+
+        return (
+            Order.objects.filter(customer=self.request.user)
+            .prefetch_related(
+                "vendor_orders__business",
+                "vendor_orders__items__product",
+            )
+            .order_by("-created_at")
+        )
+
+    @extend_schema(
+        tags=["orders"],
+        summary="List my orders",
+        description=(
+            "Returns the authenticated customer's orders, newest first, "
+            "including vendor orders, purchased products and their statuses."
+        ),
+        responses={200: OrderSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
 
 class VendorOrderListView(generics.ListAPIView):
