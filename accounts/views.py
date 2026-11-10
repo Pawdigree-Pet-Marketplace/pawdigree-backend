@@ -347,5 +347,14 @@ class PasswordResetConfirmView(generics.GenericAPIView):
             status=200,
         )
 
+
+class PasswordResetConfirmLinkView(PasswordResetConfirmView):
+    # Same behaviour as PasswordResetConfirmView. It exists only so the
+    # uidb64/token route gets its own operationId in the API schema.
+    @extend_schema(operation_id='auth_password_reset_confirm_link')
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
+
 class SessionTokenRefreshView(TokenRefreshView):
     serializer_class = SessionTokenRefreshSerializer

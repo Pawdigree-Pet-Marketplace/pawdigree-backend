@@ -15,6 +15,7 @@ from .views import (
     CustomerRegistrationView,
     GoogleLoginView,
     LogoutView,
+    PasswordResetConfirmLinkView,
     PasswordResetConfirmView,
     PasswordResetRequestView,
     SessionTokenRefreshView,
@@ -25,11 +26,7 @@ from .views import (
 urlpatterns = [
     path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     path('verify-email/resend/', ResendVerificationView.as_view(), name='verify-email-resend'),
-    path(
-        'businesses/register/',
-        BusinessRegistrationView.as_view(),
-        name='business-register',
-    ),
+    path('businesses/register/',BusinessRegistrationView.as_view(),name='business-register',),
     path('register/customer/',CustomerRegistrationView.as_view(),name='customer-register',),
     path('register/vendor/',VendorRegistrationView.as_view(),name='vendor-register',),
     path('login/customer/',CustomerLoginView.as_view(),name='customer-login',),
@@ -41,7 +38,7 @@ urlpatterns = [
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm-uid'),
-    path('password-reset/confirm/<str:uidb64>/<str:token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('password-reset/confirm/<str:uidb64>/<str:token>/', PasswordResetConfirmLinkView.as_view(), name='password-reset-confirm'),
     path('register/admin/', AdminRegistrationView.as_view(),name='admin-register',),
     path('token/refresh/', SessionTokenRefreshView.as_view(), name='token-refresh'),
 ]

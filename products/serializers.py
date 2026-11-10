@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from businesses.models import Business
@@ -145,6 +146,7 @@ class PublicProductSerializer(serializers.ModelSerializer):
             "main_image",
         )
 
+    @extend_schema_field({"type": "string", "format": "uri", "nullable": True})
     def get_main_image(self, obj):
         first = next(iter(obj.images.all()), None)
         if first is None:
