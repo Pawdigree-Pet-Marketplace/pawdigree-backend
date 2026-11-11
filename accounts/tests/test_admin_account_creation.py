@@ -6,6 +6,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from accounts.admin_invites import make_invite_token
 from accounts.permissions import IsAdmin
 from common.permissions import (
     IsSystemAdmin as AccountIsSystemAdmin,
@@ -77,7 +78,7 @@ def test_system_admin_can_create_admin_account(api_client, role_system_admin):
     assert created_admin.role == User.Role.ADMIN
     assert created_admin.is_staff is True
     assert created_admin.is_superuser is False
-    assert created_admin.check_password("StrongPass123!")
+    assert not created_admin.has_usable_password()
 
 
 @pytest.mark.django_db
@@ -325,7 +326,7 @@ def test_duplicate_email_is_rejected_ignoring_case(
 
 
 @pytest.mark.django_db
-def test_password_is_hashed_and_never_returned(api_client, role_system_admin):
+def test_admin_is_created_without_a_password_and_none_is_returned(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
@@ -335,12 +336,11 @@ def test_password_is_hashed_and_never_returned(api_client, role_system_admin):
     assert response.status_code == status.HTTP_201_CREATED
     assert "password" not in response.data
     created = User.objects.get(email="created_admin@example.com")
-    assert created.password != "StrongPass123!"
-    assert created.check_password("StrongPass123!")
+    assert not created.has_usable_password()
 
 
 @pytest.mark.django_db
-def test_weak_password_is_rejected(api_client, role_system_admin):
+def test_a_password_sent_in_the_request_is_ignored(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
@@ -349,8 +349,10 @@ def test_weak_password_is_rejected(api_client, role_system_admin):
         format="json",
     )
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert not User.objects.filter(email="created_admin@example.com").exists()
+    assert response.status_code == status.HTTP_201_CREATED
+    created = User.objects.get(email="created_admin@example.com")
+    assert not created.has_usable_password()
+    assert not created.check_password("123")
 
 
 @pytest.mark.django_db
@@ -363,6 +365,16 @@ def test_created_admin_is_active_and_can_log_in(api_client, role_system_admin):
     assert created.is_active is True
     assert created.is_staff is True
     assert created.is_superuser is False
+
+    api_client.post(
+        reverse("admin-set-password"),
+        {
+            "token": make_invite_token(created),
+            "new_password": "StrongPass123!",
+            "confirm_password": "StrongPass123!",
+        },
+        format="json",
+    )
 
     response = api_client.post(
         reverse("admin-login"),
@@ -423,3 +435,20 @@ def test_privilege_fields_in_request_are_ignored(api_client, role_system_admin):
     assert created.role == User.Role.ADMIN
     assert created.is_superuser is False
     assert created.is_active is True
+
+
+@pytest.mark.django_db
+def test_created_admin_cannot_log_in_before_setting_a_password(
+    api_client, role_system_admin
+):
+    api_client.force_authenticate(user=role_system_admin)
+    api_client.post(reverse("admin-register"), admin_payload(), format="json")
+    api_client.force_authenticate(user=None)
+
+    response = api_client.post(
+        reverse("admin-login"),
+        {"email": "created_admin@example.com", "password": "StrongPass123!"},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST

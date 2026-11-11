@@ -167,12 +167,6 @@ class AdminRegistrationSerializer(
     OptionalUsernameMixin,
     serializers.ModelSerializer,
 ):
-    password = serializers.CharField(
-        write_only=True,
-        min_length=8,
-        validators=[validate_password],
-    )
-
     phone = serializers.CharField(
         required=False,
         max_length=20,
@@ -187,7 +181,6 @@ class AdminRegistrationSerializer(
             'last_name',
             'email',
             'phone',
-            'password',
             'role',
         )
         read_only_fields = ('id', 'role')
@@ -484,11 +477,18 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         min_length=8,
     )
 
+    confirm_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True
+    )
+
     def validate_new_password(self, value):
         validate_password(value)
         return value
 
     def validate(self, attrs):
+        confirm = attrs.get('confirm_password')
+        if confirm and confirm != attrs['new_password']:
+            raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
         if not attrs.get('uid') and not attrs.get('email'):
             raise serializers.ValidationError({
                 'token': 'Invalid or expired password-reset token.'

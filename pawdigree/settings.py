@@ -230,6 +230,8 @@ REST_FRAMEWORK = {
         'login': '10/minute',
         'password_reset': '5/hour',
         'password_reset_confirm': '10/hour',
+        'change_password': '10/hour',
+        'admin_set_password': '10/hour',
     },
     'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '2')),
 }
@@ -300,6 +302,9 @@ DEFAULT_FROM_EMAIL = (
 )
 EMAIL_TIMEOUT = 10
 EMAIL_LOGO_URL = os.getenv('EMAIL_LOGO_URL', '')
+
+# Admin portal address used in admin invite emails (first ADMIN_FRONTEND_URL entry)
+ADMIN_PORTAL_URL = os.getenv('ADMIN_FRONTEND_URL', '').split(',')[0].strip().rstrip('/')
 
 # Password-reset tokens expire after one hour.
 PASSWORD_RESET_TIMEOUT = 3600

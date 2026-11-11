@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from .models import AdminAuditLog
+from .admin_invites import send_admin_invite
 from .token_utils import revoke_user_tokens
 
 User = get_user_model()
@@ -28,6 +29,9 @@ def create_admin_account(*, actor, **data):
     """Create an ADMIN account and record who created it.
 
     The role and staff flag are set here, so no caller can choose them.
+    With no password given the account can't be used yet, and the admin is
+    emailed a one-time link to set one. The email goes out after the
+    transaction commits.
     """
     data.update(
         role=User.Role.ADMIN,
@@ -40,6 +44,8 @@ def create_admin_account(*, actor, **data):
         target=administrator,
         action=AdminAuditLog.Action.ADMIN_CREATED,
     )
+    if not administrator.has_usable_password():
+        transaction.on_commit(lambda: send_admin_invite(administrator))
     return administrator
 
 

@@ -1,0 +1,19 @@
+PAWDIGREE — YOUR ADMIN ACCOUNT
+
+Hello{% if user.first_name %} {{ user.first_name }}{% endif %},
+
+A Pawdigree system administrator has created an administrator account for you.
+Use the link below to set your password. The link works once and expires in 3 days:
+
+{% autoescape off %}{{ invite_url }}{% endautoescape %}
+
+After that, sign in at {% autoescape off %}{{ portal_url }}{% endautoescape %} with your email address: {{ user.email }}
+
+If you weren't expecting this, you can ignore this email. The account can't be used until a password is set.
+
+Please don't share this link with anyone.
+
+Take care,
+The Pawdigree team
+
+© Pawdigree. Pets, care and community.
