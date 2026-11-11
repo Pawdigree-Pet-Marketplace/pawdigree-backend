@@ -82,6 +82,40 @@ class CustomerOrderListView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
+    
+class CustomerOrderDetailView(generics.RetrieveAPIView):
+    """Retrieve one order belonging to the authenticated customer."""
+
+    serializer_class = OrderSerializer
+    permission_classes = (IsCustomer,)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Order.objects.none()
+
+        return (
+            Order.objects.filter(customer=self.request.user)
+            .prefetch_related(
+                "vendor_orders__business",
+                "vendor_orders__items__product",
+            )
+        )
+
+    @extend_schema(
+        tags=["orders"],
+        summary="Retrieve my order details",
+        description=(
+            "Returns one order belonging to the authenticated customer, "
+            "including its shipping details, vendor orders, purchased "
+            "products, quantities, prices and statuses. Customers cannot "
+            "retrieve another customer's order."
+        ),
+        responses={200: OrderSerializer},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
 
 class VendorOrderListView(generics.ListAPIView):
     """The paid orders that contain the vendor's own products."""
