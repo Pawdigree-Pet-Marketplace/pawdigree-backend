@@ -16,6 +16,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from common.permissions import IsCustomer, IsSystemAdminRoleOnly
 
+from .email_images import EMAIL_IMAGE_CIDS, attach_inline_email_images
 from .emails import send_welcome_email
 from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
@@ -278,11 +279,14 @@ class PasswordResetRequestView(generics.GenericAPIView):
                 html_content,
                 'text/html',
             )
-
             # Send the email.
             # A send failure is logged but never shown to the caller, so
             # the response is the same whether or not the account exists.
             try:
+                attach_inline_email_images(
+                    email_message,
+                    EMAIL_IMAGE_CIDS,
+                )
                 email_message.send(fail_silently=False)
             except Exception:
                 logging.getLogger(__name__).exception(

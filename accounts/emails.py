@@ -4,6 +4,8 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 
+from .email_images import EMAIL_IMAGE_CIDS, attach_inline_email_images
+
 logger = logging.getLogger(__name__)
 
 SUBJECT = "Welcome to Pawdigree"
@@ -50,6 +52,7 @@ def send_welcome_email(user):
             to=[user.email],
         )
         message.attach_alternative(html_body, "text/html")
+        attach_inline_email_images(message, EMAIL_IMAGE_CIDS)
         message.send(fail_silently=False)
     except Exception:
         logger.exception("Could not send welcome email to user %s", user.pk)
@@ -86,9 +89,8 @@ def send_verification_email(user, code, expires_minutes):
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[user.email],
         )
-        
-
         message.attach_alternative(html_body, "text/html")
+        attach_inline_email_images(message, EMAIL_IMAGE_CIDS)
         message.send(fail_silently=False)
     except Exception:
         logger.exception(
