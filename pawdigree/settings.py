@@ -230,6 +230,7 @@ REST_FRAMEWORK = {
         'login': '10/minute',
         'password_reset': '5/hour',
         'password_reset_confirm': '10/hour',
+        'change_password': '10/hour',
     },
     'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '2')),
 }
