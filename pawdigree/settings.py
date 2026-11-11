@@ -105,6 +105,10 @@ PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
 PAYMENT_METHODS = ("card", "mobile_money")  # must match what the gateway supports
 PAYMENT_GATEWAY_CLASS = "payments.gateways.sandbox.SandboxGateway" #point to the sandbox gateway for testing
 
+
+SANDBOX_WEBHOOK_SECRET = os.environ.get("SANDBOX_WEBHOOK_SECRET", "dev-only-secret")
+SANDBOX_PAYMENT_PAGE = "http://localhost:3000/sandbox-pay"
+
 ANYMAIL = {
        "BREVO_API_KEY": os.getenv("BREVO_API_KEY", ""),
    }
