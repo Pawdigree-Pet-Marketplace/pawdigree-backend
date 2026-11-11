@@ -14,14 +14,13 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from common.permissions import IsCustomer, IsSystemAdminRoleOnly
+from common.permissions import IsCustomer
 
 from .email_images import EMAIL_IMAGE_CIDS, attach_inline_email_images
 from .emails import send_welcome_email
 from .password_reset import PasswordResetTokenGeneratorService
 from .serializers import (
     AdminLoginSerializer,
-    AdminRegistrationSerializer,
     CurrentUserSerializer,
     CustomerLoginSerializer,
     CustomerProfileSerializer,
@@ -70,18 +69,6 @@ class CustomerRegistrationView(WelcomeEmailMixin, generics.CreateAPIView):
 class VendorRegistrationView(WelcomeEmailMixin, generics.CreateAPIView):
     serializer_class = VendorRegistrationSerializer
     permission_classes = (AllowAny,)
-
-
-@extend_schema(
-    summary='Create an administrator account',
-    description=(
-        'Creates a new administrator account. '
-        'Only a user with the SYSTEM_ADMIN role may use this endpoint.'
-    ),
-)
-class AdminRegistrationView(generics.CreateAPIView):
-    serializer_class = AdminRegistrationSerializer
-    permission_classes = (IsAuthenticated, IsSystemAdminRoleOnly)
 
 
 @extend_schema(

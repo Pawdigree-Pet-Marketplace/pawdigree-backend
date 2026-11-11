@@ -10,7 +10,6 @@ from .verification_views import (
 )
 from .views import (
     AdminLoginView,
-    AdminRegistrationView,
     CurrentUserView,
     CustomerLoginView,
     CustomerProfileView,
@@ -43,6 +42,5 @@ urlpatterns = [
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm-uid'),
     path('password-reset/confirm/<str:uidb64>/<str:token>/', PasswordResetConfirmLinkView.as_view(), name='password-reset-confirm'),
-    path('register/admin/', AdminRegistrationView.as_view(),name='admin-register',),
     path('token/refresh/', SessionTokenRefreshView.as_view(), name='token-refresh'),
 ]
