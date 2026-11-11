@@ -97,8 +97,13 @@ INSTALLED_APPS = [
     "phonenumber_field",
     "countries",
     "anymail",
-    'cart'
+    'cart',
+    'payments',
 ]
+
+PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
+PAYMENT_METHODS = ("card", "mobile_money")  # must match what the gateway supports
+PAYMENT_GATEWAY_CLASS = "payments.gateways.sandbox.SandboxGateway" #point to the sandbox gateway for testing
 
 ANYMAIL = {
        "BREVO_API_KEY": os.getenv("BREVO_API_KEY", ""),
