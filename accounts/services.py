@@ -2,8 +2,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from .models import AdminAuditLog
 from .admin_invites import send_admin_invite
+from .models import AdminAuditLog
 from .token_utils import revoke_user_tokens
 
 User = get_user_model()

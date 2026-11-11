@@ -55,14 +55,8 @@ CASES = [
             "system_admin": NOT_FOUND,
         },
     ),
-    (
-        "admin-register", "post", "admin-register", {},
-        {
-            "anonymous": UNAUTHORIZED, "customer": FORBIDDEN,
-            "vendor": FORBIDDEN, "admin": FORBIDDEN,
-            "system_admin": BAD_REQUEST,
-        },
-    ),
+    
+   
     (
         "administrator-list", "get", "administrator-list", {},
         {

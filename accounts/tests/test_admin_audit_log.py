@@ -55,10 +55,10 @@ def admin_user(db):
     return make_user("audit_target", User.Role.ADMIN, is_staff=True)
 
 
-# ---- creation --------------------------------------------------------------
+# creation
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("url_name", ["administrator-list", "admin-register"])
+@pytest.mark.parametrize("url_name", ["administrator-list"])
 def test_creating_an_admin_is_recorded(api_client, sysadmin, url_name):
     api_client.force_authenticate(user=sysadmin)
 

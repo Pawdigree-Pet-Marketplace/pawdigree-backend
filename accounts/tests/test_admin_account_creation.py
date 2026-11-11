@@ -59,7 +59,7 @@ def test_system_admin_can_create_admin_account(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         {
             "username": "new_admin_test",
             "first_name": "New",
@@ -88,7 +88,7 @@ def test_regular_admin_cannot_create_admin_account(
     api_client.force_authenticate(user=regular_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         {
             "username": "blocked_admin_test",
             "first_name": "Blocked",
@@ -109,7 +109,7 @@ def test_regular_admin_cannot_create_admin_account(
 @pytest.mark.django_db
 def test_unauthenticated_user_cannot_create_admin_account(api_client):
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         {
             "username": "unauthorized_admin_test",
             "first_name": "Unauthorized",
@@ -134,7 +134,7 @@ def test_user_with_system_admin_role_can_create_admin_account(
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         {
             "username": "role_created_admin_test",
             "first_name": "Role",
@@ -163,7 +163,7 @@ def test_customer_cannot_create_admin_account(api_client):
     api_client.force_authenticate(user=customer)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         {
             "username": "customer_admin_attempt",
             "first_name": "Customer",
@@ -192,7 +192,7 @@ def test_vendor_cannot_create_admin_account(api_client):
     api_client.force_authenticate(user=vendor)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         {
             "username": "vendor_admin_attempt",
             "first_name": "Vendor",
@@ -285,7 +285,7 @@ def test_superuser_without_system_admin_role_cannot_create_admin_account(
     api_client.force_authenticate(user=superuser)
 
     response = api_client.post(
-        reverse("admin-register"), admin_payload(), format="json"
+        reverse("administrator-list"), admin_payload(), format="json"
     )
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -297,7 +297,7 @@ def test_submitted_role_is_ignored(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         admin_payload(role="SYSTEM_ADMIN"),
         format="json",
     )
@@ -316,7 +316,7 @@ def test_duplicate_email_is_rejected_ignoring_case(
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         admin_payload(email=regular_admin.email.upper()),
         format="json",
     )
@@ -330,7 +330,7 @@ def test_admin_is_created_without_a_password_and_none_is_returned(api_client, ro
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"), admin_payload(), format="json"
+        reverse("administrator-list"), admin_payload(), format="json"
     )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -344,7 +344,7 @@ def test_a_password_sent_in_the_request_is_ignored(api_client, role_system_admin
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         admin_payload(password="123"),
         format="json",
     )
@@ -358,7 +358,7 @@ def test_a_password_sent_in_the_request_is_ignored(api_client, role_system_admin
 @pytest.mark.django_db
 def test_created_admin_is_active_and_can_log_in(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
-    api_client.post(reverse("admin-register"), admin_payload(), format="json")
+    api_client.post(reverse("administrator-list"), admin_payload(), format="json")
     api_client.force_authenticate(user=None)
 
     created = User.objects.get(email="created_admin@example.com")
@@ -396,7 +396,7 @@ def test_username_is_optional_and_generated_from_email(
     del payload["username"]
 
     response = api_client.post(
-        reverse("admin-register"), payload, format="json"
+        reverse("administrator-list"), payload, format="json"
     )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -409,7 +409,7 @@ def test_supplied_username_is_kept(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         admin_payload(username="chosen_name"),
         format="json",
     )
@@ -425,7 +425,7 @@ def test_privilege_fields_in_request_are_ignored(api_client, role_system_admin):
     api_client.force_authenticate(user=role_system_admin)
 
     response = api_client.post(
-        reverse("admin-register"),
+        reverse("administrator-list"),
         admin_payload(is_superuser=True, is_active=False, role="SYSTEM_ADMIN"),
         format="json",
     )
@@ -442,7 +442,7 @@ def test_created_admin_cannot_log_in_before_setting_a_password(
     api_client, role_system_admin
 ):
     api_client.force_authenticate(user=role_system_admin)
-    api_client.post(reverse("admin-register"), admin_payload(), format="json")
+    api_client.post(reverse("administrator-list"), admin_payload(), format="json")
     api_client.force_authenticate(user=None)
 
     response = api_client.post(
