@@ -22,7 +22,7 @@ class ChangePasswordTests(TestCase):
     def change(self, current=OLD, new=NEW):
         return self.client.post(
             self.url,
-            {"current_password": current, "new_password": new},
+            {"current_password": current, "new_password": new, "confirm_password": new},
             format="json",
         )
 
@@ -90,3 +90,17 @@ class ChangePasswordTests(TestCase):
         self.assertEqual(response.status_code, 200)
         admin.refresh_from_db()
         self.assertTrue(admin.check_password(NEW))
+
+    def test_mismatched_confirmation_is_refused(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            self.url,
+            {"current_password": OLD, "new_password": NEW, "confirm_password": "Different1!x"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("confirm_password", response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(OLD))

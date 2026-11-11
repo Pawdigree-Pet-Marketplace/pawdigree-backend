@@ -2,6 +2,7 @@ from django.urls import path
 
 from businesses.views import BusinessRegistrationView
 
+from .admin_invites import AdminSetPasswordView
 from .change_password import ChangePasswordView
 from .verification_views import (
     ResendVerificationView,
@@ -38,6 +39,7 @@ urlpatterns = [
     path('profile/',CustomerProfileView.as_view(), name='customer-profile',),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('admin/set-password/', AdminSetPasswordView.as_view(), name='admin-set-password'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm-uid'),
     path('password-reset/confirm/<str:uidb64>/<str:token>/', PasswordResetConfirmLinkView.as_view(), name='password-reset-confirm'),

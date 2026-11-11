@@ -240,10 +240,13 @@ class PasswordResetRequestView(generics.GenericAPIView):
             token_service = PasswordResetTokenGeneratorService()
             token = token_service.generate_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            reset_url = (
-                f"{settings.FRONTEND_URL}/reset-password/"
-                f"?uid={uid}&token={token}"
+            is_admin = user.role in (User.Role.ADMIN, User.Role.SYSTEM_ADMIN)
+            base_url = (
+                settings.ADMIN_PORTAL_URL
+                if is_admin and settings.ADMIN_PORTAL_URL
+                else settings.FRONTEND_URL
             )
+            reset_url = f"{base_url}/reset-password/?uid={uid}&token={token}"
 
            # Prepare the data for both email templates.
             context = {
