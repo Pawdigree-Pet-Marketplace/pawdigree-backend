@@ -89,8 +89,6 @@ def test_password_reset_request_sends_html_email(mailoutbox, settings):
     assert content_type == 'text/html'
     assert 'Pawdigree' in html_content
     assert '/reset-password/?uid=' in html_content
-    assert 'cid:pawdigree-header-wave' in html_content
-    assert any(
-        attachment.get('Content-ID') == '<pawdigree-header-wave>'
-        for attachment in email.attachments
-    )
+    assert 'header-wave-with-logo.png' in html_content
+    assert 'cid:' not in html_content
+    assert email.attachments == []
