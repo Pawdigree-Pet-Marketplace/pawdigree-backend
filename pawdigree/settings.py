@@ -311,6 +311,7 @@ DEFAULT_FROM_EMAIL = (
 )
 EMAIL_TIMEOUT = 10
 EMAIL_LOGO_URL = os.getenv('EMAIL_LOGO_URL', '')
+EMAIL_ASSETS_URL = os.getenv('EMAIL_ASSETS_URL', '').rstrip('/')
 
 # Admin portal address used in admin invite emails (first ADMIN_FRONTEND_URL entry)
 ADMIN_PORTAL_URL = os.getenv('ADMIN_FRONTEND_URL', '').split(',')[0].strip().rstrip('/')

@@ -5,18 +5,29 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from accounts.email_images import EMAIL_IMAGE_ASSETS
 from accounts.emails import send_verification_email, send_welcome_email
 
 User = get_user_model()
 
-EXPECTED_CIDS = set(EMAIL_IMAGE_ASSETS)
+ASSETS_URL = "https://assets.test/email"
+HEADER_URL = f"{ASSETS_URL}/header-wave-with-logo.png"
+EXPECTED_IMAGES = {
+    HEADER_URL,
+    f"{ASSETS_URL}/pawprints.png",
+    f"{ASSETS_URL}/coral-underline.png",
+    f"{ASSETS_URL}/footer-paw.png",
+}
 
 
-def assert_inline_email_images(message):
+@pytest.fixture(autouse=True)
+def email_assets_url(settings):
+    settings.EMAIL_ASSETS_URL = ASSETS_URL
+
+
+def assert_remote_email_images(message):
     html_content = message.alternatives[0][0]
     header_image = re.search(
-        r'<img\b[^>]*\bsrc="cid:pawdigree-header-wave"[^>]*>',
+        rf'<img\b[^>]*\bsrc="{re.escape(HEADER_URL)}"[^>]*>',
         html_content,
         re.DOTALL,
     )
@@ -38,34 +49,20 @@ def assert_inline_email_images(message):
     assert "display: block" in header_image.group()
     assert "width: 100%" in header_image.group()
     assert "max-width: 600px" in header_image.group()
-    assert 'background="cid:pawdigree-header-wave"' not in html_content
     assert "background-image: url(" not in html_content
-    referenced_cids = set(
-        re.findall(r"cid:([A-Za-z0-9-]+)", html_content)
-    )
-    attached_cids = {
-        attachment["Content-ID"].strip("<>")
-        for attachment in message.attachments
-    }
 
-    assert referenced_cids == EXPECTED_CIDS
-    assert attached_cids == EXPECTED_CIDS
-    assert all(
-        attachment.get_content_type() == "image/png"
-        for attachment in message.attachments
+    # Brevo rejects inline attachments, so nothing may be attached or cid:.
+    assert "cid:" not in html_content
+    assert message.attachments == []
+    assert message.message().get_content_type() == "multipart/alternative"
+    assert (
+        set(re.findall(r'src="(https://assets\.test/[^"]+)"', html_content))
+        == EXPECTED_IMAGES
     )
-    assert message.mixed_subtype == "related"
-    mime_message = message.message()
-    assert mime_message.get_content_type() == "multipart/related"
-    assert {
-        part["Content-ID"].strip("<>")
-        for part in mime_message.walk()
-        if part.get("Content-ID")
-    } == EXPECTED_CIDS
 
 
 @pytest.mark.django_db
-def test_welcome_email_embeds_decorations_and_keeps_plain_text(mailoutbox):
+def test_welcome_email_uses_remote_images_and_keeps_plain_text(mailoutbox):
     user = User.objects.create_user(
         username="welcomeuser",
         email="welcome@example.com",
@@ -78,10 +75,10 @@ def test_welcome_email_embeds_decorations_and_keeps_plain_text(mailoutbox):
     message = mailoutbox[0]
     assert message.to == [user.email]
     assert "Welcome to the Pawdigree pet marketplace." in message.body
-    assert_inline_email_images(message)
+    assert_remote_email_images(message)
 
 
-def test_verification_email_embeds_decorations_and_keeps_plain_text(mailoutbox):
+def test_verification_email_uses_remote_images_and_keeps_plain_text(mailoutbox):
     user = User(username="verifyuser", email="verify@example.com")
 
     assert send_verification_email(user, "123456", 10) is True
@@ -91,7 +88,7 @@ def test_verification_email_embeds_decorations_and_keeps_plain_text(mailoutbox):
     assert "Hi verifyuser," in message.body
     assert "123456" in message.body
     assert "10 minutes" in message.body
-    assert_inline_email_images(message)
+    assert_remote_email_images(message)
     html_content = message.alternatives[0][0]
     assert (
         'background-color: #F3F0EA; border: 1px solid #FB8665; '
@@ -100,7 +97,7 @@ def test_verification_email_embeds_decorations_and_keeps_plain_text(mailoutbox):
 
 
 @pytest.mark.django_db
-def test_password_reset_email_embeds_decorations_and_keeps_reset_link(
+def test_password_reset_email_uses_remote_images_and_keeps_reset_link(
     mailoutbox,
 ):
     user = User.objects.create_user(
@@ -120,4 +117,4 @@ def test_password_reset_email_embeds_decorations_and_keeps_reset_link(
     message = mailoutbox[0]
     assert message.to == [user.email]
     assert "/reset-password/?uid=" in message.body
-    assert_inline_email_images(message)
+    assert_remote_email_images(message)
