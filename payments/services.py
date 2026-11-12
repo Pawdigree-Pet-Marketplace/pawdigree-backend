@@ -41,11 +41,7 @@ def start_payment(customer, order_id, method):
     expire_overdue_orders()
 
     with transaction.atomic():
-        order = (
-            Order.objects.select_for_update()
-            .filter(pk=order_id, customer=customer)
-            .first()
-        )
+        order = (Order.objects.select_for_update().filter(pk=order_id, customer=customer).first())
         if order is None:
             raise NotFound("Order not found.")
 
@@ -80,16 +76,10 @@ def start_payment(customer, order_id, method):
 
 def process_gateway_event(event):
     """Apply a verified gateway result to the payment and its order.
-
     Safe to call many times with the same event: a payment that has already
-    been settled is returned unchanged.
-    """
+    been settled is returned unchanged."""
     with transaction.atomic():
-        payment = (
-            Payment.objects.select_for_update(of=("self",))
-            .filter(gateway_reference=event.reference)
-            .first()
-        )
+        payment = (Payment.objects.select_for_update(of=("self",)).filter(gateway_reference=event.reference).first())
         if payment is None:
             raise NotFound("Unknown payment reference.")
 
@@ -118,9 +108,7 @@ def process_gateway_event(event):
             mark_paid(payment.order_id)
         except ValidationError:
             payment.status = Payment.Status.REFUND_REQUIRED
-            payment.failure_reason = (
-                "Payment arrived after the order was cancelled or expired."
-            )
+            payment.failure_reason = ("Payment arrived after the order was cancelled or expired.")
         else:
             payment.status = Payment.Status.PAID
             payment.paid_at = timezone.now()
