@@ -5,6 +5,8 @@ from .views import (
     AdminPetApproveView,
     AdminPetDeactivateView,
     AdminPetRejectView,
+    PetBulkTemplateView,
+    PetBulkUploadView,
     PetDetailView,
     PetListCreateView,
     PetUpdateView,
@@ -15,6 +17,8 @@ from .views import (
 
 urlpatterns = [
     path("", PetListCreateView.as_view(), name="pet-list"),
+    path("bulk-upload/", PetBulkUploadView.as_view(), name="pet-bulk-upload"),
+    path("bulk-upload/template/", PetBulkTemplateView.as_view(), name="pet-bulk-template"),
     path("public/", PublicPetListView.as_view(), name="pet-public-list"),
     path("public/locations/", PublicPetLocationListView.as_view(), name="pet-public-locations"),
     path("public/<int:pk>/", PublicPetDetailView.as_view(), name="pet-public-detail"),

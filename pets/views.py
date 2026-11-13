@@ -1,7 +1,17 @@
+import csv
+import io
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.http import HttpResponse
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import generics, serializers, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -9,6 +19,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from businesses.models import Business
 from common.permissions import IsAdmin, IsVendor
 
 from .filters import SORT_OPTIONS, filter_public_pets, public_locations
@@ -457,3 +468,151 @@ class AdminPetRejectView(AdminPetReviewBaseView):
         transaction.on_commit(lambda: notify_listing_rejected(pet))
 
         return Response(self.get_serializer(pet).data)
+
+BULK_MAX_ROWS = 200
+BULK_MAX_FILE_BYTES = 5 * 1024 * 1024
+BULK_COLUMNS = (
+    "business_id",
+    "listing_type",
+    "name",
+    "species",
+    "breed",
+    "age",
+    "gender",
+    "size",
+    "description",
+    "price",
+)
+BULK_REQUIRED_COLUMNS = ("listing_type", "name", "species", "age", "gender", "size")
+
+
+@extend_schema(
+    tags=["pets"],
+    summary="Bulk upload pet listings (vendors)",
+    description=(
+        "Upload a CSV file to create many listings at once. Every row is "
+        "validated with the same rules as a single listing. Valid rows are "
+        "created and sent for admin review; invalid rows are returned with "
+        "the row number and the errors. business_id can be left blank if "
+        "the vendor owns only one business."
+    ),
+    request={
+        "multipart/form-data": {
+            "type": "object",
+            "properties": {"file": {"type": "string", "format": "binary"}},
+            "required": ["file"],
+        }
+    },
+    responses={
+        200: inline_serializer(
+            name="PetBulkUploadResult",
+            fields={
+                "created": serializers.IntegerField(),
+                "failed": serializers.ListField(child=serializers.DictField()),
+            },
+        ),
+        400: OpenApiResponse(
+            description="Whole-file problem (see the 'file' error message)."
+        ),
+    },
+)
+class PetBulkUploadView(APIView):
+    permission_classes = (IsVendor,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    @transaction.atomic
+    def post(self, request):
+        upload = request.FILES.get("file")
+
+        if upload is None:
+            raise serializers.ValidationError({"file": "No file was uploaded."})
+        if not upload.name.lower().endswith(".csv"):
+            raise serializers.ValidationError({"file": "Please upload a .csv file."})
+        if upload.size > BULK_MAX_FILE_BYTES:
+            raise serializers.ValidationError({"file": "File must be under 5MB."})
+
+        try:
+            text = upload.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise serializers.ValidationError(
+                {"file": "File must be saved as UTF-8 CSV."}
+            ) from None
+
+        reader = csv.DictReader(io.StringIO(text))
+        reader.fieldnames = [
+            (name or "").strip().lower() for name in (reader.fieldnames or [])
+        ]
+
+        missing = [c for c in BULK_REQUIRED_COLUMNS if c not in reader.fieldnames]
+        if missing:
+            raise serializers.ValidationError(
+                {"file": f"Missing columns: {', '.join(missing)}."}
+            )
+
+        rows = list(reader)
+        if not rows:
+            raise serializers.ValidationError({"file": "The file has no rows."})
+        if len(rows) > BULK_MAX_ROWS:
+            raise serializers.ValidationError(
+                {"file": f"At most {BULK_MAX_ROWS} rows per upload."}
+            )
+
+        # A vendor with exactly one business doesn't need to fill business_id.
+        owned = list(Business.objects.filter(vendor=request.user))
+        default_business = owned[0] if len(owned) == 1 else None
+
+        valid_serializers = []
+        failed = []
+
+        # Row 1 is the header, so data starts at row 2 (matches the spreadsheet).
+        for row_number, row in enumerate(rows, start=2):
+            data = {
+                key: (value or "").strip()
+                for key, value in row.items()
+                if key in BULK_COLUMNS
+            }
+            data = {key: value for key, value in data.items() if value}
+
+            if not data:
+                continue  # skip completely empty rows
+
+            for field in ("listing_type", "gender", "size"):
+                if field in data:
+                    data[field] = data[field].upper()
+
+            if "business_id" in data:
+                data["business"] = data.pop("business_id")
+            elif default_business:
+                data["business"] = default_business.pk
+
+            serializer = PetSerializer(data=data, context={"request": request})
+
+            if serializer.is_valid():
+                valid_serializers.append(serializer)
+            else:
+                failed.append({"row": row_number, "errors": serializer.errors})
+
+        for serializer in valid_serializers:
+            serializer.save(vendor=request.user)
+
+        return Response({"created": len(valid_serializers), "failed": failed})
+
+@extend_schema(
+    tags=["pets"],
+    summary="Download the bulk upload CSV template",
+    description="Public CSV template with the required columns and two example rows.",
+    responses={(200, "text/csv"): OpenApiTypes.STR},
+)
+class PetBulkTemplateView(APIView):
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+
+    def get(self, request):
+        lines = [
+            ",".join(BULK_COLUMNS),
+            ",SALE,Buddy,Dog,Labrador,12,MALE,MEDIUM,Friendly and vaccinated,450000",
+            ",ADOPTION,Mimi,Cat,,6,FEMALE,SMALL,Needs a loving home,",
+        ]
+        response = HttpResponse("\n".join(lines) + "\n", content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="pet_listings_template.csv"'
+        return response
