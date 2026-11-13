@@ -154,6 +154,12 @@ class PublicServiceListTests(TestCase):
         )
         self.approve_category(self.business, inactive_category)
         self.make_service("Inactive category service", category=inactive_category)
+        pet_category = Category.objects.create(
+            name="Pet-only Category",
+            kind=Category.Kind.PETS,
+        )
+        self.approve_category(self.business, pet_category)
+        self.make_service("Wrong category kind service", category=pet_category)
 
         response = self.client.get(self.url)
 
@@ -210,4 +216,103 @@ class PublicServiceListTests(TestCase):
         }
         self.assertTrue(images[service_image.name].endswith(service_image.image.url))
         self.assertTrue(images[logo_fallback.name].endswith(logo_business.logo.url))
+
+    def test_search_matches_name_and_description_case_insensitively(self):
+        self.make_service("Cat Bath", description="Gentle coat wash")
+        self.make_service("Dog Trim", description="A neat bath for dogs")
+        self.make_service("Nail Clipping", description="Paw care")
+
+        by_name = self.client.get(self.url, {"search": "cAt bAtH"})
+        by_description = self.client.get(self.url, {"search": "GENTLE COAT"})
+
+        self.assertEqual(by_name.data["count"], 1)
+        self.assertEqual(by_name.data["results"][0]["name"], "Cat Bath")
+        self.assertEqual(by_description.data["count"], 1)
+        self.assertEqual(by_description.data["results"][0]["name"], "Cat Bath")
+
+    def test_category_filter(self):
+        other_category = Category.objects.create(
+            name="Public Boarding",
+            kind=Category.Kind.SERVICES,
+        )
+        self.approve_category(self.business, other_category)
+        self.make_service("Grooming", category=self.category)
+        self.make_service("Boarding", category=other_category)
+
+        response = self.client.get(self.url, {"category": other_category.pk})
+
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["name"], "Boarding")
+
+    def test_location_and_price_filters_can_be_combined(self):
+        kampala = self.make_service("Kampala cheap", price="10000.00")
+        self.make_service("Kampala costly", price="50000.00")
+        entebbe = self.make_business(
+            "Entebbe Services",
+            city_district="Entebbe",
+        )
+        self.approve_category(entebbe, self.category)
+        self.make_service(
+            "Entebbe cheap",
+            business=entebbe,
+            price="15000.00",
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "city_district": "kAmPaLa",
+                "min_price": "9000",
+                "max_price": "20000",
+            },
+        )
+
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["service_id"], kampala.pk)
+
+    def test_minimum_and_maximum_price_filters(self):
+        self.make_service("Low", price="10000.00")
+        self.make_service("Middle", price="30000.00")
+        self.make_service("High", price="50000.00")
+
+        response = self.client.get(
+            self.url,
+            {"min_price": "20000", "max_price": "40000"},
+        )
+
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["name"], "Middle")
+
+    def test_invalid_category_and_price_values_return_field_errors(self):
+        for params, field in (
+            ({"category": "not-a-number"}, "category"),
+            ({"category": "999999"}, "category"),
+            ({"min_price": "abc"}, "min_price"),
+            ({"max_price": "-1"}, "max_price"),
+            ({"min_price": "40000", "max_price": "10000"}, "min_price"),
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(self.url, params)
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                )
+                self.assertIn(field, response.data)
+
+    def test_page_size_defaults_to_12_and_is_capped_at_50(self):
+        for number in range(52):
+            self.make_service(f"Page service {number:02d}")
+
+        default_page = self.client.get(self.url)
+        large_page = self.client.get(self.url, {"page_size": "100"})
+        second_page = self.client.get(
+            self.url,
+            {"page": "2", "page_size": "1"},
+        )
+
+        self.assertEqual(default_page.data["count"], 52)
+        self.assertEqual(len(default_page.data["results"]), 12)
+        self.assertEqual(len(large_page.data["results"]), 50)
+        self.assertEqual(len(second_page.data["results"]), 1)
+        self.assertIsNotNone(second_page.data["previous"])
 
