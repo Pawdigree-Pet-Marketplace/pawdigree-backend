@@ -40,6 +40,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             "name",
             "service_type",
             "description",
+            "image",
             "price",
             "duration",
             "availability_status",
