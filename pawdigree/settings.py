@@ -107,7 +107,9 @@ PAYMENT_GATEWAY_CLASS = "payments.gateways.sandbox.SandboxGateway" #point to the
 
 
 SANDBOX_WEBHOOK_SECRET = os.environ.get("SANDBOX_WEBHOOK_SECRET", "dev-only-secret")
-SANDBOX_PAYMENT_PAGE = "http://localhost:3000/sandbox-pay"
+SANDBOX_PAYMENT_PAGE = os.environ.get(
+    "SANDBOX_PAYMENT_PAGE", "http://localhost:5173/sandbox-pay"
+)
 
 ANYMAIL = {
        "BREVO_API_KEY": os.getenv("BREVO_API_KEY", ""),

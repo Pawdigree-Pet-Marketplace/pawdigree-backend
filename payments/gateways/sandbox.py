@@ -28,6 +28,7 @@ class SandboxGateway(PaymentGateway):
             payment_url=(
                 f"{settings.SANDBOX_PAYMENT_PAGE}"
                 f"?reference={payment.gateway_reference}"
+                f"&order_id={order.pk}"
             ),
         )
 
