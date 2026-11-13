@@ -1,15 +1,28 @@
+import csv
+import io
 from decimal import Decimal, InvalidOperation
 
+from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import generics, serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from accounts.models import User
-from common.permissions import ADMIN_ROLES
+from businesses.models import Business
+from common.permissions import ADMIN_ROLES, IsVendor
 
 from .models import Product
 from .serializers import (
@@ -234,3 +247,165 @@ class PublicProductDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return public_products()
+
+
+BULK_MAX_ROWS = 200
+BULK_MAX_FILE_BYTES = 5 * 1024 * 1024
+BULK_COLUMNS = (
+    "business_id",
+    "category_id",
+    "name",
+    "description",
+    "price",
+    "stock_quantity",
+)
+BULK_REQUIRED_COLUMNS = ("category_id", "name", "price")
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Bulk upload merchandise (vendors)",
+    description=(
+        "Upload a CSV file to create many products at once. Every row is "
+        "validated with the same rules as a single product. Valid rows are "
+        "created immediately (merchandise has no admin review step); "
+        "invalid rows are returned with the row number and the errors. "
+        "business_id can be left blank if the vendor owns exactly one "
+        "approved Pet Merchandise business."
+    ),
+    request={
+        "multipart/form-data": {
+            "type": "object",
+            "properties": {"file": {"type": "string", "format": "binary"}},
+            "required": ["file"],
+        }
+    },
+    responses={
+        200: inline_serializer(
+            name="ProductBulkUploadResult",
+            fields={
+                "created": serializers.IntegerField(),
+                "failed": serializers.ListField(child=serializers.DictField()),
+            },
+        ),
+        400: OpenApiResponse(
+            description="Whole-file problem (see the 'file' error message)."
+        ),
+    },
+)
+class ProductBulkUploadView(APIView):
+    permission_classes = (IsVendor,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    @transaction.atomic
+    def post(self, request):
+        upload = request.FILES.get("file")
+
+        if upload is None:
+            raise serializers.ValidationError({"file": "No file was uploaded."})
+        if not upload.name.lower().endswith(".csv"):
+            raise serializers.ValidationError({"file": "Please upload a .csv file."})
+        if upload.size > BULK_MAX_FILE_BYTES:
+            raise serializers.ValidationError({"file": "File must be under 5MB."})
+
+        try:
+            text = upload.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise serializers.ValidationError(
+                {"file": "File must be saved as UTF-8 CSV."}
+            ) from None
+
+        reader = csv.DictReader(io.StringIO(text))
+        reader.fieldnames = [
+            (name or "").strip().lower() for name in (reader.fieldnames or [])
+        ]
+
+        missing = [c for c in BULK_REQUIRED_COLUMNS if c not in reader.fieldnames]
+        if missing:
+            raise serializers.ValidationError(
+                {"file": f"Missing columns: {', '.join(missing)}."}
+            )
+
+        rows = list(reader)
+        if not rows:
+            raise serializers.ValidationError({"file": "The file has no rows."})
+        if len(rows) > BULK_MAX_ROWS:
+            raise serializers.ValidationError(
+                {"file": f"At most {BULK_MAX_ROWS} rows per upload."}
+            )
+
+        # A vendor with exactly one approved, active Pet Merchandise business
+        # doesn't need to fill business_id.
+        eligible = list(
+            Business.objects.filter(
+                vendor=request.user,
+                is_active=True,
+                verification_status=Business.VerificationStatus.APPROVED,
+                business_type=Business.BusinessType.PRODUCT_SELLER,
+            )
+        )
+        default_business = eligible[0] if len(eligible) == 1 else None
+
+        valid_serializers = []
+        failed = []
+
+        # Row 1 is the header, so data starts at row 2 (matches the spreadsheet).
+        for row_number, row in enumerate(rows, start=2):
+            data = {
+                key: (value or "").strip()
+                for key, value in row.items()
+                if key in BULK_COLUMNS
+            }
+            data = {key: value for key, value in data.items() if value}
+
+            if not data:
+                continue  # skip completely empty rows
+
+            if "business_id" in data:
+                data["business"] = data.pop("business_id")
+            elif default_business:
+                data["business"] = default_business.pk
+
+            if "category_id" in data:
+                data["category"] = data.pop("category_id")
+
+            serializer = VendorProductSerializer(
+                data=data, context={"request": request}
+            )
+
+            if serializer.is_valid():
+                valid_serializers.append(serializer)
+            else:
+                failed.append({"row": row_number, "errors": serializer.errors})
+
+        for serializer in valid_serializers:
+            serializer.save()
+
+        return Response({"created": len(valid_serializers), "failed": failed})
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Download the merchandise bulk upload CSV template",
+    description=(
+        "Public CSV template with the required columns and two example "
+        "rows. category_id values must come from GET /api/categories/, "
+        "using a merchandise or general category."
+    ),
+    responses={(200, "text/csv"): OpenApiTypes.STR},
+)
+class ProductBulkTemplateView(APIView):
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+
+    def get(self, request):
+        lines = [
+            ",".join(BULK_COLUMNS),
+            ",1,Dog Leash,Durable nylon leash 1.5m,25000,40",
+            ",1,Cat Scratching Post,Sisal rope post 60cm,85000,15",
+        ]
+        response = HttpResponse("\n".join(lines) + "\n", content_type="text/csv")
+        response["Content-Disposition"] = (
+            'attachment; filename="product_bulk_upload_template.csv"'
+        )
+        return response
