@@ -3,6 +3,7 @@ from django.db.models import F, Q
 
 from businesses.models import Business
 from common.models import TimeStampedModel
+from common.validators import validate_image_upload
 
 
 class Service(TimeStampedModel):
@@ -29,6 +30,12 @@ class Service(TimeStampedModel):
     name = models.CharField(max_length=150)
     service_type = models.CharField(max_length=100)
     description = models.TextField()
+    image = models.ImageField(
+        upload_to="services/",
+        blank=True,
+        null=True,
+        validators=[validate_image_upload],
+    )
     price = models.DecimalField(max_digits=10, decimal_places=2)
     duration = models.PositiveIntegerField()
     availability_status = models.CharField(

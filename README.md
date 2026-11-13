@@ -68,6 +68,9 @@ Check it works: open `http://localhost:8000/api/health/`. You should get a
 200 response. The full list of endpoints is in Swagger at
 `http://localhost:8000/api/docs/`.
 
+The customer services listing contract is in
+[docs/services-listing-api.md](docs/services-listing-api.md).
+
 ### 5. Point your frontend at it
 
 In your frontend's `.env`, set the API URL to `http://localhost:8000/api`

@@ -1,19 +1,53 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.db.models import F
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 
+from businesses.models import Business, BusinessCategory
+from categories.models import Category
 from common.permissions import IsVendor
 
 from .models import Service, AvailabilitySlot
+from .filters import filter_public_services
 from .serializers import (
     AvailabilitySlotSerializer,
     ServiceSerializer,
     ServiceUpdateSerializer,
     ServiceCalendarSerializer,
+    PublicServiceSerializer,
 )
+
+
+class PublicServicePagination(PageNumberPagination):
+    page_size = 12
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+def public_services():
+    """Services available to customers through an approved business category."""
+    return (
+        Service.objects.filter(
+            is_active=True,
+            business__is_active=True,
+            business__verification_status=Business.VerificationStatus.APPROVED,
+            category__is_active=True,
+            category__kind__in=(Category.Kind.SERVICES, Category.Kind.GENERAL),
+            business__business_categories__category_id=F("category_id"),
+            business__business_categories__approval_status=(
+                BusinessCategory.ApprovalStatus.APPROVED
+            ),
+        )
+        .select_related("business", "category")
+    )
 
 
 @extend_schema_view(
@@ -47,6 +81,53 @@ class ServiceCreateView(generics.ListCreateAPIView):
         return Service.objects.select_related("business").filter(
             business__vendor=self.request.user,
             is_active=True,
+        )
+
+
+@extend_schema(
+    tags=["services"],
+    summary="Browse available pet services",
+    description=(
+        "Public listing of active services offered by active, approved "
+        "businesses. A service's category must be active, customer-visible, "
+        "and approved for that business. The image uses the service image "
+        "when present, otherwise the business logo; it is null if neither "
+        "exists. Availability is based on availability_status, not weekly "
+        "availability slots."
+    ),
+    parameters=[
+        OpenApiParameter(
+            "search",
+            str,
+            description="Case-insensitive match in service name or description.",
+        ),
+        OpenApiParameter("category", int, description="Service category ID."),
+        OpenApiParameter(
+            "city_district",
+            str,
+            description="Case-insensitive business city or district match.",
+        ),
+        OpenApiParameter("min_price", float, description="Minimum service price."),
+        OpenApiParameter("max_price", float, description="Maximum service price."),
+        OpenApiParameter("page", int, description="Page number, starting at 1."),
+        OpenApiParameter(
+            "page_size",
+            int,
+            description="Results per page (default 12, maximum 50).",
+        ),
+    ],
+    responses={200: PublicServiceSerializer(many=True)},
+)
+class PublicServiceListView(generics.ListAPIView):
+    serializer_class = PublicServiceSerializer
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+    pagination_class = PublicServicePagination
+
+    def get_queryset(self):
+        return filter_public_services(
+            public_services(),
+            self.request.query_params,
         )
 
 
