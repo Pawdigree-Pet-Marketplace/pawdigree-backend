@@ -1,5 +1,9 @@
 from django.db.models import F
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,6 +16,7 @@ from categories.models import Category
 from common.permissions import IsVendor
 
 from .models import Service, AvailabilitySlot
+from .filters import filter_public_services
 from .serializers import (
     AvailabilitySlotSerializer,
     ServiceSerializer,
@@ -90,6 +95,27 @@ class ServiceCreateView(generics.ListCreateAPIView):
         "exists. Availability is based on availability_status, not weekly "
         "availability slots."
     ),
+    parameters=[
+        OpenApiParameter(
+            "search",
+            str,
+            description="Case-insensitive match in service name or description.",
+        ),
+        OpenApiParameter("category", int, description="Service category ID."),
+        OpenApiParameter(
+            "city_district",
+            str,
+            description="Case-insensitive business city or district match.",
+        ),
+        OpenApiParameter("min_price", float, description="Minimum service price."),
+        OpenApiParameter("max_price", float, description="Maximum service price."),
+        OpenApiParameter("page", int, description="Page number, starting at 1."),
+        OpenApiParameter(
+            "page_size",
+            int,
+            description="Results per page (default 12, maximum 50).",
+        ),
+    ],
     responses={200: PublicServiceSerializer(many=True)},
 )
 class PublicServiceListView(generics.ListAPIView):
@@ -99,7 +125,10 @@ class PublicServiceListView(generics.ListAPIView):
     pagination_class = PublicServicePagination
 
     def get_queryset(self):
-        return public_services()
+        return filter_public_services(
+            public_services(),
+            self.request.query_params,
+        )
 
 
 @extend_schema_view(
