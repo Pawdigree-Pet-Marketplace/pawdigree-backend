@@ -1,0 +1,213 @@
+import io
+import shutil
+import tempfile
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
+from django.urls import reverse
+from PIL import Image
+from rest_framework import status
+from rest_framework.test import APIClient
+
+from accounts.models import User
+from businesses.models import Business, BusinessCategory
+from categories.models import Category
+from services.models import Service
+
+TEST_MEDIA_ROOT = tempfile.mkdtemp()
+TEST_STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+
+def make_image(name):
+    buffer = io.BytesIO()
+    Image.new("RGB", (10, 10), "teal").save(buffer, format="PNG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT, STORAGES=TEST_STORAGES)
+class PublicServiceListTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.client = APIClient()
+        self.vendor = User.objects.create_user(
+            username="public_service_vendor",
+            email="public-service-vendor@example.com",
+            password="TestPassword123!",
+            role=User.Role.VENDOR,
+        )
+        self.customer = User.objects.create_user(
+            username="public_service_customer",
+            email="public-service-customer@example.com",
+            password="TestPassword123!",
+            role=User.Role.CUSTOMER,
+        )
+        self.business = self.make_business("Visible Services")
+        self.category = Category.objects.create(
+            name="Public Grooming",
+            kind=Category.Kind.SERVICES,
+        )
+        self.approve_category(self.business, self.category)
+        self.url = reverse("service-public-list")
+
+    def make_business(self, name, **overrides):
+        values = {
+            "vendor": self.vendor,
+            "name": name,
+            "description": "Pet care services",
+            "contact": "+256700100001",
+            "email": f"{name.lower().replace(' ', '-')}@example.com",
+            "address": "Kampala Road",
+            "city_district": "Kampala",
+            "verification_status": Business.VerificationStatus.APPROVED,
+        }
+        values.update(overrides)
+        return Business.objects.create(**values)
+
+    def approve_category(self, business, category, status_value=None):
+        return BusinessCategory.objects.create(
+            business=business,
+            category=category,
+            approval_status=(
+                status_value or BusinessCategory.ApprovalStatus.APPROVED
+            ),
+        )
+
+    def make_service(self, name="Dog Grooming", **overrides):
+        values = {
+            "business": self.business,
+            "category": self.category,
+            "name": name,
+            "service_type": "Grooming",
+            "description": f"{name} service",
+            "price": "30000.00",
+            "duration": 60,
+        }
+        values.update(overrides)
+        return Service.objects.create(**values)
+
+    def test_anonymous_and_customer_can_browse_public_services(self):
+        self.make_service()
+
+        anonymous_response = self.client.get(self.url)
+        self.client.force_authenticate(user=self.customer)
+        customer_response = self.client.get(self.url)
+
+        self.assertEqual(anonymous_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(customer_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(anonymous_response.data["count"], 1)
+        self.assertEqual(customer_response.data["count"], 1)
+
+    def test_public_listing_excludes_hidden_service_business_and_category(self):
+        visible = self.make_service("Visible")
+        self.make_service("Inactive service", is_active=False)
+        self.make_business(
+            "Inactive Business",
+            is_active=False,
+        )
+        inactive_business = Business.objects.get(name="Inactive Business")
+        Service.objects.create(
+            business=inactive_business,
+            category=self.category,
+            name="Inactive business service",
+            service_type="Grooming",
+            description="Hidden",
+            price="30000.00",
+            duration=60,
+        )
+        pending_business = self.make_business(
+            "Pending Business",
+            verification_status=Business.VerificationStatus.PENDING,
+        )
+        self.approve_category(pending_business, self.category)
+        Service.objects.create(
+            business=pending_business,
+            category=self.category,
+            name="Pending business service",
+            service_type="Grooming",
+            description="Hidden",
+            price="30000.00",
+            duration=60,
+        )
+        pending_category = Category.objects.create(
+            name="Pending Service Category",
+            kind=Category.Kind.SERVICES,
+        )
+        self.approve_category(
+            self.business,
+            pending_category,
+            BusinessCategory.ApprovalStatus.PENDING,
+        )
+        self.make_service("Pending category service", category=pending_category)
+        inactive_category = Category.objects.create(
+            name="Inactive Service Category",
+            kind=Category.Kind.SERVICES,
+            is_active=False,
+        )
+        self.approve_category(self.business, inactive_category)
+        self.make_service("Inactive category service", category=inactive_category)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["service_id"] for item in response.data["results"]],
+            [visible.pk],
+        )
+
+    def test_public_response_contains_customer_fields_only(self):
+        self.make_service()
+
+        response = self.client.get(self.url)
+
+        item = response.data["results"][0]
+        self.assertEqual(
+            set(item),
+            {
+                "service_id", "name", "service_type", "description", "price",
+                "duration", "availability_status", "category_name",
+                "business_name", "city_district", "image",
+            },
+        )
+        self.assertEqual(item["category_name"], self.category.name)
+        self.assertEqual(item["business_name"], self.business.name)
+        self.assertIsNone(item["image"])
+
+    def test_image_uses_service_image_then_business_logo_as_fallback(self):
+        image_business = self.make_business(
+            "Service Image Business",
+            logo=make_image("unused-business-logo.png"),
+        )
+        self.approve_category(image_business, self.category)
+        service_image = self.make_service(
+            "Service Image",
+            business=image_business,
+            image=make_image("service-image.png"),
+        )
+        logo_business = self.make_business(
+            "Logo Fallback Business",
+            logo=make_image("business-logo.png"),
+        )
+        self.approve_category(logo_business, self.category)
+        logo_fallback = self.make_service(
+            "Logo Fallback",
+            business=logo_business,
+        )
+
+        response = self.client.get(self.url)
+
+        images = {
+            item["name"]: item["image"]
+            for item in response.data["results"]
+        }
+        self.assertTrue(images[service_image.name].endswith(service_image.image.url))
+        self.assertTrue(images[logo_fallback.name].endswith(logo_business.logo.url))
+

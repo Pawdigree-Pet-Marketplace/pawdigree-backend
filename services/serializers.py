@@ -4,6 +4,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from businesses.models import Business, BusinessCategory
+from drf_spectacular.utils import extend_schema_field
 from categories.models import Category
 
 from .models import AvailabilitySlot, Service
@@ -158,6 +159,45 @@ class ServiceUpdateSerializer(ServiceSerializer):
     """Edit a service. The business it belongs to cannot be changed."""
 
     business = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
+class PublicServiceSerializer(serializers.ModelSerializer):
+    """Customer-facing service card with a business-logo image fallback."""
+
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    business_name = serializers.CharField(source="business.name", read_only=True)
+    city_district = serializers.CharField(
+        source="business.city_district",
+        read_only=True,
+    )
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Service
+        fields = (
+            "service_id",
+            "name",
+            "service_type",
+            "description",
+            "price",
+            "duration",
+            "availability_status",
+            "category_name",
+            "business_name",
+            "city_district",
+            "image",
+        )
+        read_only_fields = fields
+
+    @extend_schema_field({"type": "string", "format": "uri", "nullable": True})
+    def get_image(self, obj):
+        image = obj.image or obj.business.logo
+        if not image:
+            return None
+
+        url = image.url
+        request = self.context.get("request")
+        return request.build_absolute_uri(url) if request else url
 
 
 class AvailabilitySlotSerializer(serializers.ModelSerializer):
