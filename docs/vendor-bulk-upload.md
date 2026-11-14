@@ -21,6 +21,10 @@ template.
 - Every row is validated with the same serializer as single create, so the
   rules are identical.
 - Valid rows are created. Invalid rows are not, and are reported.
+- Pets: `listing_type`, `gender` and `size` are case-insensitive. `age` is
+  in months.
+- A created listing is not public yet. It becomes visible to customers
+  only after an admin approves it (see Business rules).
 - The whole request runs in one database transaction.
 
 ## Response
@@ -42,7 +46,7 @@ rows, more than 200 rows).
 
 | Listing | Required | Optional |
 | --- | --- | --- |
-| Pets | `listing_type`, `name`, `species`, `age`, `gender`, `size` | see the template |
+| Pets | `listing_type`, `name`, `species`, `age`, `gender`, `size` | `business_id`, `breed`, `description`, `price` (empty for adoption) |
 | Merchandise | `category_id`, `name`, `price` | `business_id`, `description`, `stock_quantity` |
 | Services | `category_id`, `name`, `service_type`, `description`, `price`, `duration` | `business_id`, `availability_status` |
 
@@ -50,19 +54,31 @@ rows, more than 200 rows).
 merchandise or general categories; services accept services or general
 categories.
 
-## Business rules
+## Business rules (agreed with the team)
 
-- Merchandise and services: only approved, active businesses can add
-  listings. Merchandise needs a Pet Merchandise business and services need
-  a Pet Services business. (Pets do not enforce this yet.)
+- A vendor registers, submits documents and is verified by an admin. Only
+  a verified (approved, active) business can upload listings, one at a
+  time or in bulk.
+- An uploaded listing is not public. It becomes visible to customers only
+  after an admin approves the listing.
+- Merchandise needs a Pet Merchandise business and services need a Pet
+  Services business.
 - `business_id` can be left blank if the vendor has exactly one approved,
   active business of the right type. With two or more, it is required.
 - A vendor can only use their own businesses.
 - Services: a category the business has not used before is requested as
-  pending. Those services exist but stay hidden from customers until the
-  category is approved.
-- The same business rule now also applies to single `POST /api/services/`
-  (approved, active, Pet Services business only).
+  pending, and the service stays hidden until the category is approved.
+
+## Current status
+
+- Pets: admin approval of each listing is built. The verified-business
+  check is not enforced yet.
+- Services: the verified-business check is enforced (single and bulk).
+  Admin approval of each listing is not built yet.
+- Merchandise: the verified-business check is enforced. Admin approval of
+  each listing is not built yet, so valid rows are live immediately.
+
+These gaps are follow-up PRs.
 
 ## Not included yet
 
