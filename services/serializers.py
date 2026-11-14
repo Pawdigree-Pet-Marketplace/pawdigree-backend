@@ -206,6 +206,12 @@ class ServiceUpdateSerializer(ServiceSerializer):
     business = serializers.PrimaryKeyRelatedField(read_only=True)
 
 
+class ServiceRejectSerializer(serializers.Serializer):
+    """The reason an administrator gives when rejecting a service."""
+
+    reason = serializers.CharField(max_length=1000, trim_whitespace=True)
+
+
 class PublicServiceSerializer(serializers.ModelSerializer):
     """Customer-facing service card with a business-logo image fallback."""
 
