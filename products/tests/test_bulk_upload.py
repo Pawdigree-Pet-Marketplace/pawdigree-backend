@@ -267,3 +267,110 @@ class ProductBulkTemplateTests(TestCase):
         self.assertEqual(response["Content-Type"], "text/csv")
         first_line = response.content.decode().splitlines()[0]
         self.assertEqual(first_line, HEADER)
+
+
+class ProductBulkUploadRuleTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.vendor = make_vendor("rules_vendor")
+        cls.category = Category.objects.create(name="Rules Supplies")
+
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.vendor)
+        self.url = reverse("product-bulk-upload")
+
+    def row(self, business_id="", category=None, name="Rule Item"):
+        category = category or self.category
+        return f"{business_id},{category.pk},{name},Nice item,25000,5"
+
+    def upload(self, *rows):
+        return self.client.post(
+            self.url, {"file": csv_file(*rows)}, format="multipart"
+        )
+
+    def assert_row_failed(self, response, field):
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["created"], 0)
+        self.assertEqual(len(response.data["failed"]), 1)
+        self.assertIn(field, response.data["failed"][0]["errors"])
+        self.assertEqual(Product.objects.count(), 0)
+
+    def test_pending_business_cannot_add_products(self):
+        business = make_business(
+            self.vendor,
+            "Pending Merch",
+            Business.BusinessType.PRODUCT_SELLER,
+            "pending-merch@example.com",
+            verification_status=Business.VerificationStatus.PENDING,
+        )
+
+        response = self.upload(self.row(business_id=business.pk))
+
+        self.assert_row_failed(response, "business")
+
+    def test_inactive_business_cannot_add_products(self):
+        business = make_business(
+            self.vendor,
+            "Inactive Merch",
+            Business.BusinessType.PRODUCT_SELLER,
+            "inactive-merch@example.com",
+            is_active=False,
+        )
+
+        response = self.upload(self.row(business_id=business.pk))
+
+        self.assert_row_failed(response, "business")
+
+    def test_services_business_cannot_add_products_by_id(self):
+        business = make_business(
+            self.vendor,
+            "Services Only",
+            Business.BusinessType.SERVICE_PROVIDER,
+            "services-only@example.com",
+        )
+
+        response = self.upload(self.row(business_id=business.pk))
+
+        self.assert_row_failed(response, "business")
+
+    def test_blank_business_id_with_only_a_pending_business_fails(self):
+        make_business(
+            self.vendor,
+            "Pending Only",
+            Business.BusinessType.PRODUCT_SELLER,
+            "pending-only@example.com",
+            verification_status=Business.VerificationStatus.PENDING,
+        )
+
+        response = self.upload(self.row())
+
+        self.assert_row_failed(response, "business")
+
+    def test_services_category_is_rejected(self):
+        make_business(
+            self.vendor,
+            "Merch For Category",
+            Business.BusinessType.PRODUCT_SELLER,
+            "merch-category@example.com",
+        )
+        services_category = Category.objects.create(
+            name="Grooming", kind=Category.Kind.SERVICES
+        )
+
+        response = self.upload(self.row(category=services_category))
+
+        self.assert_row_failed(response, "category")
+
+    def test_inactive_category_is_rejected(self):
+        make_business(
+            self.vendor,
+            "Merch For Inactive",
+            Business.BusinessType.PRODUCT_SELLER,
+            "merch-inactive@example.com",
+        )
+        inactive = Category.objects.create(name="Old Stock", is_active=False)
+
+        response = self.upload(self.row(category=inactive))
+
+        self.assert_row_failed(response, "category")
