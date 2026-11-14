@@ -64,6 +64,23 @@ class Product(TimeStampedModel):
     def is_available(self):
         return self.is_active and self.stock_quantity > 0
 
+    def send_back_for_review(self, save=True):
+        """Put the product back in the admin review queue."""
+        self.approved = False
+        self.rejection_reason = ""
+        self.reviewed_by = None
+        self.reviewed_at = None
+        if save:
+            self.save(
+                update_fields=[
+                    "approved",
+                    "rejection_reason",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "updated_at",
+                ]
+            )
+
 
 class ProductImage(models.Model):
     """An image belonging to a physical product."""

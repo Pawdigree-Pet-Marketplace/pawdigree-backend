@@ -136,6 +136,8 @@ class ProductImageCreateView(generics.CreateAPIView):
             )
 
         serializer.save(product=product)
+        if self.request.user.role == User.Role.VENDOR:
+            product.send_back_for_review()
 
 
 class ProductImageDeleteView(generics.DestroyAPIView):
@@ -150,6 +152,12 @@ class ProductImageDeleteView(generics.DestroyAPIView):
             self.kwargs["product_pk"],
         )
         return get_object_or_404(product.images, pk=self.kwargs["pk"])
+
+    def perform_destroy(self, instance):
+        product = instance.product
+        instance.delete()
+        if self.request.user.role == User.Role.VENDOR:
+            product.send_back_for_review()
 
 
 def public_products():

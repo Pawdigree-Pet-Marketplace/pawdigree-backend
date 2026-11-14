@@ -47,12 +47,18 @@ class ProductSerializer(serializers.ModelSerializer):
             "price",
             "stock_quantity",
             "is_active",
+            "approved",
+            "rejection_reason",
+            "reviewed_at",
             "images",
             "created_at",
             "updated_at",
         )
         read_only_fields = (
             "id",
+            "approved",
+            "rejection_reason",
+            "reviewed_at",
             "images",
             "created_at",
             "updated_at",
@@ -104,6 +110,21 @@ class VendorProductSerializer(ProductSerializer):
             )
 
         return business
+
+    # Changing any of these sends the product back to admin review.
+    REVIEWED_FIELDS = ("name", "description", "category")
+
+    def update(self, instance, validated_data):
+        changed = any(
+            field in validated_data
+            and validated_data[field] != getattr(instance, field)
+            for field in self.REVIEWED_FIELDS
+        )
+        if changed:
+            instance.send_back_for_review(save=False)
+
+        return super().update(instance, validated_data)
+
 
 class ProductImageUploadSerializer(serializers.ModelSerializer):
     """Accept an uploaded image for a product."""

@@ -109,9 +109,28 @@ class ProductImageTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.product.images.count(), 1)
 
+    def test_vendor_adding_an_image_sends_the_product_back_for_review(self):
+        self.client.force_authenticate(user=self.vendor)
+
+        self.upload()
+
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.approved)
+
+    def test_admin_adding_an_image_keeps_the_approval(self):
+        self.client.force_authenticate(user=self.admin)
+
+        self.upload()
+
+        self.product.refresh_from_db()
+        self.assertTrue(self.product.approved)
+
     def test_uploaded_image_becomes_the_main_image_on_public_list(self):
         self.client.force_authenticate(user=self.vendor)
         self.upload()
+        # A vendor upload sends the product back to review, so approve it
+        # again the way an admin would before checking the public list.
+        Product.objects.filter(pk=self.product.pk).update(approved=True)
         self.client.force_authenticate(user=None)
 
         response = self.client.get(reverse("product-public-list"))
