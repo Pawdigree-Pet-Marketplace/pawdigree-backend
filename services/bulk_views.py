@@ -56,10 +56,12 @@ def get_default_business(vendor):
     description=(
         "Upload a CSV file to create many services at once. Every row is "
         "validated with the same rules as a single service. Valid rows are "
-        "created; invalid rows are returned with the row number and the "
-        "errors. A category the business has not used before is requested "
-        "as pending, and those services stay hidden from customers until "
-        "the category is approved. business_id can be left blank if the "
+        "created as unapproved services and stay hidden from customers "
+        "until an administrator approves them; invalid rows are returned "
+        "with the row number and the errors. A category the business has "
+        "not used before is requested as pending, and those services also "
+        "stay hidden until the category is approved. business_id can be "
+        "left blank if the "
         "vendor owns exactly one approved Pet Services business."
     ),
     request={
