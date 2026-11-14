@@ -85,6 +85,11 @@ class PetSerializer(serializers.ModelSerializer):
                 "Your business must be approved before you can add pet listings."
             )
 
+        if value.business_type != Business.BusinessType.PET_SALE_ADOPTION:
+            raise serializers.ValidationError(
+                "Only Pet sale and adoption businesses can add pet listings."
+            )
+
         return value
 
     def validate(self, attrs):

@@ -485,3 +485,32 @@ def test_blank_business_id_picks_the_only_approved_business(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["created"] == 1
+
+
+@pytest.mark.django_db
+def test_merchandise_business_cannot_add_pets_by_id(
+    api_client, vendor, vendor_business
+):
+    vendor_business.business_type = Business.BusinessType.PRODUCT_SELLER
+    vendor_business.save()
+    api_client.force_authenticate(user=vendor)
+
+    response = upload(
+        api_client,
+        csv_file(sale_row("Wrong Type", business_id=vendor_business.pk)),
+    )
+
+    assert_business_row_failed(response)
+
+
+@pytest.mark.django_db
+def test_blank_business_id_ignores_a_merchandise_business(
+    api_client, vendor, vendor_business
+):
+    vendor_business.business_type = Business.BusinessType.PRODUCT_SELLER
+    vendor_business.save()
+    api_client.force_authenticate(user=vendor)
+
+    response = upload(api_client, csv_file(sale_row("No Pet Business")))
+
+    assert_business_row_failed(response)

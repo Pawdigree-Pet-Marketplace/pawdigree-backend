@@ -399,3 +399,34 @@ def test_system_admin_cannot_access_pet_listings(
     response = api_client.get(reverse("pet-list"))
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"verification_status": Business.VerificationStatus.PENDING},
+        {"verification_status": Business.VerificationStatus.DRAFT},
+        {"verification_status": Business.VerificationStatus.SUSPENDED},
+        {"is_active": False},
+        {"business_type": Business.BusinessType.PRODUCT_SELLER},
+        {"business_type": None},
+    ],
+)
+def test_vendor_cannot_create_listing_for_unverified_business(
+    api_client, vendor, vendor_business, valid_pet_data, overrides
+):
+    for field, value in overrides.items():
+        setattr(vendor_business, field, value)
+    vendor_business.save()
+    api_client.force_authenticate(user=vendor)
+
+    response = api_client.post(
+        reverse("pet-list"),
+        valid_pet_data,
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "business" in response.data
+    assert not Pet.objects.filter(name="Buddy").exists()
