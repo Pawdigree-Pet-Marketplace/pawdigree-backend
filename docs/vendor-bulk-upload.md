@@ -52,8 +52,9 @@ categories.
 
 ## Business rules
 
-- Only approved, active businesses can add listings. Merchandise needs a
-  Pet Merchandise business and services need a Pet Services business.
+- Merchandise and services: only approved, active businesses can add
+  listings. Merchandise needs a Pet Merchandise business and services need
+  a Pet Services business. (Pets do not enforce this yet.)
 - `business_id` can be left blank if the vendor has exactly one approved,
   active business of the right type. With two or more, it is required.
 - A vendor can only use their own businesses.
