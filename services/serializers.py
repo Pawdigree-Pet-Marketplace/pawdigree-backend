@@ -1,10 +1,10 @@
 from datetime import date, datetime
 
 from django.db import transaction
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from businesses.models import Business, BusinessCategory
-from drf_spectacular.utils import extend_schema_field
 from categories.models import Category
 
 from .models import AvailabilitySlot, Service
@@ -89,7 +89,26 @@ class ServiceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Price must not be negative."
             )
-        return value
+        return value    
+    
+    def validate_business(self, business):
+        if (
+            not business.is_active
+            or business.verification_status
+            != Business.VerificationStatus.APPROVED
+        ):
+            raise serializers.ValidationError(
+                "Your business must be approved before you can add services."
+            )
+
+        if business.business_type != Business.BusinessType.SERVICE_PROVIDER:
+            raise serializers.ValidationError(
+                "Only Pet Services businesses can add services."
+            )
+
+        return business
+
+    
 
     def validate(self, attrs):
         category = attrs.get("category")
