@@ -13,7 +13,11 @@ Status = Business.VerificationStatus
 Approval = BusinessCategory.ApprovalStatus
 
 
-def make_business(vendor, verification_status=Status.APPROVED):
+def make_business(
+    vendor,
+    verification_status=Status.APPROVED,
+    business_type=Business.BusinessType.SERVICE_PROVIDER,
+):
     return Business.objects.create(
         vendor=vendor,
         name="Happy Paws",
@@ -23,6 +27,7 @@ def make_business(vendor, verification_status=Status.APPROVED):
         address="Plot 1",
         city_district="Kampala",
         verification_status=verification_status,
+        business_type=business_type,
     )
 
 
@@ -220,3 +225,30 @@ def test_edit_to_a_new_category_requests_it(
     assert response.status_code == status.HTTP_200_OK
     link = BusinessCategory.objects.get(business=business, category=boarding)
     assert link.approval_status == Approval.PENDING
+
+def test_pending_business_cannot_add_services(client, vendor, grooming):
+    business = make_business(vendor, verification_status=Status.PENDING)
+
+    response = client.post(
+        reverse("service-create"),
+        service_payload(business, grooming),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "business" in response.data
+
+
+def test_merchandise_business_cannot_add_services(client, vendor, grooming):
+    business = make_business(
+        vendor, business_type=Business.BusinessType.PRODUCT_SELLER
+    )
+
+    response = client.post(
+        reverse("service-create"),
+        service_payload(business, grooming),
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "business" in response.data

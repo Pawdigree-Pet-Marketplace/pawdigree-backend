@@ -36,6 +36,8 @@ class CreateServiceTests(TestCase):
             email="happy-paws@example.com",
             address="Kampala Road",
             city_district="Kampala",
+            business_type=Business.BusinessType.SERVICE_PROVIDER,
+            verification_status=Business.VerificationStatus.APPROVED,
         )
         self.other_business = Business.objects.create(
             vendor=self.another_vendor,
@@ -45,6 +47,8 @@ class CreateServiceTests(TestCase):
             email="other@example.com",
             address="Another Road",
             city_district="Kampala",
+            business_type=Business.BusinessType.SERVICE_PROVIDER,
+            verification_status=Business.VerificationStatus.APPROVED,
         )
         self.category = Category.objects.create(name="Grooming")
         self.url = reverse("service-create")

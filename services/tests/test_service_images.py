@@ -52,6 +52,8 @@ class ServiceImageUploadTests(TestCase):
             email="service-image-shop@example.com",
             address="Kampala Road",
             city_district="Kampala",
+            business_type=Business.BusinessType.SERVICE_PROVIDER,
+            verification_status=Business.VerificationStatus.APPROVED,
         )
         self.category = Category.objects.create(
             name="Image Grooming",
