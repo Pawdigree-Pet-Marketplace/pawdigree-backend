@@ -72,6 +72,24 @@ class PetSerializer(serializers.ModelSerializer):
                 "You can only list pets under your own business."
             )
 
+        # An existing listing can stay with its business even if that
+        # business is later suspended.
+        if self.instance is not None and self.instance.business_id == value.pk:
+            return value
+
+        if (
+            not value.is_active
+            or value.verification_status != Business.VerificationStatus.APPROVED
+        ):
+            raise serializers.ValidationError(
+                "Your business must be approved before you can add pet listings."
+            )
+
+        if value.business_type != Business.BusinessType.PET_SALE_ADOPTION:
+            raise serializers.ValidationError(
+                "Only Pet sale and adoption businesses can add pet listings."
+            )
+
         return value
 
     def validate(self, attrs):

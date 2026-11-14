@@ -14,6 +14,8 @@ def vendor_business(vendor):
         email="happy-paws@example.com",
         address="Kampala Road",
         city_district="Kampala",
+        business_type=Business.BusinessType.PET_SALE_ADOPTION,
+        verification_status=Business.VerificationStatus.APPROVED,
     )
 
 
@@ -27,6 +29,8 @@ def another_vendor_business(another_vendor):
         email="other-paws@example.com",
         address="Entebbe Road",
         city_district="Entebbe",
+        business_type=Business.BusinessType.PET_SALE_ADOPTION,
+        verification_status=Business.VerificationStatus.APPROVED,
     )
 
 
