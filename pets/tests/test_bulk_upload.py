@@ -152,6 +152,8 @@ def test_blank_business_id_fails_when_vendor_has_several_businesses(
         email="second-paws@example.com",
         address="Jinja Road",
         city_district="Jinja",
+        business_type=Business.BusinessType.PET_SALE_ADOPTION,
+        verification_status=Business.VerificationStatus.APPROVED,
     )
     api_client.force_authenticate(user=vendor)
 
@@ -174,6 +176,8 @@ def test_explicit_business_id_works_when_vendor_has_several_businesses(
         email="second-paws@example.com",
         address="Jinja Road",
         city_district="Jinja",
+        business_type=Business.BusinessType.PET_SALE_ADOPTION,
+        verification_status=Business.VerificationStatus.APPROVED,
     )
     api_client.force_authenticate(user=vendor)
 
@@ -412,3 +416,72 @@ def test_template_example_rows_upload_cleanly(api_client, vendor, vendor_busines
     assert response.status_code == status.HTTP_200_OK
     assert response.data["created"] == 2
     assert response.data["failed"] == []
+
+
+def assert_business_row_failed(response):
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["created"] == 0
+    assert len(response.data["failed"]) == 1
+    assert "business" in response.data["failed"][0]["errors"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"verification_status": Business.VerificationStatus.PENDING},
+        {"verification_status": Business.VerificationStatus.DRAFT},
+        {"verification_status": Business.VerificationStatus.SUSPENDED},
+        {"is_active": False},
+    ],
+)
+def test_unverified_business_cannot_add_pets_by_id(
+    api_client, vendor, vendor_business, overrides
+):
+    for field, value in overrides.items():
+        setattr(vendor_business, field, value)
+    vendor_business.save()
+    api_client.force_authenticate(user=vendor)
+
+    response = upload(
+        api_client,
+        csv_file(sale_row("Blocked", business_id=vendor_business.pk)),
+    )
+
+    assert_business_row_failed(response)
+
+
+@pytest.mark.django_db
+def test_blank_business_id_fails_when_the_only_business_is_pending(
+    api_client, vendor, vendor_business
+):
+    vendor_business.verification_status = Business.VerificationStatus.PENDING
+    vendor_business.save()
+    api_client.force_authenticate(user=vendor)
+
+    response = upload(api_client, csv_file(sale_row("No Default")))
+
+    assert_business_row_failed(response)
+
+
+@pytest.mark.django_db
+def test_blank_business_id_picks_the_only_approved_business(
+    api_client, vendor, vendor_business
+):
+    Business.objects.create(
+        vendor=vendor,
+        name="Pending Paws",
+        description="Pet care services",
+        contact="+256700123459",
+        email="pending-paws@example.com",
+        address="Mbale Road",
+        city_district="Mbale",
+        business_type=Business.BusinessType.PET_SALE_ADOPTION,
+        verification_status=Business.VerificationStatus.PENDING,
+    )
+    api_client.force_authenticate(user=vendor)
+
+    response = upload(api_client, csv_file(sale_row("Picks Approved")))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["created"] == 1

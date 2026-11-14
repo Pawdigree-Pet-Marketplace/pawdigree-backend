@@ -557,8 +557,15 @@ class PetBulkUploadView(APIView):
                 {"file": f"At most {BULK_MAX_ROWS} rows per upload."}
             )
 
-        # A vendor with exactly one business doesn't need to fill business_id.
-        owned = list(Business.objects.filter(vendor=request.user))
+        # A vendor with exactly one approved, active business doesn't need
+        # to fill business_id.
+        owned = list(
+            Business.objects.filter(
+                vendor=request.user,
+                is_active=True,
+                verification_status=Business.VerificationStatus.APPROVED,
+            )
+        )
         default_business = owned[0] if len(owned) == 1 else None
 
         valid_serializers = []
