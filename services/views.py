@@ -36,6 +36,7 @@ def public_services():
     """Services available to customers through an approved business category."""
     return (
         Service.objects.filter(
+            approved=True,
             is_active=True,
             business__is_active=True,
             business__verification_status=Business.VerificationStatus.APPROVED,

@@ -90,6 +90,7 @@ class PublicServiceListTests(TestCase):
             "description": f"{name} service",
             "price": "30000.00",
             "duration": 60,
+            "approved": True,
         }
         values.update(overrides)
         return Service.objects.create(**values)
@@ -117,6 +118,7 @@ class PublicServiceListTests(TestCase):
         Service.objects.create(
             business=inactive_business,
             category=self.category,
+            approved=True,
             name="Inactive business service",
             service_type="Grooming",
             description="Hidden",
@@ -131,6 +133,7 @@ class PublicServiceListTests(TestCase):
         Service.objects.create(
             business=pending_business,
             category=self.category,
+            approved=True,
             name="Pending business service",
             service_type="Grooming",
             description="Hidden",
