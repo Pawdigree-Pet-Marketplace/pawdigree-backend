@@ -1,6 +1,9 @@
 from django.urls import path
 
 from .views import (
+    AdminPendingProductListView,
+    AdminProductApproveView,
+    AdminProductRejectView,
     ProductBulkTemplateView,
     ProductBulkUploadView,
     ProductDetailView,
@@ -28,6 +31,21 @@ urlpatterns = [
         "public/<int:pk>/",
         PublicProductDetailView.as_view(),
         name="product-public-detail",
+    ),
+    path(
+        "admin/pending/",
+        AdminPendingProductListView.as_view(),
+        name="product-admin-pending",
+    ),
+    path(
+        "admin/<int:pk>/approve/",
+        AdminProductApproveView.as_view(),
+        name="product-admin-approve",
+    ),
+    path(
+        "admin/<int:pk>/reject/",
+        AdminProductRejectView.as_view(),
+        name="product-admin-reject",
     ),
     path("<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
     path(

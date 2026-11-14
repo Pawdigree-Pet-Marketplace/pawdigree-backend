@@ -126,6 +126,12 @@ class VendorProductSerializer(ProductSerializer):
         return super().update(instance, validated_data)
 
 
+class ProductRejectSerializer(serializers.Serializer):
+    """The reason an administrator gives when rejecting a product."""
+
+    reason = serializers.CharField(max_length=1000, trim_whitespace=True)
+
+
 class ProductImageUploadSerializer(serializers.ModelSerializer):
     """Accept an uploaded image for a product."""
 

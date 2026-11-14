@@ -71,14 +71,17 @@ categories.
 
 ## Current status
 
-- Pets: admin approval of each listing is built. The verified-business
-  check is not enforced yet.
+- Pets: the verified-business and Pet Sale and Adoption checks are
+  enforced (single and bulk). Admin approval of each listing is built.
 - Services: the verified-business check is enforced (single and bulk).
   Admin approval of each listing is not built yet.
-- Merchandise: the verified-business check is enforced. Admin approval of
-  each listing is not built yet, so valid rows are live immediately.
+- Merchandise: the verified-business check is enforced and admin
+  approval of each listing is built. New and bulk-uploaded products
+  start unapproved and are hidden until an admin approves them. A
+  vendor editing a product's name, description, category or images
+  sends it back to review; changing price or stock does not.
 
-These gaps are follow-up PRs.
+The remaining gap (services approval) is a follow-up PR.
 
 ## Not included yet
 
