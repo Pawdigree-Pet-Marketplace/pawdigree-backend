@@ -1,9 +1,16 @@
+from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
 
 from businesses.models import Business
 from common.models import TimeStampedModel
 from common.validators import validate_image_upload
+
+
+class ServiceQuerySet(models.QuerySet):
+    def pending_review(self):
+        """Active services waiting for an admin decision."""
+        return self.filter(approved=False, is_active=True, rejection_reason="")
 
 
 class Service(TimeStampedModel):
@@ -44,12 +51,41 @@ class Service(TimeStampedModel):
         default=AvailabilityStatus.AVAILABLE,
     )
     is_active = models.BooleanField(default=True)
+    approved = models.BooleanField(default=False)
+    rejection_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_services",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    objects = ServiceQuerySet.as_manager()
 
     class Meta:
         ordering = ("name",)
 
     def __str__(self):
         return self.name
+
+    def send_back_for_review(self, save=True):
+        """Put the service back in the admin review queue."""
+        self.approved = False
+        self.rejection_reason = ""
+        self.reviewed_by = None
+        self.reviewed_at = None
+        if save:
+            self.save(
+                update_fields=[
+                    "approved",
+                    "rejection_reason",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "updated_at",
+                ]
+            )
     
 
 class AvailabilitySlot(TimeStampedModel):

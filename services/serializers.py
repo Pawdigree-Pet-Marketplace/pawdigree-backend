@@ -46,12 +46,18 @@ class ServiceSerializer(serializers.ModelSerializer):
             "duration",
             "availability_status",
             "is_active",
+            "approved",
+            "rejection_reason",
+            "reviewed_at",
             "created_at",
             "updated_at",
         )
         read_only_fields = (
             "service_id",
             "is_active",
+            "approved",
+            "rejection_reason",
+            "reviewed_at",
             "created_at",
             "updated_at",
         )
@@ -165,8 +171,28 @@ class ServiceSerializer(serializers.ModelSerializer):
         )
         return super().create(validated_data)
 
+    # Changing any of these sends the service back to admin review.
+    REVIEWED_FIELDS = ("name", "service_type", "description", "category")
+
+    def _changes_reviewed_content(self, instance, validated_data):
+        for field in self.REVIEWED_FIELDS:
+            if (
+                field in validated_data
+                and validated_data[field] != getattr(instance, field)
+            ):
+                return True
+
+        if "image" in validated_data:
+            # Adding or replacing an image, or removing an existing one.
+            return bool(validated_data["image"]) or bool(instance.image)
+
+        return False
+
     @transaction.atomic
     def update(self, instance, validated_data):
+        if self._changes_reviewed_content(instance, validated_data):
+            instance.send_back_for_review(save=False)
+
         self._request_category(
             instance.business,
             validated_data.get("category"),
@@ -178,6 +204,12 @@ class ServiceUpdateSerializer(ServiceSerializer):
     """Edit a service. The business it belongs to cannot be changed."""
 
     business = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
+class ServiceRejectSerializer(serializers.Serializer):
+    """The reason an administrator gives when rejecting a service."""
+
+    reason = serializers.CharField(max_length=1000, trim_whitespace=True)
 
 
 class PublicServiceSerializer(serializers.ModelSerializer):

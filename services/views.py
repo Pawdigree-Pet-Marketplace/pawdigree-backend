@@ -4,25 +4,28 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.response import Response
 
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
-from common.permissions import IsVendor
+from common.permissions import IsAdmin, IsVendor
 
 from .models import Service, AvailabilitySlot
 from .filters import filter_public_services
+from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
     AvailabilitySlotSerializer,
     ServiceSerializer,
     ServiceUpdateSerializer,
     ServiceCalendarSerializer,
     PublicServiceSerializer,
+    ServiceRejectSerializer,
 )
 
 
@@ -36,6 +39,7 @@ def public_services():
     """Services available to customers through an approved business category."""
     return (
         Service.objects.filter(
+            approved=True,
             is_active=True,
             business__is_active=True,
             business__verification_status=Business.VerificationStatus.APPROVED,
@@ -291,3 +295,107 @@ class ServiceAvailabilityCalendarView(generics.GenericAPIView):
             "days": days,
         }
         return Response(ServiceCalendarSerializer(payload).data)
+
+
+@extend_schema(
+    tags=["services"],
+    summary="List services waiting for review (administrators)",
+    description="Active services that are neither approved nor rejected, oldest first.",
+)
+class AdminPendingServiceListView(generics.ListAPIView):
+    serializer_class = ServiceSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = PublicServicePagination
+
+    def get_queryset(self):
+        return (
+            Service.objects.pending_review()
+            .select_related("business", "category")
+            .order_by("created_at")
+        )
+
+
+class AdminServiceReviewBaseView(generics.GenericAPIView):
+    serializer_class = ServiceSerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        return Service.objects.filter(is_active=True).select_related(
+            "business__vendor", "category"
+        )
+
+
+@extend_schema(
+    tags=["services"],
+    summary="Approve a service (administrators)",
+    request=None,
+    description=(
+        "Marks the service as approved and notifies the vendor. Customers "
+        "still only see it once its category is approved for the business."
+    ),
+)
+class AdminServiceApproveView(AdminServiceReviewBaseView):
+    @transaction.atomic
+    def post(self, request, pk):
+        service = self.get_object()
+
+        if service.approved:
+            raise serializers.ValidationError("This service is already approved.")
+
+        service.approved = True
+        service.rejection_reason = ""
+        service.reviewed_by = request.user
+        service.reviewed_at = timezone.now()
+        service.save(
+            update_fields=[
+                "approved",
+                "rejection_reason",
+                "reviewed_by",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
+
+        # Notify only if the database change actually committed.
+        transaction.on_commit(lambda: notify_listing_approved(service))
+
+        return Response(self.get_serializer(service).data)
+
+
+@extend_schema(
+    tags=["services"],
+    summary="Reject a service (administrators)",
+    request=ServiceRejectSerializer,
+    description=(
+        "Hides the service, stores the reason and notifies the vendor. "
+        "The vendor can edit the service to send it for review again."
+    ),
+)
+class AdminServiceRejectView(AdminServiceReviewBaseView):
+    @transaction.atomic
+    def post(self, request, pk):
+        service = self.get_object()
+
+        if not service.approved and service.rejection_reason:
+            raise serializers.ValidationError("This service is already rejected.")
+
+        data = ServiceRejectSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+
+        service.approved = False
+        service.rejection_reason = data.validated_data["reason"]
+        service.reviewed_by = request.user
+        service.reviewed_at = timezone.now()
+        service.save(
+            update_fields=[
+                "approved",
+                "rejection_reason",
+                "reviewed_by",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
+
+        transaction.on_commit(lambda: notify_listing_rejected(service))
+
+        return Response(self.get_serializer(service).data)
