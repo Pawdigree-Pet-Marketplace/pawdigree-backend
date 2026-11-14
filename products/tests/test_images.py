@@ -73,6 +73,7 @@ class ProductImageTests(APITestCase):
             name="Chew Toy",
             price="15.00",
             stock_quantity=5,
+            approved=True,
         )
 
     def create_url(self, product=None):

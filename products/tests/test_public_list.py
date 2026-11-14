@@ -35,6 +35,7 @@ class PublicProductListTests(TestCase):
             "stock_quantity": 5,
         }
         values.update(extra)
+        values.setdefault("approved", True)
         return Product.objects.create(**values)
 
     def test_anyone_can_browse_products(self):
@@ -223,6 +224,7 @@ class PublicProductDetailTests(TestCase):
             "stock_quantity": 2,
         }
         values.update(extra)
+        values.setdefault("approved", True)
         return Product.objects.create(**values)
 
     def detail_url(self, product):

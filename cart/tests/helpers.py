@@ -30,10 +30,10 @@ def make_category(name="Toys", active=True):
 
 
 def make_product(business, category, name="Chew toy", price="10.00",
-                 stock=5, active=True):
+                 stock=5, active=True, approved=True):
     return Product.objects.create(
         business=business, category=category, name=name,
-        price=Decimal(price), stock_quantity=stock, is_active=active,
+        price=Decimal(price), stock_quantity=stock, is_active=active, approved=approved,
     )
 
 

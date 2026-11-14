@@ -11,6 +11,7 @@ class ProductQuerySet(models.QuerySet):
     def publicly_visible(self):
         """Products a customer is allowed to see."""
         return self.filter(
+            approved=True,
             is_active=True,
             category__is_active=True,
             business__is_active=True,

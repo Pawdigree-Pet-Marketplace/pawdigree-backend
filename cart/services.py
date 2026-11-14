@@ -21,7 +21,8 @@ def product_is_visible(product):
     """Same rule as Product.objects.publicly_visible(), for one loaded product."""
     business = product.business
     return (
-        product.is_active
+        product.approved
+        and product.is_active
         and product.category.is_active
         and business.is_active
         and business.verification_status == Business.VerificationStatus.APPROVED
