@@ -374,3 +374,29 @@ class ProductBulkUploadRuleTests(TestCase):
         response = self.upload(self.row(category=inactive))
 
         self.assert_row_failed(response, "category")
+
+
+class ProductBulkUploadApprovalTests(TestCase):
+    def test_bulk_uploaded_products_start_unapproved(self):
+        vendor = make_vendor("approval_bulk_vendor")
+        make_business(
+            vendor,
+            "Approval Merch",
+            Business.BusinessType.PRODUCT_SELLER,
+            "approval-merch@example.com",
+        )
+        category = Category.objects.create(name="Approval Supplies")
+        client = APIClient()
+        client.force_authenticate(user=vendor)
+        row = f",{category.pk},Fresh Item,Nice item,25000,5"
+
+        response = client.post(
+            reverse("product-bulk-upload"),
+            {"file": csv_file(row)},
+            format="multipart",
+        )
+
+        self.assertEqual(response.data["created"], 1)
+        product = Product.objects.get(name="Fresh Item")
+        self.assertFalse(product.approved)
+        self.assertNotIn(product, Product.objects.publicly_visible())

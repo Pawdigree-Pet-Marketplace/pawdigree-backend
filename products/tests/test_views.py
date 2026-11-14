@@ -73,7 +73,9 @@ class ProductViewsTests(TestCase):
         self.client = APIClient()
         self.list_url = reverse("product-list")
 
-    def create_product(self, vendor=None, name="Rubber Ball", is_active=True):
+    def create_product(
+        self, vendor=None, name="Rubber Ball", is_active=True, approved=True
+    ):
         business = (
             self.another_business if vendor == self.another_vendor
             else self.business
@@ -85,6 +87,7 @@ class ProductViewsTests(TestCase):
             description="A durable pet toy.",
             price="15000.00",
             is_active=is_active,
+            approved=approved,
         )
 
     def get_results(self, response):

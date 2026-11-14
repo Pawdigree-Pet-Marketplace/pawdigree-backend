@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiResponse,
@@ -22,11 +23,13 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from businesses.models import Business
-from common.permissions import ADMIN_ROLES, IsVendor
+from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor
 
 from .models import Product
+from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
     ProductImageUploadSerializer,
+    ProductRejectSerializer,
     ProductSerializer,
     PublicProductDetailSerializer,
     PublicProductSerializer,
@@ -136,6 +139,8 @@ class ProductImageCreateView(generics.CreateAPIView):
             )
 
         serializer.save(product=product)
+        if self.request.user.role == User.Role.VENDOR:
+            product.send_back_for_review()
 
 
 class ProductImageDeleteView(generics.DestroyAPIView):
@@ -150,6 +155,12 @@ class ProductImageDeleteView(generics.DestroyAPIView):
             self.kwargs["product_pk"],
         )
         return get_object_or_404(product.images, pk=self.kwargs["pk"])
+
+    def perform_destroy(self, instance):
+        product = instance.product
+        instance.delete()
+        if self.request.user.role == User.Role.VENDOR:
+            product.send_back_for_review()
 
 
 def public_products():
@@ -249,6 +260,110 @@ class PublicProductDetailView(generics.RetrieveAPIView):
         return public_products()
 
 
+@extend_schema(
+    tags=["products"],
+    summary="List products waiting for review (administrators)",
+    description="Active products that are neither approved nor rejected, oldest first.",
+)
+class AdminPendingProductListView(generics.ListAPIView):
+    serializer_class = ProductSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = PublicProductPagination
+
+    def get_queryset(self):
+        return (
+            Product.objects.pending_review()
+            .select_related("business", "category")
+            .prefetch_related("images")
+            .order_by("created_at")
+        )
+
+
+class AdminProductReviewBaseView(generics.GenericAPIView):
+    serializer_class = ProductSerializer
+    permission_classes = (IsAdmin,)
+
+    def get_queryset(self):
+        return (
+            Product.objects.filter(is_active=True)
+            .select_related("business__vendor", "category")
+            .prefetch_related("images")
+        )
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Approve a product (administrators)",
+    request=None,
+    description="Makes the product public and notifies the vendor.",
+)
+class AdminProductApproveView(AdminProductReviewBaseView):
+    @transaction.atomic
+    def post(self, request, pk):
+        product = self.get_object()
+
+        if product.approved:
+            raise serializers.ValidationError("This product is already approved.")
+
+        product.approved = True
+        product.rejection_reason = ""
+        product.reviewed_by = request.user
+        product.reviewed_at = timezone.now()
+        product.save(
+            update_fields=[
+                "approved",
+                "rejection_reason",
+                "reviewed_by",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
+
+        # Notify only if the database change actually committed.
+        transaction.on_commit(lambda: notify_listing_approved(product))
+
+        return Response(self.get_serializer(product).data)
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Reject a product (administrators)",
+    request=ProductRejectSerializer,
+    description=(
+        "Hides the product, stores the reason and notifies the vendor. "
+        "The vendor can edit the product to send it for review again."
+    ),
+)
+class AdminProductRejectView(AdminProductReviewBaseView):
+    @transaction.atomic
+    def post(self, request, pk):
+        product = self.get_object()
+
+        if not product.approved and product.rejection_reason:
+            raise serializers.ValidationError("This product is already rejected.")
+
+        data = ProductRejectSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+
+        product.approved = False
+        product.rejection_reason = data.validated_data["reason"]
+        product.reviewed_by = request.user
+        product.reviewed_at = timezone.now()
+        product.save(
+            update_fields=[
+                "approved",
+                "rejection_reason",
+                "reviewed_by",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
+
+        transaction.on_commit(lambda: notify_listing_rejected(product))
+
+        return Response(self.get_serializer(product).data)
+
+
 BULK_MAX_ROWS = 200
 BULK_MAX_FILE_BYTES = 5 * 1024 * 1024
 BULK_COLUMNS = (
@@ -268,7 +383,8 @@ BULK_REQUIRED_COLUMNS = ("category_id", "name", "price")
     description=(
         "Upload a CSV file to create many products at once. Every row is "
         "validated with the same rules as a single product. Valid rows are "
-        "created immediately (merchandise has no admin review step); "
+        "created as unapproved products and stay hidden from customers "
+        "until an administrator approves them; "
         "invalid rows are returned with the row number and the errors. "
         "business_id can be left blank if the vendor owns exactly one "
         "approved Pet Merchandise business."
