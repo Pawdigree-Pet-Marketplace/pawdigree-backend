@@ -1,9 +1,6 @@
-import csv
-import io
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.http import HttpResponse
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -20,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from businesses.models import Business
+from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import IsAdmin, IsVendor
 
 from .filters import SORT_OPTIONS, filter_public_pets, public_locations
@@ -469,8 +467,6 @@ class AdminPetRejectView(AdminPetReviewBaseView):
 
         return Response(self.get_serializer(pet).data)
 
-BULK_MAX_ROWS = 200
-BULK_MAX_FILE_BYTES = 5 * 1024 * 1024
 BULK_COLUMNS = (
     "business_id",
     "listing_type",
@@ -522,40 +518,11 @@ class PetBulkUploadView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        upload = request.FILES.get("file")
-
-        if upload is None:
-            raise serializers.ValidationError({"file": "No file was uploaded."})
-        if not upload.name.lower().endswith(".csv"):
-            raise serializers.ValidationError({"file": "Please upload a .csv file."})
-        if upload.size > BULK_MAX_FILE_BYTES:
-            raise serializers.ValidationError({"file": "File must be under 5MB."})
-
-        try:
-            text = upload.read().decode("utf-8-sig")
-        except UnicodeDecodeError:
-            raise serializers.ValidationError(
-                {"file": "File must be saved as UTF-8 CSV."}
-            ) from None
-
-        reader = csv.DictReader(io.StringIO(text))
-        reader.fieldnames = [
-            (name or "").strip().lower() for name in (reader.fieldnames or [])
-        ]
-
-        missing = [c for c in BULK_REQUIRED_COLUMNS if c not in reader.fieldnames]
-        if missing:
-            raise serializers.ValidationError(
-                {"file": f"Missing columns: {', '.join(missing)}."}
-            )
-
-        rows = list(reader)
-        if not rows:
-            raise serializers.ValidationError({"file": "The file has no rows."})
-        if len(rows) > BULK_MAX_ROWS:
-            raise serializers.ValidationError(
-                {"file": f"At most {BULK_MAX_ROWS} rows per upload."}
-            )
+        rows = read_bulk_csv(
+            request.FILES.get("file"),
+            BULK_COLUMNS,
+            BULK_REQUIRED_COLUMNS,
+        )
 
         # A vendor with exactly one approved, active business doesn't need
         # to fill business_id.
@@ -572,18 +539,7 @@ class PetBulkUploadView(APIView):
         valid_serializers = []
         failed = []
 
-        # Row 1 is the header, so data starts at row 2 (matches the spreadsheet).
-        for row_number, row in enumerate(rows, start=2):
-            data = {
-                key: (value or "").strip()
-                for key, value in row.items()
-                if key in BULK_COLUMNS
-            }
-            data = {key: value for key, value in data.items() if value}
-
-            if not data:
-                continue  # skip completely empty rows
-
+        for row_number, data in rows:
             for field in ("listing_type", "gender", "size"):
                 if field in data:
                     data[field] = data[field].upper()
@@ -616,11 +572,11 @@ class PetBulkTemplateView(APIView):
     authentication_classes = ()
 
     def get(self, request):
-        lines = [
-            ",".join(BULK_COLUMNS),
-            ",SALE,Buddy,Dog,Labrador,12,MALE,MEDIUM,Friendly and vaccinated,450000",
-            ",ADOPTION,Mimi,Cat,,6,FEMALE,SMALL,Needs a loving home,",
-        ]
-        response = HttpResponse("\n".join(lines) + "\n", content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="pet_listings_template.csv"'
-        return response
+        return csv_template_response(
+            BULK_COLUMNS,
+            [
+                ",SALE,Buddy,Dog,Labrador,12,MALE,MEDIUM,Friendly and vaccinated,450000",
+                ",ADOPTION,Mimi,Cat,,6,FEMALE,SMALL,Needs a loving home,",
+            ],
+            "pet_listings_template.csv",
+        )

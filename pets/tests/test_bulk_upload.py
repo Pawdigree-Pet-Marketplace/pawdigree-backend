@@ -332,7 +332,7 @@ def test_file_that_is_not_utf8_is_rejected(api_client, vendor, vendor_business):
 def test_file_with_too_many_rows_is_rejected(
     api_client, vendor, vendor_business, monkeypatch
 ):
-    monkeypatch.setattr("pets.views.BULK_MAX_ROWS", 2)
+    monkeypatch.setattr("common.bulk_csv.BULK_MAX_ROWS", 2)
     api_client.force_authenticate(user=vendor)
 
     response = upload(
@@ -349,7 +349,7 @@ def test_file_with_too_many_rows_is_rejected(
 def test_file_over_the_size_limit_is_rejected(
     api_client, vendor, vendor_business, monkeypatch
 ):
-    monkeypatch.setattr("pets.views.BULK_MAX_FILE_BYTES", 10)
+    monkeypatch.setattr("common.bulk_csv.BULK_MAX_FILE_BYTES", 10)
     api_client.force_authenticate(user=vendor)
 
     response = upload(api_client, csv_file(sale_row("Big")))
