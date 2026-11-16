@@ -31,6 +31,7 @@ from .filters import (
 from .models import Pet, PetImage
 from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
+    AdminPetSerializer,
     AdminPetUpdateSerializer,
     PetImageEditSerializer,
     PetRejectSerializer,
@@ -275,7 +276,7 @@ class AdminPetDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_serializer_class(self):
         if self.request.method in ("PUT", "PATCH"):
             return AdminPetUpdateSerializer
-        return PetSerializer
+        return AdminPetSerializer
 
     def get_queryset(self):
         queryset = Pet.objects.select_related(
@@ -485,7 +486,7 @@ class AdminPendingPetListView(generics.ListAPIView):
     ],
 )
 class AdminPetListView(generics.ListAPIView):
-    serializer_class = PetSerializer
+    serializer_class = AdminPetSerializer
     permission_classes = (IsAdmin,)
     pagination_class = PublicPetPagination
 
@@ -499,7 +500,7 @@ class AdminPetListView(generics.ListAPIView):
 
     
 class AdminPetReviewBaseView(generics.GenericAPIView):
-    serializer_class = PetSerializer
+    serializer_class = AdminPetSerializer
     permission_classes = (IsAdmin,)
 
     def get_queryset(self):
