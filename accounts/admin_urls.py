@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .admin_views import (
+    AdminUserListView,
     ActivateAdministratorView,
     AdministratorDetailView,
     AdministratorListCreateView,
@@ -8,6 +9,11 @@ from .admin_views import (
 )
 
 urlpatterns = [
+    path(
+        'users/',
+        AdminUserListView.as_view(),
+        name='admin-user-list',
+    ),
     path(
         'administrators/',
         AdministratorListCreateView.as_view(),

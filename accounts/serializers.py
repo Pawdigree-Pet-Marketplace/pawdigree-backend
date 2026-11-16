@@ -528,3 +528,40 @@ class AdministratorSerializer(PhoneValidationMixin, serializers.ModelSerializer)
             'is_active',
             'date_joined',
         )
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Safe account summary for system-admin user management."""
+
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'role',
+            'status',
+            'date_joined',
+        )
+        read_only_fields = fields
+
+    def get_status(self, obj) -> str:
+        return 'active' if obj.is_active else 'deactivated'
+
+
+class AdminUserSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    active = serializers.IntegerField()
+    deactivated = serializers.IntegerField()
+    suspended = serializers.IntegerField()
+
+
+class AdminUserListResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    summary = AdminUserSummarySerializer()
+    results = AdminUserSerializer(many=True)
