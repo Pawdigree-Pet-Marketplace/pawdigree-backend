@@ -32,7 +32,6 @@ class ServiceApprovalVisibilityTests(TestCase):
             name="Visibility Grooming", kind=Category.Kind.SERVICES
         )
         BusinessCategory.objects.create(
-                    kind=Category.Kind.SERVICES,
             business=cls.business,
             category=cls.category,
             approval_status=BusinessCategory.ApprovalStatus.APPROVED,
@@ -81,7 +80,6 @@ class ServiceApprovalVisibilityTests(TestCase):
             name="Visibility Training", kind=Category.Kind.SERVICES
         )
         BusinessCategory.objects.create(
-                    kind=Category.Kind.SERVICES,
             business=self.business, category=pending_category
         )
         service = self.make_service(

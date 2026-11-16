@@ -41,7 +41,6 @@ class AdminServiceReviewTests(TestCase):
             name="Review Grooming", kind=Category.Kind.SERVICES
         )
         BusinessCategory.objects.create(
-                    kind=Category.Kind.SERVICES,
             business=cls.business,
             category=cls.category,
             approval_status=BusinessCategory.ApprovalStatus.APPROVED,
