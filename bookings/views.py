@@ -1,21 +1,110 @@
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from common.permissions import IsCustomer
+from common.permissions import IsCustomer, IsVendor
 from services.views import public_services
 
 from .availability import free_start_times
+from .models import Booking
 from .serializers import (
     BookingCreateSerializer,
     BookingRescheduleSerializer,
     BookingSerializer,
     FreeTimesQuerySerializer,
     FreeTimesSerializer,
+    VendorBookingSerializer,
+    VendorBookingStatusSerializer,
 )
-from .services import cancel_booking, create_booking, reschedule_booking
+from .services import (
+    cancel_booking,
+    change_booking_status,
+    create_booking,
+    reschedule_booking,
+)
+
+
+@extend_schema(
+    tags=["bookings"],
+    summary="List my bookings",
+    description=(
+        "Requires an authenticated vendor. Returns all bookings for services "
+        "whose business belongs to that vendor, newest first, including "
+        "customer identification and booking details. No other vendor's "
+        "bookings are returned."
+    ),
+    responses={
+        200: VendorBookingSerializer(many=True),
+        401: OpenApiResponse(description="Authentication is required."),
+        403: OpenApiResponse(
+            description="Only vendor accounts may use this endpoint."
+        ),
+    },
+)
+class VendorBookingListView(generics.ListAPIView):
+    """List all bookings for services owned by the authenticated vendor."""
+
+    serializer_class = VendorBookingSerializer
+    permission_classes = (IsVendor,)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Booking.objects.none()
+
+        return (
+            Booking.objects.filter(service__business__vendor=self.request.user)
+            .select_related("customer", "service", "service__business")
+            .order_by("-created_at", "-booking_id")
+        )
+
+
+@extend_schema(
+    tags=["bookings"],
+    summary="Update the status of my booking",
+    description=(
+        "Requires an authenticated vendor and only updates bookings for "
+        "services whose business belongs to that vendor. A pending booking "
+        "can be accepted or declined; declining requires a non-empty "
+        "decision_reason. An accepted booking can be completed when the "
+        "current time is at or after end_at. Declined, completed and "
+        "cancelled bookings are terminal. Other transitions are refused."
+    ),
+    request=VendorBookingStatusSerializer,
+    responses={
+        200: VendorBookingSerializer,
+        400: OpenApiResponse(
+            description=(
+                "The status or decline reason is invalid, the transition is "
+                "not allowed, or the booking has not ended."
+            )
+        ),
+        401: OpenApiResponse(description="Authentication is required."),
+        403: OpenApiResponse(
+            description="Only vendor accounts may use this endpoint."
+        ),
+        404: OpenApiResponse(
+            description="The booking was not found for this vendor."
+        ),
+    },
+)
+class VendorBookingStatusView(generics.GenericAPIView):
+    """Apply an allowed status transition to one of the vendor's bookings."""
+
+    serializer_class = VendorBookingStatusSerializer
+    permission_classes = (IsVendor,)
+
+    def patch(self, request, booking_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        booking = change_booking_status(
+            request.user,
+            booking_id,
+            serializer.validated_data["status"],
+            serializer.validated_data.get("decision_reason", ""),
+        )
+        return Response(VendorBookingSerializer(booking).data)
 
 
 @extend_schema(
