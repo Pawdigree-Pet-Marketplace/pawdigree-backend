@@ -99,6 +99,7 @@ INSTALLED_APPS = [
     "anymail",
     'cart',
     'payments',
+    'bookings',
 ]
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
@@ -189,6 +190,9 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
+# Weekly service slots are plain times, so bookings need one real zone
+# to turn "Monday 09:00" into an exact moment. Stored datetimes stay UTC.
+BOOKING_TIME_ZONE = 'Africa/Kampala'
 
 USE_I18N = True
 
