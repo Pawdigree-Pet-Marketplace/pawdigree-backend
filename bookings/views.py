@@ -10,11 +10,12 @@ from services.views import public_services
 from .availability import free_start_times
 from .serializers import (
     BookingCreateSerializer,
+    BookingRescheduleSerializer,
     BookingSerializer,
     FreeTimesQuerySerializer,
     FreeTimesSerializer,
 )
-from .services import create_booking
+from .services import cancel_booking, create_booking, reschedule_booking
 
 
 @extend_schema(
@@ -75,3 +76,53 @@ class BookingCreateView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         booking = create_booking(request.user, **serializer.validated_data)
         return Response(BookingSerializer(booking).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=["bookings"],
+    summary="Cancel my booking",
+    description=(
+        "Cancels one of the authenticated customer's own pending or "
+        "accepted bookings that hasn't started yet. The time becomes "
+        "free for other customers. Someone else's booking returns 404."
+    ),
+    request=None,
+    responses={200: BookingSerializer},
+)
+class BookingCancelView(generics.GenericAPIView):
+    """A customer cancels their own booking."""
+
+    serializer_class = BookingSerializer
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    def post(self, request, booking_id):
+        booking = cancel_booking(request.user, booking_id)
+        return Response(BookingSerializer(booking).data)
+
+
+@extend_schema(
+    tags=["bookings"],
+    summary="Reschedule my booking",
+    description=(
+        "Moves one of the authenticated customer's own pending or accepted "
+        "bookings to another free time. start_at must be one of the times "
+        "returned by the service's times endpoint. The booking goes back "
+        "to pending so the vendor can approve the new time."
+    ),
+    request=BookingRescheduleSerializer,
+    responses={200: BookingSerializer},
+)
+class BookingRescheduleView(generics.GenericAPIView):
+    """A customer moves their own booking to another free time."""
+
+    serializer_class = BookingRescheduleSerializer
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    def post(self, request, booking_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        booking = reschedule_booking(
+            request.user, booking_id, serializer.validated_data["start_at"]
+        )
+        return Response(BookingSerializer(booking).data)
+
