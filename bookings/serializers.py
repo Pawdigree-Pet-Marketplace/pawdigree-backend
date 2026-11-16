@@ -46,3 +46,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = fields
+
+class BookingRescheduleSerializer(serializers.Serializer):
+    start_at = serializers.DateTimeField()
+
