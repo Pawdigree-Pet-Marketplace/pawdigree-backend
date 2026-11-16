@@ -534,6 +534,13 @@ class AdminPetApproveView(AdminPetReviewBaseView):
             "reviewed_at", "updated_at",
         ])
 
+        record_audit(
+            actor=request.user,
+            action="pet.approved",
+            target=pet,
+            details={"business": str(pet.business_id)},
+        )
+
         # Notify only if the database change actually committed.
         transaction.on_commit(lambda: notify_listing_approved(pet))
 
@@ -569,6 +576,14 @@ class AdminPetRejectView(AdminPetReviewBaseView):
             "approved", "rejection_reason", "reviewed_by",
             "reviewed_at", "updated_at",
         ])
+
+        # The reason itself stays on the listing; the log only notes the action.
+        record_audit(
+            actor=request.user,
+            action="pet.rejected",
+            target=pet,
+            details={"business": str(pet.business_id)},
+        )
 
         transaction.on_commit(lambda: notify_listing_rejected(pet))
 
