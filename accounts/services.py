@@ -2,11 +2,20 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from audit.services import record as record_audit
+
 from .admin_invites import send_admin_invite
 from .models import AdminAuditLog
 from .token_utils import revoke_user_tokens
 
 User = get_user_model()
+
+AUDIT_ACTIONS = {
+    AdminAuditLog.Action.SYSTEM_ADMIN_CREATED: 'system_admin.created',
+    AdminAuditLog.Action.ADMIN_CREATED: 'admin.created',
+    AdminAuditLog.Action.ADMIN_ACTIVATED: 'admin.activated',
+    AdminAuditLog.Action.ADMIN_DEACTIVATED: 'admin.deactivated',
+}
 
 
 def record_admin_action(*, actor, target, action):
@@ -15,13 +24,21 @@ def record_admin_action(*, actor, target, action):
     `actor` is None for actions run from the server, such as the
     create_system_admin command.
     """
-    return AdminAuditLog.objects.create(
+    entry = AdminAuditLog.objects.create(
         actor=actor,
         actor_email=actor.email if actor else '',
         target=target,
         target_email=target.email,
         action=action,
     )
+    # Also write the general audit log that administrators can browse.
+    record_audit(
+        actor=actor,
+        action=AUDIT_ACTIONS[action],
+        target=target,
+        details={'target_email': target.email},
+    )
+    return entry
 
 
 @transaction.atomic
