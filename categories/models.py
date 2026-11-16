@@ -12,7 +12,6 @@ class Category(TimeStampedModel):
     slug = models.SlugField(max_length=120, unique=True, blank=True)
     description = models.TextField(blank=True)
     class Kind(models.TextChoices):
-        GENERAL = "general", "General"
         PETS = "pets", "Pets"
         MERCHANDISE = "merchandise", "Merchandise"
         SERVICES = "services", "Services"
@@ -21,13 +20,18 @@ class Category(TimeStampedModel):
     kind = models.CharField(
         max_length=20,
         choices=Kind.choices,
-        default=Kind.GENERAL,
     )
     is_active = models.BooleanField(default=True)
 
     class Meta:
         db_table = "marketplace_category"
         ordering = ("name",)
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=("pets", "merchandise", "services")),
+                name="category_kind_is_supported",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         base_slug = slugify(self.name) or "category"

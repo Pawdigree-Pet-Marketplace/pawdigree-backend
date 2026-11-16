@@ -33,7 +33,7 @@ class ApproveExistingProductsTests(TestCase):
             business_type=Business.BusinessType.PRODUCT_SELLER,
             verification_status=Business.VerificationStatus.APPROVED,
         )
-        cls.category = Category.objects.create(name="Backfill Supplies")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Backfill Supplies")
 
     def make_product(self, name, **overrides):
         return Product.objects.create(

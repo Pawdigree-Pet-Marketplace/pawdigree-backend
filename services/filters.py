@@ -43,11 +43,11 @@ def filter_public_services(queryset, params):
         category = Category.objects.filter(
             pk=category_id,
             is_active=True,
-            kind__in=(Category.Kind.SERVICES, Category.Kind.GENERAL),
+            kind=Category.Kind.SERVICES,
         ).first()
         if category is None:
             errors["category"] = (
-                "Choose an active services or general category id."
+                "Choose an active services category id."
             )
         else:
             queryset = queryset.filter(category_id=category.pk)

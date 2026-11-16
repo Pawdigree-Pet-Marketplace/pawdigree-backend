@@ -245,7 +245,10 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
                 f"{business.verification_status.replace('_', ' ')}."
             )
 
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={**self.get_serializer_context(), "business": business},
+        )
         serializer.is_valid(raise_exception=True)
 
         saved_categories = []

@@ -106,7 +106,7 @@ class UpdateRemoveServiceTests(TestCase):
 
     def test_vendor_can_replace_a_whole_service(self):
         self.client.force_authenticate(user=self.vendor)
-        category = Category.objects.create(name="Grooming")
+        category = Category.objects.create(kind=Category.Kind.SERVICES, name="Grooming")
 
         response = self.client.put(
             self.url,

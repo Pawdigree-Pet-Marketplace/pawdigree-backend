@@ -45,7 +45,9 @@ class BusinessRegistrationAPITests(APITestCase):
             password='TestPass123!Secure',
             role=User.Role.CUSTOMER,
         )
-        self.category = Category.objects.create(name='Pet Grooming')
+        self.category = Category.objects.create(
+            name='Pet Grooming', kind=Category.Kind.MERCHANDISE
+        )
         self.payload = {
             'name': 'Pawdigree Pet Care',
             'category': self.category.pk,
@@ -148,6 +150,22 @@ class BusinessRegistrationAPITests(APITestCase):
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
+        self.assertEqual(Business.objects.count(), 0)
+
+    def test_category_must_match_registered_business_type(self):
+        self.client.force_authenticate(user=self.vendor)
+        incompatible = Category.objects.create(
+            name='Dogs', kind=Category.Kind.PETS
+        )
+
+        response = self.client.post(
+            self.url,
+            {**self.payload, 'category': incompatible.pk},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('category', response.data)
         self.assertEqual(Business.objects.count(), 0)
 
     def test_vendor_is_assigned_as_owner_and_hours_are_saved(self):

@@ -57,7 +57,7 @@ class ProductBulkUploadTests(TestCase):
             password="test-password-123",
             role=User.Role.CUSTOMER,
         )
-        cls.category = Category.objects.create(name="Bulk Supplies")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Bulk Supplies")
         cls.business = make_business(
             cls.vendor,
             "Bulk Merchandise",
@@ -273,7 +273,7 @@ class ProductBulkUploadRuleTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.vendor = make_vendor("rules_vendor")
-        cls.category = Category.objects.create(name="Rules Supplies")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Rules Supplies")
 
     def setUp(self):
         self.client = APIClient()
@@ -369,7 +369,7 @@ class ProductBulkUploadRuleTests(TestCase):
             Business.BusinessType.PRODUCT_SELLER,
             "merch-inactive@example.com",
         )
-        inactive = Category.objects.create(name="Old Stock", is_active=False)
+        inactive = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Old Stock", is_active=False)
 
         response = self.upload(self.row(category=inactive))
 
@@ -385,7 +385,7 @@ class ProductBulkUploadApprovalTests(TestCase):
             Business.BusinessType.PRODUCT_SELLER,
             "approval-merch@example.com",
         )
-        category = Category.objects.create(name="Approval Supplies")
+        category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Approval Supplies")
         client = APIClient()
         client.force_authenticate(user=vendor)
         row = f",{category.pk},Fresh Item,Nice item,25000,5"

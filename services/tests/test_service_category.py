@@ -66,12 +66,12 @@ def client(vendor):
 
 @pytest.fixture
 def grooming(db):
-    return Category.objects.create(name="Grooming")
+    return Category.objects.create(kind=Category.Kind.SERVICES, name="Grooming")
 
 
 @pytest.fixture
 def boarding(db):
-    return Category.objects.create(name="Boarding")
+    return Category.objects.create(kind=Category.Kind.SERVICES, name="Boarding")
 
 
 def test_new_category_creates_pending_request_and_keeps_business_approved(
@@ -165,7 +165,7 @@ def test_suspended_business_cannot_request_a_new_category(
 
 def test_inactive_category_is_rejected(client, vendor):
     business = make_business(vendor)
-    inactive = Category.objects.create(name="Retired", is_active=False)
+    inactive = Category.objects.create(kind=Category.Kind.SERVICES, name="Retired", is_active=False)
 
     response = client.post(
         reverse("service-create"),

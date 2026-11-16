@@ -94,14 +94,15 @@ The system admin creates the other admin accounts with
 ### 7. Create categories
 
 A fresh database has no categories. Logged in as an admin, create them with
-`POST /api/categories/`. Each category has a `kind`: `merchandise`, `services`,
-`pets` or `general`. To change the kind of an existing category, use
+`POST /api/categories/`. Each category must have a `kind`: `merchandise`,
+`services` or `pets`. To change the kind of an existing category, use
 `PATCH /api/categories/<id>/`.
 
-Products accept `merchandise` and `general` categories, and services accept
-`services` and `general`. The frontend reads categories without logging in from
-`GET /api/categories/public/?kind=merchandise` (or `services`, `pets`,
-`general`).
+Products accept only active `merchandise` categories, and services accept only
+active `services` categories. Pet businesses can request only active `pets`
+categories. The frontend reads categories without logging in from
+`GET /api/categories/public/?kind=merchandise` (or `services`, `pets`); a kind
+filter returns only that kind.
 
 ### Emails
 

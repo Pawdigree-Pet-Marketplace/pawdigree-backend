@@ -50,7 +50,7 @@ class CreateServiceTests(TestCase):
             business_type=Business.BusinessType.SERVICE_PROVIDER,
             verification_status=Business.VerificationStatus.APPROVED,
         )
-        self.category = Category.objects.create(name="Grooming")
+        self.category = Category.objects.create(kind=Category.Kind.SERVICES, name="Grooming")
         self.url = reverse("service-create")
         self.service_data = {
             "business": self.business.pk,
@@ -314,17 +314,6 @@ class CreateServiceTests(TestCase):
         category = Category.objects.create(
             name="Services Kind",
             kind=Category.Kind.SERVICES,
-        )
-
-        response = self.post_with_category(category)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Service.objects.get().category, category)
-
-    def test_vendor_can_create_service_in_general_category(self):
-        category = Category.objects.create(
-            name="General Kind",
-            kind=Category.Kind.GENERAL,
         )
 
         response = self.post_with_category(category)
