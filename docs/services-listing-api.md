@@ -7,8 +7,8 @@ base URL.
 
 `GET /api/services/public/` is open to anonymous and authenticated customers.
 It returns active services for active, approved businesses. A service's
-category must be active, have kind `services` or `general`, and be approved
-for its business. A pending or rejected business-category association is not
+category must be active, have kind `services`, and be approved for its
+business. A pending or rejected business-category association is not
 customer-visible.
 
 The listing uses the service's `availability_status`. A service does not need

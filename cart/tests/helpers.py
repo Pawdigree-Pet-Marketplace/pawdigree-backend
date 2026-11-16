@@ -26,7 +26,11 @@ def make_business(vendor, name="Paws Place", approved=True, active=True):
     
     
 def make_category(name="Toys", active=True):
-    return Category.objects.create(name=name, is_active=active)
+    return Category.objects.create(
+        name=name,
+        is_active=active,
+        kind=Category.Kind.MERCHANDISE,
+    )
 
 
 def make_product(business, category, name="Chew toy", price="10.00",
@@ -39,4 +43,4 @@ def make_product(business, category, name="Chew toy", price="10.00",
 
 def money(value):
     """Read a money value from JSON, whether it came as text or a number."""
-    return Decimal(str(value))    
+    return Decimal(str(value))

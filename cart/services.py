@@ -7,6 +7,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 
 from accounts.models import User
 from businesses.models import Business
+from categories.models import Category
 from products.models import Product
 
 from .models import MAX_LINES_PER_CART, MAX_QUANTITY_PER_ITEM, Cart, CartItem
@@ -24,6 +25,7 @@ def product_is_visible(product):
         product.approved
         and product.is_active
         and product.category.is_active
+        and product.category.kind == Category.Kind.MERCHANDISE
         and business.is_active
         and business.verification_status == Business.VerificationStatus.APPROVED
     )

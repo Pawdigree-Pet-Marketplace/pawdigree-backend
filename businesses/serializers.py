@@ -23,6 +23,15 @@ DAYS = (
 )
 
 
+def category_kind_for_business_type(business_type):
+    """Return the only category kind a business type may use."""
+    return {
+        Business.BusinessType.PET_SALE_ADOPTION: Category.Kind.PETS,
+        Business.BusinessType.PRODUCT_SELLER: Category.Kind.MERCHANDISE,
+        Business.BusinessType.SERVICE_PROVIDER: Category.Kind.SERVICES,
+    }.get(business_type)
+
+
 @extend_schema_field(OpenApiTypes.BINARY)
 class BinaryImageField(serializers.ImageField):
     """Document uploaded image files as binary payloads for Swagger."""
@@ -113,6 +122,20 @@ class BusinessSerializer(serializers.ModelSerializer):
             )
 
         return business
+
+    def validate(self, attrs):
+        category = attrs.get("category")
+        business_type = attrs.get("business_type")
+        if category is not None:
+            expected_kind = category_kind_for_business_type(business_type)
+            if expected_kind is None or category.kind != expected_kind:
+                raise serializers.ValidationError({
+                    "category": (
+                        "Choose an active category that matches the selected "
+                        "business type."
+                    )
+                })
+        return attrs
 
     def update(self, instance, validated_data):
         # The category is chosen at registration; changing it later
@@ -319,12 +342,7 @@ class CategoryRequestSerializer(serializers.Serializer):
 
     def validate_category_ids(self, categories):
         business = self.context.get("business")
-        expected_kind_by_business_type = {
-            Business.BusinessType.PET_SALE_ADOPTION: Category.Kind.PETS,
-            Business.BusinessType.PRODUCT_SELLER: Category.Kind.MERCHANDISE,
-            Business.BusinessType.SERVICE_PROVIDER: Category.Kind.SERVICES,
-        }
-        expected_kind = expected_kind_by_business_type.get(
+        expected_kind = category_kind_for_business_type(
             getattr(business, "business_type", None)
         )
         if expected_kind is None:

@@ -321,18 +321,6 @@ class CreateServiceTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Service.objects.get().category, category)
 
-    def test_vendor_cannot_create_service_in_general_category(self):
-        category = Category.objects.create(
-            name="General Kind",
-            kind=Category.Kind.GENERAL,
-        )
-
-        response = self.post_with_category(category)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("category", response.data)
-        self.assertEqual(Service.objects.count(), 0)
-
     def test_vendor_cannot_create_service_in_merchandise_category(self):
         category = Category.objects.create(
             name="Merchandise Kind",

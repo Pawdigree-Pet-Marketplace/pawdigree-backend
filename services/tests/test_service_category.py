@@ -99,7 +99,6 @@ def test_new_category_creates_pending_request_and_keeps_business_approved(
 def test_approved_category_is_reused_not_duplicated(client, vendor, grooming):
     business = make_business(vendor)
     BusinessCategory.objects.create(
-                kind=Category.Kind.SERVICES,
         business=business,
         category=grooming,
         approval_status=Approval.APPROVED,
@@ -133,7 +132,6 @@ def test_category_is_required_when_creating(client, vendor):
 def test_rejected_category_is_blocked(client, vendor, grooming):
     business = make_business(vendor)
     BusinessCategory.objects.create(
-                kind=Category.Kind.SERVICES,
         business=business,
         category=grooming,
         approval_status=Approval.REJECTED,
