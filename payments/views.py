@@ -65,8 +65,9 @@ class PaymentWebhookView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
+        gateway = get_gateway()
         try:
-            event = get_gateway().read_webhook(request)
+            event = gateway.read_webhook(request)
         except GatewayError:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
@@ -75,7 +76,7 @@ class PaymentWebhookView(APIView):
         except NotFound:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        return Response(status=status.HTTP_200_OK)
+        return Response(gateway.acknowledgement(event), status=status.HTTP_200_OK)
 
 
 class SandboxPaymentSimulationSerializer(serializers.Serializer):

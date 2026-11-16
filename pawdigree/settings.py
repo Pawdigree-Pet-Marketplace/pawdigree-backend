@@ -104,9 +104,15 @@ INSTALLED_APPS = [
 ]
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
-PAYMENT_METHODS = ("card", "mobile_money")  # must match what the gateway supports
-PAYMENT_GATEWAY_CLASS = "payments.gateways.sandbox.SandboxGateway" #point to the sandbox gateway for testing
+PAYMENT_METHODS = ("pesapal",)
+PAYMENT_GATEWAY_CLASS = "payments.gateways.pesapal.PesapalGateway"
 
+PESAPAL_BASE_URL = os.environ.get("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/pesapalv3/api")
+PESAPAL_CONSUMER_KEY = os.environ.get("PESAPAL_CONSUMER_KEY", "")
+PESAPAL_CONSUMER_SECRET = os.environ.get("PESAPAL_CONSUMER_SECRET", "")
+PESAPAL_IPN_ID = os.environ.get("PESAPAL_IPN_ID", "")
+PESAPAL_CALLBACK_URL = os.environ.get("PESAPAL_CALLBACK_URL", "http://localhost:3000/payment/result/{order_id}")
+PESAPAL_CANCEL_URL = os.environ.get("PESAPAL_CANCEL_URL", "")
 
 SANDBOX_WEBHOOK_SECRET = os.environ.get("SANDBOX_WEBHOOK_SECRET", "dev-only-secret")
 SANDBOX_PAYMENT_PAGE = os.environ.get(
