@@ -7,6 +7,7 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiResponse,
     extend_schema,
+    extend_schema_view,
     inline_serializer,
 )
 from rest_framework import generics, serializers, status
@@ -29,6 +30,7 @@ from .filters import (
 from .models import Pet, PetImage
 from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
+    AdminPetUpdateSerializer,
     PetImageEditSerializer,
     PetRejectSerializer,
     PetSerializer,
@@ -233,20 +235,55 @@ class PublicPetLocationListView(APIView):
     def get(self, request):
         return Response(public_locations())
 
-@extend_schema(
-    tags=["pets"],
-    summary="Deactivate any pet listing (administrators)",
-    description=(
-        "Lets an admin or system admin deactivate any vendor's active "
-        "listing. The row is kept with is_active set to false."
+@extend_schema_view(
+    get=extend_schema(
+        tags=["pets"],
+        summary="View any pet listing (administrators)",
+        description="Any listing, approved or not, active or deactivated.",
+    ),
+    put=extend_schema(
+        tags=["pets"],
+        summary="Edit any pet listing (administrators)",
+        description=(
+            "Corrects a listing's details even after approval. The listing "
+            "keeps its business, owner, approval status and active state, "
+            "and photos are not changed here."
+        ),
+    ),
+    patch=extend_schema(
+        tags=["pets"],
+        summary="Edit any pet listing (administrators)",
+        description=(
+            "Corrects a listing's details even after approval. The listing "
+            "keeps its business, owner, approval status and active state, "
+            "and photos are not changed here."
+        ),
+    ),
+    delete=extend_schema(
+        tags=["pets"],
+        summary="Remove a pet listing (administrators)",
+        description=(
+            "Deactivates the listing so customers no longer see it. "
+            "Nothing is deleted from the database."
+        ),
     ),
 )
-class AdminPetDeactivateView(generics.DestroyAPIView):
-    serializer_class = PetSerializer
+class AdminPetDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = (IsAdmin,)
 
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return AdminPetUpdateSerializer
+        return PetSerializer
+
     def get_queryset(self):
-        return Pet.objects.filter(is_active=True)
+        queryset = Pet.objects.select_related(
+            "business", "vendor"
+        ).prefetch_related("images")
+        if self.request.method == "DELETE":
+            # Removing an already removed listing stays a 404.
+            return queryset.filter(is_active=True)
+        return queryset
 
     def perform_destroy(self, instance):
         instance.is_active = False
@@ -626,3 +663,5 @@ class PetBulkTemplateView(APIView):
             ],
             "pet_listings_template.csv",
         )
+
+

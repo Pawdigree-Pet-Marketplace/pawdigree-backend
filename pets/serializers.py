@@ -119,6 +119,17 @@ class PetSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class AdminPetUpdateSerializer(PetSerializer):
+    """Admin corrections to a listing.
+
+    The business and owner can't be changed, and neither can the review
+    or active state; the admin uses the approve, reject and remove
+    actions for those.
+    """
+
+    business = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
 class PublicPetSerializer(serializers.ModelSerializer):
     """Customer-facing listing: no vendor id and no internal flags."""
 

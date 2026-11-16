@@ -3,7 +3,7 @@ from django.urls import path
 from .views import (
     AdminPendingPetListView,
     AdminPetApproveView,
-    AdminPetDeactivateView,
+    AdminPetDetailView,
     AdminPetListView,
     AdminPetRejectView,
     PetBulkTemplateView,
@@ -23,7 +23,7 @@ urlpatterns = [
     path("public/", PublicPetListView.as_view(), name="pet-public-list"),
     path("public/locations/", PublicPetLocationListView.as_view(), name="pet-public-locations"),
     path("public/<int:pk>/", PublicPetDetailView.as_view(), name="pet-public-detail"),
-    path("admin/<int:pk>/", AdminPetDeactivateView.as_view(), name="pet-admin-detail"),
+    path("admin/<int:pk>/", AdminPetDetailView.as_view(), name="pet-admin-detail"),
     path("admin/pending/", AdminPendingPetListView.as_view(), name="pet-admin-pending"),
     path("admin/<int:pk>/approve/", AdminPetApproveView.as_view(), name="pet-admin-approve"),
     path("admin/<int:pk>/reject/", AdminPetRejectView.as_view(), name="pet-admin-reject"),
