@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from audit.services import record as record_audit
 
@@ -109,3 +109,44 @@ def set_administrator_active(*, administrator, actor, active):
         ),
     )
     return administrator
+
+
+@transaction.atomic
+def set_managed_user_active(*, user_id, actor, active):
+    """Activate or deactivate an eligible customer or vendor account."""
+    if actor.pk == user_id:
+        raise ValidationError('You cannot change your own account status.')
+
+    try:
+        user = (
+            User.objects.select_for_update()
+            .get(
+                pk=user_id,
+                role__in=(User.Role.CUSTOMER, User.Role.VENDOR),
+                is_superuser=False,
+            )
+        )
+    except User.DoesNotExist:
+        raise NotFound('User not found.')
+
+    if user.is_active == active:
+        return user
+
+    previous_status = 'active' if user.is_active else 'deactivated'
+    next_status = 'active' if active else 'deactivated'
+    user.is_active = active
+    user.save(update_fields=['is_active'])
+
+    if not active:
+        revoke_user_tokens(user)
+
+    record_audit(
+        actor=actor,
+        action='user.activated' if active else 'user.deactivated',
+        target=user,
+        details={
+            'from_status': previous_status,
+            'to_status': next_status,
+        },
+    )
+    return user

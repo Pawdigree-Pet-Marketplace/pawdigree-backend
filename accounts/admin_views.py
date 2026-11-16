@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -15,7 +15,7 @@ from .serializers import (
     AdminUserSerializer,
     AdministratorSerializer,
 )
-from .services import set_administrator_active
+from .services import set_administrator_active, set_managed_user_active
 
 User = get_user_model()
 
@@ -106,6 +106,46 @@ class AdminUserListView(generics.ListAPIView):
             )
 
         return queryset.order_by('-date_joined', '-id')
+
+
+class ManagedUserStatusView(generics.GenericAPIView):
+    serializer_class = AdminUserSerializer
+    permission_classes = (IsAuthenticated, IsSystemAdminRoleOnly)
+    active = None
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: AdminUserSerializer,
+            400: OpenApiResponse(
+                description='The requested status change is invalid.'
+            ),
+            401: OpenApiResponse(description='Authentication is required.'),
+            403: OpenApiResponse(
+                description='Only system administrators may use this endpoint.'
+            ),
+            404: OpenApiResponse(
+                description='The user was not found or cannot be managed here.'
+            ),
+        },
+    )
+    def post(self, request, user_id):
+        user = set_managed_user_active(
+            user_id=user_id,
+            actor=request.user,
+            active=self.active,
+        )
+        return Response(self.get_serializer(user).data)
+
+
+@extend_schema(summary='Activate a customer or vendor account')
+class ActivateUserView(ManagedUserStatusView):
+    active = True
+
+
+@extend_schema(summary='Deactivate a customer or vendor account')
+class DeactivateUserView(ManagedUserStatusView):
+    active = False
 
 
 class AdministratorQuerysetMixin:
