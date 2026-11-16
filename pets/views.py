@@ -17,6 +17,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import IsAdmin, IsVendor
@@ -285,9 +286,32 @@ class AdminPetDetailView(generics.RetrieveUpdateDestroyAPIView):
             return queryset.filter(is_active=True)
         return queryset
 
+    def perform_update(self, serializer):
+        # Field names only, never values, so the log holds no personal data.
+        changed = sorted(
+            name
+            for name, value in serializer.validated_data.items()
+            if getattr(serializer.instance, name, None) != value
+        )
+        with transaction.atomic():
+            pet = serializer.save()
+            record_audit(
+                actor=self.request.user,
+                action="pet.admin_updated",
+                target=pet,
+                details={"fields": changed},
+            )
+
     def perform_destroy(self, instance):
-        instance.is_active = False
-        instance.save(update_fields=["is_active", "updated_at"])
+        with transaction.atomic():
+            instance.is_active = False
+            instance.save(update_fields=["is_active", "updated_at"])
+            record_audit(
+                actor=self.request.user,
+                action="pet.admin_removed",
+                target=instance,
+                details={"business": str(instance.business_id)},
+            )
 
 
 @extend_schema(
@@ -510,6 +534,13 @@ class AdminPetApproveView(AdminPetReviewBaseView):
             "reviewed_at", "updated_at",
         ])
 
+        record_audit(
+            actor=request.user,
+            action="pet.approved",
+            target=pet,
+            details={"business": str(pet.business_id)},
+        )
+
         # Notify only if the database change actually committed.
         transaction.on_commit(lambda: notify_listing_approved(pet))
 
@@ -545,6 +576,14 @@ class AdminPetRejectView(AdminPetReviewBaseView):
             "approved", "rejection_reason", "reviewed_by",
             "reviewed_at", "updated_at",
         ])
+
+        # The reason itself stays on the listing; the log only notes the action.
+        record_audit(
+            actor=request.user,
+            action="pet.rejected",
+            target=pet,
+            details={"business": str(pet.business_id)},
+        )
 
         transaction.on_commit(lambda: notify_listing_rejected(pet))
 
