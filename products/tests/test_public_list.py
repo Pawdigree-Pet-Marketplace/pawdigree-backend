@@ -17,7 +17,7 @@ class PublicProductListTests(TestCase):
             password="test-password-123",
             role=User.Role.VENDOR,
         )
-        cls.category = Category.objects.create(name="Pet Toys")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Pet Toys")
         cls.business = Business.objects.create(
             vendor=cls.vendor,
             name="Approved Shop",
@@ -122,7 +122,7 @@ class PublicProductListTests(TestCase):
         self.assertEqual(names, ["Fish Bowl", "Rope Toy"])
 
     def test_filter_by_category(self):
-        other = Category.objects.create(name="Pet Food")
+        other = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Pet Food")
         self.make_product(name="Chew Toy")
         self.make_product(name="Dog Biscuits", category=other)
 
@@ -206,7 +206,7 @@ class PublicProductDetailTests(TestCase):
             password="test-password-123",
             role=User.Role.VENDOR,
         )
-        cls.category = Category.objects.create(name="Pet Beds")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Pet Beds")
         cls.business = Business.objects.create(
             vendor=cls.vendor,
             name="Detail Shop",
@@ -264,7 +264,7 @@ class PublicProductDetailTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_product_in_inactive_category_returns_404(self):
-        inactive = Category.objects.create(name="Retired", is_active=False)
+        inactive = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Retired", is_active=False)
         product = self.make_product(category=inactive)
 
         response = self.client.get(self.detail_url(product))

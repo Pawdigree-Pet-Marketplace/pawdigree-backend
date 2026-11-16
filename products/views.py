@@ -462,7 +462,7 @@ class ProductBulkUploadView(APIView):
     description=(
         "Public CSV template with the required columns and two example "
         "rows. category_id values must come from GET /api/categories/, "
-        "using a merchandise or general category."
+        "using an active merchandise category."
     ),
     responses={(200, "text/csv"): OpenApiTypes.STR},
 )

@@ -36,20 +36,20 @@ class PublicCategoryListTests(APITestCase):
 
         self.assertNotIn("Retired Toys", self.names(response))
 
-    def test_merchandise_kind_includes_general(self):
+    def test_merchandise_kind_returns_only_merchandise(self):
         response = self.client.get(self.url, {"kind": "merchandise"})
 
-        self.assertEqual(self.names(response), ["General Care", "Pet Toys"])
+        self.assertEqual(self.names(response), ["Pet Toys"])
 
-    def test_services_kind_includes_general(self):
+    def test_services_kind_returns_only_services(self):
         response = self.client.get(self.url, {"kind": "services"})
 
-        self.assertEqual(self.names(response), ["General Care", "Grooming"])
+        self.assertEqual(self.names(response), ["Grooming"])
 
-    def test_pets_kind_includes_general(self):
+    def test_pets_kind_returns_only_pets(self):
         response = self.client.get(self.url, {"kind": "pets"})
 
-        self.assertEqual(self.names(response), ["Dogs", "General Care"])
+        self.assertEqual(self.names(response), ["Dogs"])
 
     def test_general_kind_returns_only_general(self):
         response = self.client.get(self.url, {"kind": "general"})

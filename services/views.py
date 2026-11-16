@@ -44,7 +44,7 @@ def public_services():
             business__is_active=True,
             business__verification_status=Business.VerificationStatus.APPROVED,
             category__is_active=True,
-            category__kind__in=(Category.Kind.SERVICES, Category.Kind.GENERAL),
+            category__kind=Category.Kind.SERVICES,
             business__business_categories__category_id=F("category_id"),
             business__business_categories__approval_status=(
                 BusinessCategory.ApprovalStatus.APPROVED

@@ -318,6 +318,24 @@ class CategoryRequestSerializer(serializers.Serializer):
     )
 
     def validate_category_ids(self, categories):
+        business = self.context.get("business")
+        expected_kind_by_business_type = {
+            Business.BusinessType.PET_SALE_ADOPTION: Category.Kind.PETS,
+            Business.BusinessType.PRODUCT_SELLER: Category.Kind.MERCHANDISE,
+            Business.BusinessType.SERVICE_PROVIDER: Category.Kind.SERVICES,
+        }
+        expected_kind = expected_kind_by_business_type.get(
+            getattr(business, "business_type", None)
+        )
+        if expected_kind is None:
+            raise serializers.ValidationError(
+                "Set a supported business type before requesting categories."
+            )
+        if any(category.kind != expected_kind for category in categories):
+            raise serializers.ValidationError(
+                f"Choose only active {expected_kind} categories for this business."
+            )
+
         # Keep each category only once, even if an ID is repeated.
         unique_categories = {}
         for category in categories:

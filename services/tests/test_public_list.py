@@ -74,6 +74,7 @@ class PublicServiceListTests(TestCase):
 
     def approve_category(self, business, category, status_value=None):
         return BusinessCategory.objects.create(
+                           kind=Category.Kind.SERVICES,
             business=business,
             category=category,
             approval_status=(

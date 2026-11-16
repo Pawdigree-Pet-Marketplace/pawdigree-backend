@@ -98,10 +98,11 @@ A fresh database has no categories. Logged in as an admin, create them with
 `pets` or `general`. To change the kind of an existing category, use
 `PATCH /api/categories/<id>/`.
 
-Products accept `merchandise` and `general` categories, and services accept
-`services` and `general`. The frontend reads categories without logging in from
+Products accept only active `merchandise` categories, and services accept only
+active `services` categories. Pet businesses can request only active `pets`
+categories. The frontend reads categories without logging in from
 `GET /api/categories/public/?kind=merchandise` (or `services`, `pets`,
-`general`).
+`general`); a kind filter returns only that kind.
 
 ### Emails
 

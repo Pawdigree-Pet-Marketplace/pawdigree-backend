@@ -50,9 +50,8 @@ rows, more than 200 rows).
 | Merchandise | `category_id`, `name`, `price` | `business_id`, `description`, `stock_quantity` |
 | Services | `category_id`, `name`, `service_type`, `description`, `price`, `duration` | `business_id`, `availability_status` |
 
-`category_id` values come from `GET /api/categories/`. Merchandise accepts
-merchandise or general categories; services accept services or general
-categories.
+`category_id` values come from `GET /api/categories/`. Merchandise requires an
+active merchandise category; services require an active services category.
 
 ## Business rules (agreed with the team)
 

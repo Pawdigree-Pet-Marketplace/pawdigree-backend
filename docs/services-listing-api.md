@@ -22,7 +22,7 @@ All filters can be combined.
 | Parameter | Behavior |
 |---|---|
 | `search` | Case-insensitive match in service name or description |
-| `category` | Active service/general category ID |
+| `category` | Active services category ID |
 | `city_district` | Case-insensitive match in the business city or district |
 | `min_price` | Minimum service price, including the boundary |
 | `max_price` | Maximum service price, including the boundary |

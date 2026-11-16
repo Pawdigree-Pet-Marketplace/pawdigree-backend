@@ -54,9 +54,9 @@ class CategoryDetailView(CategoryQuerysetMixin, generics.RetrieveUpdateDestroyAP
 class PublicCategoryListView(generics.ListAPIView):
     """Active categories for dropdowns, open to everyone.
 
-    ?kind=merchandise|services|pets returns that kind plus general
-    categories, because general ones are valid everywhere. ?kind=general
-    returns only general categories. Without kind, all active categories.
+    ?kind=merchandise|services|pets returns only active categories of that
+    kind. ?kind=general returns only general categories. Without kind, all
+    active categories.
     """
 
     serializer_class = CategorySerializer
@@ -76,7 +76,4 @@ class PublicCategoryListView(generics.ListAPIView):
                 {"kind": f"Choose one of: {', '.join(Category.Kind.values)}."}
             )
 
-        if kind == Category.Kind.GENERAL:
-            return queryset.filter(kind=Category.Kind.GENERAL)
-
-        return queryset.filter(kind__in=(kind, Category.Kind.GENERAL))
+        return queryset.filter(kind=kind)
