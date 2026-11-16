@@ -1,5 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, F, Q
 from rest_framework import serializers
 
@@ -166,3 +167,78 @@ def public_locations():
         .values_list("business__city_district", flat=True)
         .distinct()
     )
+
+REVIEW_STATUSES = ("APPROVED", "PENDING", "REJECTED")
+
+
+def _flag(params, name, errors):
+    raw = params.get(name, "").strip().lower()
+    if not raw:
+        return None
+    if raw in ("true", "1"):
+        return True
+    if raw in ("false", "0"):
+        return False
+    errors[name] = "Use true or false."
+    return None
+
+def _business_id(params, errors):
+    raw = params.get("business", "").strip()
+    if not raw:
+        return None
+    try:
+        return Pet._meta.get_field("business").target_field.to_python(raw)
+    except DjangoValidationError:
+        errors["business"] = "Enter a valid business id."
+        return None
+
+    
+def filter_admin_pets(queryset, params):
+    """Narrow the admin's platform-wide listing. Raises a 400 for bad values."""
+    errors = {}
+
+    search = params.get("search", "").strip()
+    if search:
+        queryset = queryset.filter(
+            Q(name__icontains=search)
+            | Q(breed__icontains=search)
+            | Q(species__icontains=search)
+            | Q(description__icontains=search)
+            | Q(business__name__icontains=search)
+        )
+
+    species = _values(params, "species")
+    if species:
+        match = Q()
+        for value in species:
+            match |= Q(species__iexact=value)
+        queryset = queryset.filter(match)
+
+    listing_type = _choice(params, "listing_type", Pet.ListingType.values, errors)
+    adoption_status = _choice(
+        params, "adoption_status", Pet.AdoptionStatus.values, errors
+    )
+    review_status = _choice(params, "review_status", REVIEW_STATUSES, errors)
+    is_active = _flag(params, "is_active", errors)
+
+    business = _business_id(params, errors)
+
+    if errors:
+        raise serializers.ValidationError(errors)
+
+    if listing_type:
+        queryset = queryset.filter(listing_type=listing_type)
+    if adoption_status:
+        queryset = queryset.filter(adoption_status=adoption_status)
+    if review_status == "APPROVED":
+        queryset = queryset.filter(approved=True)
+    elif review_status == "REJECTED":
+        queryset = queryset.filter(approved=False).exclude(rejection_reason="")
+    elif review_status == "PENDING":
+        queryset = queryset.filter(approved=False, rejection_reason="")
+    if is_active is not None:
+        queryset = queryset.filter(is_active=is_active)
+    if business is not None:
+        queryset = queryset.filter(business_id=business)
+
+    return queryset.order_by("-created_at", "-pet_id")

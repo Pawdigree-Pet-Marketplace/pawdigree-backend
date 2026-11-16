@@ -4,6 +4,7 @@ from .views import (
     AdminPendingPetListView,
     AdminPetApproveView,
     AdminPetDeactivateView,
+    AdminPetListView,
     AdminPetRejectView,
     PetBulkTemplateView,
     PetBulkUploadView,
@@ -28,4 +29,5 @@ urlpatterns = [
     path("admin/<int:pk>/reject/", AdminPetRejectView.as_view(), name="pet-admin-reject"),
     path("<int:pk>/", PetDetailView.as_view(), name="pet-detail"),
     path("<int:pk>/edit/", PetUpdateView.as_view(), name="pet-update"),
+    path("admin/", AdminPetListView.as_view(), name="pet-admin-list"),
 ]

@@ -20,7 +20,12 @@ from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import IsAdmin, IsVendor
 
-from .filters import SORT_OPTIONS, filter_public_pets, public_locations
+from .filters import (
+    SORT_OPTIONS,
+    filter_admin_pets,
+    filter_public_pets,
+    public_locations,
+)
 from .models import Pet, PetImage
 from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
@@ -391,6 +396,47 @@ class AdminPendingPetListView(generics.ListAPIView):
         )
 
 
+@extend_schema(
+    tags=["pets"],
+    summary="List every pet listing (administrators)",
+    description=(
+        "Every listing on the platform, approved or not, active or "
+        "deactivated, newest first. Use it to find listings that break "
+        "platform rules, even after approval."
+    ),
+    parameters=[
+        OpenApiParameter(
+            "search", str,
+            description="Matches name, breed, species, description or business name.",
+        ),
+        OpenApiParameter("species", str, description="One or more, comma separated."),
+        OpenApiParameter("listing_type", str, description="ADOPTION or SALE."),
+        OpenApiParameter(
+            "adoption_status", str, description="AVAILABLE, PENDING or ADOPTED."
+        ),
+        OpenApiParameter(
+            "review_status", str, description="APPROVED, PENDING or REJECTED."
+        ),
+        OpenApiParameter(
+            "is_active", bool, description="false shows only deactivated listings."
+        ),
+        OpenApiParameter("business", str, description="Business id."),
+    ],
+)
+class AdminPetListView(generics.ListAPIView):
+    serializer_class = PetSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = PublicPetPagination
+
+    def get_queryset(self):
+        queryset = (
+            Pet.objects.all()
+            .select_related("business", "vendor")
+            .prefetch_related("images")
+        )
+        return filter_admin_pets(queryset, self.request.query_params)
+
+    
 class AdminPetReviewBaseView(generics.GenericAPIView):
     serializer_class = PetSerializer
     permission_classes = (IsAdmin,)
