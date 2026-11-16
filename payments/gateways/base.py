@@ -40,3 +40,8 @@ class PaymentGateway:
         Raise GatewayError if the request is not genuine.
         """
         raise NotImplementedError
+    
+    def acknowledgement(self, event):
+        """The JSON body to send back to the gateway. Most need nothing."""
+    
+        return {}
