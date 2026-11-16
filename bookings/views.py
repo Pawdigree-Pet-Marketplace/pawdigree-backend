@@ -4,18 +4,46 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from common.permissions import IsCustomer
+from common.permissions import IsCustomer, IsVendor
 from services.views import public_services
 
 from .availability import free_start_times
+from .models import Booking
 from .serializers import (
     BookingCreateSerializer,
     BookingRescheduleSerializer,
     BookingSerializer,
     FreeTimesQuerySerializer,
     FreeTimesSerializer,
+    VendorBookingSerializer,
 )
 from .services import cancel_booking, create_booking, reschedule_booking
+
+
+@extend_schema(
+    tags=["bookings"],
+    summary="List my bookings",
+    description=(
+        "Returns bookings for services owned by the authenticated vendor, "
+        "newest first, including customer identification and booking details."
+    ),
+    responses={200: VendorBookingSerializer(many=True)},
+)
+class VendorBookingListView(generics.ListAPIView):
+    """List all bookings for services owned by the authenticated vendor."""
+
+    serializer_class = VendorBookingSerializer
+    permission_classes = (IsVendor,)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Booking.objects.none()
+
+        return (
+            Booking.objects.filter(service__business__vendor=self.request.user)
+            .select_related("customer", "service", "service__business")
+            .order_by("-created_at", "-booking_id")
+        )
 
 
 @extend_schema(

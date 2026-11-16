@@ -47,6 +47,34 @@ class BookingSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+
+class VendorBookingSerializer(serializers.ModelSerializer):
+    """Booking details vendors need to identify and manage their customers."""
+
+    customer_id = serializers.IntegerField(source="customer.pk", read_only=True)
+    customer_name = serializers.SerializerMethodField()
+    service_name = serializers.CharField(source="service.name", read_only=True)
+
+    class Meta:
+        model = Booking
+        fields = (
+            "booking_id",
+            "customer_id",
+            "customer_name",
+            "service_name",
+            "start_at",
+            "end_at",
+            "status",
+            "notes",
+            "decision_reason",
+            "created_at",
+        )
+        read_only_fields = fields
+
+    def get_customer_name(self, obj) -> str:
+        full_name = obj.customer.get_full_name().strip()
+        return full_name or obj.customer.username
+
 class BookingRescheduleSerializer(serializers.Serializer):
     start_at = serializers.DateTimeField()
 
