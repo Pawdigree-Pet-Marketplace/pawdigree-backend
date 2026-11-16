@@ -100,6 +100,7 @@ INSTALLED_APPS = [
     'cart',
     'payments',
     'bookings',
+    'audit',
 ]
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
