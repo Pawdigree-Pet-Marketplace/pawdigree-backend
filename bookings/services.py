@@ -46,6 +46,54 @@ def _own_booking(customer, booking_id):
         raise NotFound("Booking not found.")
 
 
+def change_booking_status(vendor, booking_id, new_status, decision_reason=""):
+    """Apply an allowed vendor transition to one of their bookings."""
+    with transaction.atomic():
+        try:
+            booking = (
+                Booking.objects.select_for_update(of=("self",))
+                .select_related("service__business")
+                .get(
+                    pk=booking_id,
+                    service__business__vendor=vendor,
+                )
+            )
+        except Booking.DoesNotExist:
+            raise NotFound("Booking not found.")
+
+        if booking.status == Booking.Status.PENDING:
+            if new_status not in (Booking.Status.ACCEPTED, Booking.Status.DECLINED):
+                raise ValidationError(
+                    {"status": "A pending booking can only be accepted or declined."}
+                )
+        elif booking.status == Booking.Status.ACCEPTED:
+            if new_status != Booking.Status.COMPLETED:
+                raise ValidationError(
+                    {"status": "An accepted booking can only be completed."}
+                )
+            if timezone.now() < booking.end_at:
+                raise ValidationError(
+                    {"status": "A booking can only be completed after it has ended."}
+                )
+        else:
+            raise ValidationError(
+                {
+                    "status": (
+                        f"A {booking.get_status_display().lower()} booking "
+                        "can't be changed."
+                    )
+                }
+            )
+
+        booking.status = new_status
+        update_fields = ["status", "updated_at"]
+        if new_status == Booking.Status.DECLINED:
+            booking.decision_reason = decision_reason.strip()
+            update_fields.append("decision_reason")
+        booking.save(update_fields=update_fields)
+        return booking
+
+
 def _require_changeable(booking, action):
     """Only pending or accepted bookings that haven't started can change."""
     if booking.status not in ACTIVE_STATUSES:

@@ -16,8 +16,14 @@ from .serializers import (
     FreeTimesQuerySerializer,
     FreeTimesSerializer,
     VendorBookingSerializer,
+    VendorBookingStatusSerializer,
 )
-from .services import cancel_booking, create_booking, reschedule_booking
+from .services import (
+    cancel_booking,
+    change_booking_status,
+    create_booking,
+    reschedule_booking,
+)
 
 
 @extend_schema(
@@ -44,6 +50,35 @@ class VendorBookingListView(generics.ListAPIView):
             .select_related("customer", "service", "service__business")
             .order_by("-created_at", "-booking_id")
         )
+
+
+@extend_schema(
+    tags=["bookings"],
+    summary="Update the status of my booking",
+    description=(
+        "Vendors can accept or decline a pending booking. Declining requires "
+        "a reason. An accepted booking can be completed after its end time. "
+        "Other status changes are refused."
+    ),
+    request=VendorBookingStatusSerializer,
+    responses={200: VendorBookingSerializer},
+)
+class VendorBookingStatusView(generics.GenericAPIView):
+    """Apply an allowed status transition to one of the vendor's bookings."""
+
+    serializer_class = VendorBookingStatusSerializer
+    permission_classes = (IsVendor,)
+
+    def patch(self, request, booking_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        booking = change_booking_status(
+            request.user,
+            booking_id,
+            serializer.validated_data["status"],
+            serializer.validated_data.get("decision_reason", ""),
+        )
+        return Response(VendorBookingSerializer(booking).data)
 
 
 @extend_schema(

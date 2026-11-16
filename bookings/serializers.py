@@ -75,6 +75,32 @@ class VendorBookingSerializer(serializers.ModelSerializer):
         full_name = obj.customer.get_full_name().strip()
         return full_name or obj.customer.username
 
+
+class VendorBookingStatusSerializer(serializers.Serializer):
+    """Validate a vendor's requested booking status transition."""
+
+    status = serializers.ChoiceField(
+        choices=(
+            (Booking.Status.ACCEPTED, "Accepted"),
+            (Booking.Status.DECLINED, "Declined"),
+            (Booking.Status.COMPLETED, "Completed"),
+        )
+    )
+    decision_reason = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=True
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs["status"] == Booking.Status.DECLINED
+            and not attrs.get("decision_reason", "").strip()
+        ):
+            raise serializers.ValidationError(
+                {"decision_reason": "A reason is required when declining a booking."}
+            )
+        return attrs
+
+
 class BookingRescheduleSerializer(serializers.Serializer):
     start_at = serializers.DateTimeField()
 
