@@ -4,7 +4,7 @@ from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from common.permissions import IsCustomer, IsVendor
+from common.permissions import IsCustomer, IsVendor, IsAdmin, IsSystemAdmin
 
 from .models import Order, VendorOrder
 from .serializers import (
@@ -195,3 +195,25 @@ class VendorOrderStatusView(generics.GenericAPIView):
             .get(pk=vendor_order.pk)
         )
         return Response(VendorOrderDetailSerializer(vendor_order).data)
+    
+
+class AdminVendorOrderStatusView(VendorOrderStatusView):
+    """Let an administrator move any vendor order to its next status."""
+
+    permission_classes = (IsAdmin, IsSystemAdmin)
+
+    @extend_schema(
+        tags=["orders"],
+        summary="Change the status of any vendor order (admin)",
+        description=(
+            "Same transitions as the vendor endpoint: PAID → PROCESSING → "
+            "SHIPPED → DELIVERED, and cancel while PAID or PROCESSING "
+            "(stock is restored). Admins can update any vendor order. "
+            "Changes are recorded in the audit log. A cancelled PAID order "
+            "must be refunded manually."
+        ),
+        request=VendorOrderStatusSerializer,
+        responses={200: VendorOrderDetailSerializer},
+    )
+    def patch(self, request, pk):
+        return super().patch(request, pk)
