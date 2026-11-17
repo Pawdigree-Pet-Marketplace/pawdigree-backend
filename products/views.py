@@ -397,6 +397,9 @@ BULK_REQUIRED_COLUMNS = ("category_id", "name", "price")
             name="ProductBulkUploadResult",
             fields={
                 "created": serializers.IntegerField(),
+                "created_ids": serializers.ListField(
+                    child=serializers.IntegerField()
+                ),
                 "failed": serializers.ListField(child=serializers.DictField()),
             },
         ),
@@ -450,10 +453,18 @@ class ProductBulkUploadView(APIView):
             else:
                 failed.append({"row": row_number, "errors": serializer.errors})
 
+        created_ids = []
         for serializer in valid_serializers:
             serializer.save()
+            created_ids.append(serializer.instance.pk)
 
-        return Response({"created": len(valid_serializers), "failed": failed})
+        return Response(
+            {
+                "created": len(valid_serializers),
+                "created_ids": created_ids,
+                "failed": failed,
+            }
+        )
 
 
 @extend_schema(
