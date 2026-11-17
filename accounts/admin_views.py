@@ -58,18 +58,40 @@ class AdminUserPagination(PageNumberPagination):
     description=(
         'SYSTEM_ADMIN only. Lists CUSTOMER, VENDOR and regular ADMIN accounts. '
         'SYSTEM_ADMIN and superuser accounts are excluded. Summary counts cover '
-        'the complete eligible population, independently of filters and page.'
+        'the complete eligible population, independently of filters and page. '
+        'Each result contains id, first_name, last_name, email, role, status '
+        'and date_joined; sensitive authentication fields are not returned.'
     ),
     parameters=[
         OpenApiParameter('search', str, description='Search username, name or email.'),
-        OpenApiParameter('role', str, description='CUSTOMER, VENDOR or ADMIN.'),
         OpenApiParameter(
-            'status', str, description='active, deactivated or suspended.'
+            'role',
+            str,
+            enum=('CUSTOMER', 'VENDOR', 'ADMIN'),
+            description='Filter by eligible account role.',
         ),
-        OpenApiParameter('page', int, description='Page number.'),
-        OpenApiParameter('page_size', int, description='Page size, maximum 50.'),
+        OpenApiParameter(
+            'status',
+            str,
+            enum=('active', 'deactivated', 'suspended'),
+            description='Filter by account status.',
+        ),
+        OpenApiParameter(
+            'page', int, description='Page number, starting at 1.'
+        ),
+        OpenApiParameter(
+            'page_size', int, description='Page size, default 20 and maximum 50.'
+        ),
     ],
-    responses={200: AdminUserListResponseSerializer},
+    responses={
+        200: AdminUserListResponseSerializer,
+        400: OpenApiResponse(description='Invalid role or status filter.'),
+        401: OpenApiResponse(description='Authentication is required.'),
+        403: OpenApiResponse(
+            description='Only system administrators may use this endpoint.'
+        ),
+        404: OpenApiResponse(description='The requested page does not exist.'),
+    },
 )
 class AdminUserListView(generics.ListAPIView):
     serializer_class = AdminUserSerializer
@@ -149,18 +171,36 @@ class ManagedUserStatusView(generics.GenericAPIView):
         return Response(self.get_serializer(user).data)
 
 
-@extend_schema(summary='Activate a customer or vendor account')
+@extend_schema(
+    summary='Activate a customer or vendor account',
+    description=(
+        'SYSTEM_ADMIN only. Changes an eligible CUSTOMER or VENDOR account to '
+        'active. Repeating activation on an already active account is a no-op.'
+    ),
+)
 class ActivateUserView(ManagedUserStatusView):
     active = True
 
 
-@extend_schema(summary='Deactivate a customer or vendor account')
+@extend_schema(
+    summary='Deactivate a customer or vendor account',
+    description=(
+        'SYSTEM_ADMIN only. Changes an eligible CUSTOMER or VENDOR account to '
+        'deactivated and revokes its outstanding refresh tokens. Repeating '
+        'deactivation is a no-op.'
+    ),
+)
 class DeactivateUserView(ManagedUserStatusView):
     active = False
 
 
 @extend_schema(
     summary='Suspend a customer or vendor account',
+    description=(
+        'SYSTEM_ADMIN only. Changes an eligible CUSTOMER or VENDOR account to '
+        'suspended, revokes outstanding refresh tokens and records the trimmed '
+        'reason in the audit log. A repeated suspension is a no-op.'
+    ),
     request=SuspendUserSerializer,
     responses={
         200: AdminUserSerializer,
