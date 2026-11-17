@@ -12,6 +12,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from audit.services import record as record_audit
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
 from common.permissions import IsAdmin, IsVendor
@@ -356,6 +357,13 @@ class AdminServiceApproveView(AdminServiceReviewBaseView):
             ]
         )
 
+        record_audit(
+            actor=request.user,
+            action="service.approved",
+            target=service,
+            details={"business": str(service.business_id)},
+        )
+
         # Notify only if the database change actually committed.
         transaction.on_commit(lambda: notify_listing_approved(service))
 
@@ -394,6 +402,14 @@ class AdminServiceRejectView(AdminServiceReviewBaseView):
                 "reviewed_at",
                 "updated_at",
             ]
+        )
+
+        # The reason itself stays on the service; the log only notes the action.
+        record_audit(
+            actor=request.user,
+            action="service.rejected",
+            target=service,
+            details={"business": str(service.business_id)},
         )
 
         transaction.on_commit(lambda: notify_listing_rejected(service))
