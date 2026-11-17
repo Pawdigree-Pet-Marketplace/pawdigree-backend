@@ -144,6 +144,26 @@ class AdminPetUpdateSerializer(AdminPetSerializer):
     business = serializers.PrimaryKeyRelatedField(read_only=True)
 
 
+class AdminPetCreateSerializer(PetSerializer):
+    """Create a listing on behalf of any approved pet sale business."""
+
+    def validate_business(self, value):
+        if (
+            not value.is_active
+            or value.verification_status != Business.VerificationStatus.APPROVED
+        ):
+            raise serializers.ValidationError(
+                "The business must be approved and active."
+            )
+
+        if value.business_type != Business.BusinessType.PET_SALE_ADOPTION:
+            raise serializers.ValidationError(
+                "Only Pet sale and adoption businesses can have pet listings."
+            )
+
+        return value
+
+
 class PublicPetSerializer(serializers.ModelSerializer):
     """Customer-facing listing: no vendor id and no internal flags."""
 

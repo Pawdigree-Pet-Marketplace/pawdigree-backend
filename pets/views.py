@@ -31,6 +31,7 @@ from .filters import (
 from .models import Pet, PetImage
 from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
+    AdminPetCreateSerializer,
     AdminPetSerializer,
     AdminPetUpdateSerializer,
     PetImageEditSerializer,
@@ -485,10 +486,78 @@ class AdminPendingPetListView(generics.ListAPIView):
         OpenApiParameter("business", str, description="Business id."),
     ],
 )
-class AdminPetListView(generics.ListAPIView):
+class AdminPetListView(generics.ListCreateAPIView):
     serializer_class = AdminPetSerializer
     permission_classes = (IsAdmin,)
     pagination_class = PublicPetPagination
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
+    @extend_schema(
+        tags=["pets"],
+        summary="Create a pet listing for a business (administrators)",
+        request=AdminPetCreateSerializer,
+        responses={201: AdminPetSerializer},
+        description=(
+            "Creates an approved listing under any approved, active Pet "
+            "sale and adoption business. Photos can be sent in the same "
+            "request as images files."
+        ),
+    )
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        uploaded_images = request.FILES.getlist("images")
+
+        if len(uploaded_images) > MAX_IMAGES_PER_LISTING:
+            raise serializers.ValidationError({
+                "images": (
+                    f"You can upload at most {MAX_IMAGES_PER_LISTING} images."
+                )
+            })
+
+        serializer = AdminPetCreateSerializer(
+            data=request.data,
+            context=self.get_serializer_context(),
+        )
+        serializer.is_valid(raise_exception=True)
+
+        image_field = PetImage._meta.get_field("image")
+        for uploaded_image in uploaded_images:
+            try:
+                image_field.run_validators(uploaded_image)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(
+                    {"images": exc.messages}
+                ) from exc
+
+        business = serializer.validated_data["business"]
+        pet = serializer.save(
+            vendor=business.vendor,
+            approved=True,
+            reviewed_at=timezone.now(),
+        )
+
+        for position, uploaded_image in enumerate(uploaded_images):
+            PetImage.objects.create(
+                pet=pet,
+                image=uploaded_image,
+                is_primary=(position == 0),
+                position=position,
+            )
+
+        record_audit(
+            actor=request.user,
+            action="pet.admin_created",
+            target=pet,
+            details={"business": str(pet.business_id)},
+        )
+
+        return Response(
+            AdminPetSerializer(
+                pet, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
 
     def get_queryset(self):
         queryset = (
