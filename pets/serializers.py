@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from businesses.models import Business
+from common.validators import validate_description_length
 
 from .models import Pet, PetImage
 
@@ -63,6 +64,10 @@ class PetSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    def validate_description(self, value):
+        validate_description_length(value)
+        return value
 
     def validate_business(self, value):
         request = self.context.get("request")
