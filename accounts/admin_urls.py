@@ -1,13 +1,37 @@
 from django.urls import path
 
 from .admin_views import (
+    AdminUserListView,
+    ActivateUserView,
     ActivateAdministratorView,
     AdministratorDetailView,
     AdministratorListCreateView,
     DeactivateAdministratorView,
+    DeactivateUserView,
+    SuspendUserView,
 )
 
 urlpatterns = [
+    path(
+        'users/',
+        AdminUserListView.as_view(),
+        name='admin-user-list',
+    ),
+    path(
+        'users/<int:user_id>/activate/',
+        ActivateUserView.as_view(),
+        name='admin-user-activate',
+    ),
+    path(
+        'users/<int:user_id>/deactivate/',
+        DeactivateUserView.as_view(),
+        name='admin-user-deactivate',
+    ),
+    path(
+        'users/<int:user_id>/suspend/',
+        SuspendUserView.as_view(),
+        name='admin-user-suspend',
+    ),
     path(
         'administrators/',
         AdministratorListCreateView.as_view(),

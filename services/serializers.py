@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
+from common.validators import validate_description_length
 
 from .models import AvailabilitySlot, Service
 
@@ -170,6 +171,10 @@ class ServiceSerializer(serializers.ModelSerializer):
             validated_data.get("category"),
         )
         return super().create(validated_data)
+
+    def validate_description(self, value):
+        validate_description_length(value)
+        return value
 
     # Changing any of these sends the service back to admin review.
     REVIEWED_FIELDS = ("name", "service_type", "description", "category")

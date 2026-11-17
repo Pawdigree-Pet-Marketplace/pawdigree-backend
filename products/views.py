@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
+from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor
@@ -317,6 +318,13 @@ class AdminProductApproveView(AdminProductReviewBaseView):
             ]
         )
 
+        record_audit(
+            actor=request.user,
+            action="product.approved",
+            target=product,
+            details={"business": str(product.business_id)},
+        )
+
         # Notify only if the database change actually committed.
         transaction.on_commit(lambda: notify_listing_approved(product))
 
@@ -355,6 +363,14 @@ class AdminProductRejectView(AdminProductReviewBaseView):
                 "reviewed_at",
                 "updated_at",
             ]
+        )
+
+        # The reason itself stays on the product; the log only notes the action.
+        record_audit(
+            actor=request.user,
+            action="product.rejected",
+            target=product,
+            details={"business": str(product.business_id)},
         )
 
         transaction.on_commit(lambda: notify_listing_rejected(product))
@@ -397,6 +413,9 @@ BULK_REQUIRED_COLUMNS = ("category_id", "name", "price")
             name="ProductBulkUploadResult",
             fields={
                 "created": serializers.IntegerField(),
+                "created_ids": serializers.ListField(
+                    child=serializers.IntegerField()
+                ),
                 "failed": serializers.ListField(child=serializers.DictField()),
             },
         ),
@@ -450,10 +469,18 @@ class ProductBulkUploadView(APIView):
             else:
                 failed.append({"row": row_number, "errors": serializer.errors})
 
+        created_ids = []
         for serializer in valid_serializers:
             serializer.save()
+            created_ids.append(serializer.instance.pk)
 
-        return Response({"created": len(valid_serializers), "failed": failed})
+        return Response(
+            {
+                "created": len(valid_serializers),
+                "created_ids": created_ids,
+                "failed": failed,
+            }
+        )
 
 
 @extend_schema(

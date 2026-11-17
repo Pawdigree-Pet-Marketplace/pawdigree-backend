@@ -528,3 +528,45 @@ class AdministratorSerializer(PhoneValidationMixin, serializers.ModelSerializer)
             'is_active',
             'date_joined',
         )
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Safe account summary for system-admin user management."""
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'role',
+            'status',
+            'date_joined',
+        )
+        read_only_fields = fields
+
+
+
+class SuspendUserSerializer(serializers.Serializer):
+    reason = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+        max_length=1000,
+    )
+
+
+class AdminUserSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    active = serializers.IntegerField()
+    deactivated = serializers.IntegerField()
+    suspended = serializers.IntegerField()
+
+
+class AdminUserListResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    summary = AdminUserSummarySerializer()
+    results = AdminUserSerializer(many=True)

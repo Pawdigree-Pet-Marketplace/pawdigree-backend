@@ -12,6 +12,11 @@ class UserManager(DjangoUserManager):
 
 class User(AbstractUser):
 
+    class AccountStatus(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        DEACTIVATED = 'deactivated', 'Deactivated'
+        SUSPENDED = 'suspended', 'Suspended'
+
     class Role(models.TextChoices):
         CUSTOMER = 'CUSTOMER', 'Customer'
         VENDOR = 'VENDOR', 'Vendor'
@@ -22,6 +27,11 @@ class User(AbstractUser):
         max_length=20,
         choices=Role.choices,
         default=Role.CUSTOMER,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=AccountStatus.choices,
+        default=AccountStatus.ACTIVE,
     )
     approved = models.BooleanField(default=False)
 
