@@ -4,7 +4,6 @@ from rest_framework import status
 
 from audit.models import AuditLog
 from pets.models import Pet
-from pets.tests.test_views import make_test_image
 
 URL = "/api/pets/admin/"
 
@@ -66,7 +65,7 @@ def test_admin_create_is_recorded_in_the_audit_log(
 
 @pytest.mark.django_db
 def test_admin_can_create_a_pet_with_multiple_images(
-    api_client, admin, vendor, valid_pet_data
+    api_client, admin, vendor, valid_pet_data, make_image
 ):
     api_client.force_authenticate(admin)
 
@@ -75,8 +74,8 @@ def test_admin_can_create_a_pet_with_multiple_images(
         {
             **valid_pet_data,
             "images": [
-                make_test_image("buddy-1.png"),
-                make_test_image("buddy-2.png"),
+                make_image("buddy-1.png"),
+                make_image("buddy-2.png"),
             ],
         },
         format="multipart",
