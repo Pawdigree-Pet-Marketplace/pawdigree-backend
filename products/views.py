@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
+from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor
@@ -317,6 +318,13 @@ class AdminProductApproveView(AdminProductReviewBaseView):
             ]
         )
 
+        record_audit(
+            actor=request.user,
+            action="product.approved",
+            target=product,
+            details={"business": str(product.business_id)},
+        )
+
         # Notify only if the database change actually committed.
         transaction.on_commit(lambda: notify_listing_approved(product))
 
@@ -355,6 +363,14 @@ class AdminProductRejectView(AdminProductReviewBaseView):
                 "reviewed_at",
                 "updated_at",
             ]
+        )
+
+        # The reason itself stays on the product; the log only notes the action.
+        record_audit(
+            actor=request.user,
+            action="product.rejected",
+            target=product,
+            details={"business": str(product.business_id)},
         )
 
         transaction.on_commit(lambda: notify_listing_rejected(product))
