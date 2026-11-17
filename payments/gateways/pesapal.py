@@ -1,6 +1,7 @@
 import json
 import logging
 from decimal import Decimal, InvalidOperation
+import hashlib
 
 import requests
 from django.conf import settings
@@ -61,7 +62,11 @@ class PesapalGateway(PaymentGateway):
         return data
 
     def _token(self):
-        token = cache.get(TOKEN_CACHE_KEY)
+        cache_key = (
+            f"{TOKEN_CACHE_KEY}:"
+            f"{hashlib.sha256(self.base_url.encode()).hexdigest()[:16]}"
+        )
+        token = cache.get(cache_key)
         if token:
             return token
 
@@ -77,7 +82,7 @@ class PesapalGateway(PaymentGateway):
         if not token:
             raise GatewayError("Pesapal did not return a token.")
 
-        cache.set(TOKEN_CACHE_KEY, token, TOKEN_CACHE_SECONDS)
+        cache.set(cache_key, token, TOKEN_CACHE_SECONDS)
         return token
 
     def register_ipn(self, url):
