@@ -627,6 +627,9 @@ BULK_REQUIRED_COLUMNS = ("listing_type", "name", "species", "age", "gender", "si
             name="PetBulkUploadResult",
             fields={
                 "created": serializers.IntegerField(),
+                "created_ids": serializers.ListField(
+                    child=serializers.IntegerField()
+                ),
                 "failed": serializers.ListField(child=serializers.DictField()),
             },
         ),
@@ -679,10 +682,18 @@ class PetBulkUploadView(APIView):
             else:
                 failed.append({"row": row_number, "errors": serializer.errors})
 
+        created_ids = []
         for serializer in valid_serializers:
             serializer.save(vendor=request.user)
+            created_ids.append(serializer.instance.pk)
 
-        return Response({"created": len(valid_serializers), "failed": failed})
+        return Response(
+            {
+                "created": len(valid_serializers),
+                "created_ids": created_ids,
+                "failed": failed,
+            }
+        )
 
 @extend_schema(
     tags=["pets"],
