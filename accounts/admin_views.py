@@ -14,8 +14,13 @@ from .serializers import (
     AdminUserListResponseSerializer,
     AdminUserSerializer,
     AdministratorSerializer,
+    SuspendUserSerializer,
 )
-from .services import set_administrator_active, set_managed_user_active
+from .services import (
+    set_administrator_active,
+    set_managed_user_active,
+    set_managed_user_status,
+)
 
 User = get_user_model()
 
@@ -58,7 +63,9 @@ class AdminUserPagination(PageNumberPagination):
     parameters=[
         OpenApiParameter('search', str, description='Search username, name or email.'),
         OpenApiParameter('role', str, description='CUSTOMER, VENDOR or ADMIN.'),
-        OpenApiParameter('status', str, description='active or deactivated.'),
+        OpenApiParameter(
+            'status', str, description='active, deactivated or suspended.'
+        ),
         OpenApiParameter('page', int, description='Page number.'),
         OpenApiParameter('page_size', int, description='Page size, maximum 50.'),
     ],
@@ -76,10 +83,14 @@ class AdminUserListView(generics.ListAPIView):
         )
         summary = queryset.aggregate(
             total=Count('pk'),
-            active=Count('pk', filter=Q(is_active=True)),
-            deactivated=Count('pk', filter=Q(is_active=False)),
+            active=Count('pk', filter=Q(status=User.AccountStatus.ACTIVE)),
+            deactivated=Count(
+                'pk', filter=Q(status=User.AccountStatus.DEACTIVATED)
+            ),
+            suspended=Count(
+                'pk', filter=Q(status=User.AccountStatus.SUSPENDED)
+            ),
         )
-        summary['suspended'] = 0
         self.paginator.summary = summary
 
         params = self.request.query_params
@@ -90,11 +101,11 @@ class AdminUserListView(generics.ListAPIView):
             queryset = queryset.filter(role=role)
 
         account_status = params.get('status', '').strip()
-        status_filters = {'active': True, 'deactivated': False}
+        status_filters = {value for value, _label in User.AccountStatus.choices}
         if account_status and account_status not in status_filters:
             raise ValidationError({'status': 'Not a valid account status.'})
         if account_status:
-            queryset = queryset.filter(is_active=status_filters[account_status])
+            queryset = queryset.filter(status=account_status)
 
         search = params.get('search', '').strip()
         if search:
@@ -146,6 +157,37 @@ class ActivateUserView(ManagedUserStatusView):
 @extend_schema(summary='Deactivate a customer or vendor account')
 class DeactivateUserView(ManagedUserStatusView):
     active = False
+
+
+@extend_schema(
+    summary='Suspend a customer or vendor account',
+    request=SuspendUserSerializer,
+    responses={
+        200: AdminUserSerializer,
+        400: OpenApiResponse(description='A non-empty reason is required.'),
+        401: OpenApiResponse(description='Authentication is required.'),
+        403: OpenApiResponse(
+            description='Only system administrators may use this endpoint.'
+        ),
+        404: OpenApiResponse(
+            description='The user was not found or cannot be managed here.'
+        ),
+    },
+)
+class SuspendUserView(generics.GenericAPIView):
+    serializer_class = SuspendUserSerializer
+    permission_classes = (IsAuthenticated, IsSystemAdminRoleOnly)
+
+    def post(self, request, user_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = set_managed_user_status(
+            user_id=user_id,
+            actor=request.user,
+            status=User.AccountStatus.SUSPENDED,
+            reason=serializer.validated_data['reason'],
+        )
+        return Response(AdminUserSerializer(user).data)
 
 
 class AdministratorQuerysetMixin:

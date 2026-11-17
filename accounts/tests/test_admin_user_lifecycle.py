@@ -26,7 +26,10 @@ class AdminUserLifecycleTests(TestCase):
         self.system_admin = make_user('lifecycle_sysadmin', User.Role.SYSTEM_ADMIN)
         self.customer = make_user('lifecycle_customer', User.Role.CUSTOMER)
         self.vendor = make_user(
-            'lifecycle_vendor', User.Role.VENDOR, is_active=False
+            'lifecycle_vendor',
+            User.Role.VENDOR,
+            is_active=False,
+            status=User.AccountStatus.DEACTIVATED,
         )
         self.client.force_authenticate(user=self.system_admin)
 
@@ -83,6 +86,76 @@ class AdminUserLifecycleTests(TestCase):
             ).count(),
             1,
         )
+
+    def test_suspension_requires_a_non_empty_trimmed_reason(self):
+        url = reverse('admin-user-suspend', args=[self.customer.pk])
+        for reason in (None, '   '):
+            response = self.client.post(
+                url,
+                {} if reason is None else {'reason': reason},
+                format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            url,
+            {'reason': '  Repeated policy violations  '},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'suspended')
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.is_active)
+        self.assertEqual(self.customer.status, User.AccountStatus.SUSPENDED)
+        event = AuditLog.objects.get(action='user.suspended')
+        self.assertEqual(event.target_id, str(self.customer.pk))
+        self.assertEqual(
+            event.details,
+            {
+                'from_status': 'active',
+                'to_status': 'suspended',
+                'reason': 'Repeated policy violations',
+            },
+        )
+
+    def test_reactivation_preserves_suspension_audit_history(self):
+        suspend_url = reverse('admin-user-suspend', args=[self.customer.pk])
+        activate_url = self.action_url(self.customer, 'activate')
+        self.client.post(
+            suspend_url, {'reason': 'Keep this history'}, format='json'
+        )
+        suspension = AuditLog.objects.get(action='user.suspended')
+
+        response = self.client.post(activate_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.status, User.AccountStatus.ACTIVE)
+        self.assertTrue(self.customer.is_active)
+        suspension.refresh_from_db()
+        self.assertEqual(
+            suspension.details['reason'], 'Keep this history'
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action='user.activated', target_id=str(self.customer.pk)
+            ).exists()
+        )
+
+    def test_suspension_revokes_refresh_tokens(self):
+        refresh = SessionRefreshToken.for_user(self.customer)
+        response = self.client.post(
+            reverse('admin-user-suspend', args=[self.customer.pk]),
+            {'reason': 'Policy violation'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        refreshed = APIClient().post(
+            reverse('token-refresh'), {'refresh': str(refresh)}, format='json'
+        )
+        self.assertEqual(refreshed.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_only_system_admins_can_use_user_lifecycle_endpoints(self):
         url = self.action_url(self.customer, 'deactivate')

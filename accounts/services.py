@@ -74,7 +74,15 @@ def set_administrator_active(*, administrator, actor, active):
     prevent lock-out live here so no endpoint can bypass them. A repeat
     request that changes nothing is not recorded.
     """
-    if administrator.is_active == active:
+    target_status = (
+        User.AccountStatus.ACTIVE
+        if active
+        else User.AccountStatus.DEACTIVATED
+    )
+    if (
+        administrator.is_active == active
+        and administrator.status == target_status
+    ):
         return administrator
 
     if not active:
@@ -94,7 +102,8 @@ def set_administrator_active(*, administrator, actor, active):
                 )
 
     administrator.is_active = active
-    administrator.save(update_fields=['is_active'])
+    administrator.status = target_status
+    administrator.save(update_fields=['is_active', 'status'])
 
     if not active:
         revoke_user_tokens(administrator)
@@ -114,6 +123,20 @@ def set_administrator_active(*, administrator, actor, active):
 @transaction.atomic
 def set_managed_user_active(*, user_id, actor, active):
     """Activate or deactivate an eligible customer or vendor account."""
+    return set_managed_user_status(
+        user_id=user_id,
+        actor=actor,
+        status=(
+            User.AccountStatus.ACTIVE
+            if active
+            else User.AccountStatus.DEACTIVATED
+        ),
+    )
+
+
+@transaction.atomic
+def set_managed_user_status(*, user_id, actor, status, reason=None):
+    """Set an eligible customer or vendor's account status atomically."""
     if actor.pk == user_id:
         raise ValidationError('You cannot change your own account status.')
 
@@ -129,24 +152,30 @@ def set_managed_user_active(*, user_id, actor, active):
     except User.DoesNotExist:
         raise NotFound('User not found.')
 
-    if user.is_active == active:
+    active = status == User.AccountStatus.ACTIVE
+    if user.status == status and user.is_active == active:
         return user
 
-    previous_status = 'active' if user.is_active else 'deactivated'
-    next_status = 'active' if active else 'deactivated'
+    previous_status = user.status
+    user.status = status
     user.is_active = active
-    user.save(update_fields=['is_active'])
+    user.save(update_fields=['status', 'is_active'])
 
     if not active:
         revoke_user_tokens(user)
 
     record_audit(
         actor=actor,
-        action='user.activated' if active else 'user.deactivated',
+        action={
+            User.AccountStatus.ACTIVE: 'user.activated',
+            User.AccountStatus.DEACTIVATED: 'user.deactivated',
+            User.AccountStatus.SUSPENDED: 'user.suspended',
+        }[status],
         target=user,
         details={
             'from_status': previous_status,
-            'to_status': next_status,
+            'to_status': status,
+            **({'reason': reason} if reason is not None else {}),
         },
     )
     return user

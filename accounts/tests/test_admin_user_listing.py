@@ -103,17 +103,22 @@ class AdminUserListingTests(TestCase):
         )
 
     def test_role_and_status_filters_can_be_combined(self):
-        target = make_user('filter_target', User.Role.VENDOR, is_active=False)
+        target = make_user(
+            'filter_target',
+            User.Role.VENDOR,
+            is_active=False,
+            status=User.AccountStatus.SUSPENDED,
+        )
         make_user('filter_active_vendor', User.Role.VENDOR)
         make_user('filter_inactive_customer', User.Role.CUSTOMER, is_active=False)
 
-        response = self.list_as_system_admin(role='VENDOR', status='deactivated')
+        response = self.list_as_system_admin(role='VENDOR', status='suspended')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             [row['id'] for row in response.data['results']], [target.pk]
         )
-        self.assertEqual(response.data['results'][0]['status'], 'deactivated')
+        self.assertEqual(response.data['results'][0]['status'], 'suspended')
 
     def test_invalid_role_and_status_filters_return_400(self):
         self.assertEqual(
@@ -121,13 +126,18 @@ class AdminUserListingTests(TestCase):
             status.HTTP_400_BAD_REQUEST,
         )
         self.assertEqual(
-            self.list_as_system_admin(status='suspended').status_code,
+            self.list_as_system_admin(status='unknown').status_code,
             status.HTTP_400_BAD_REQUEST,
         )
 
     def test_pagination_and_summary_cover_the_entire_eligible_population(self):
         make_user('summary_active_customer', User.Role.CUSTOMER)
-        make_user('summary_inactive_vendor', User.Role.VENDOR, is_active=False)
+        make_user(
+            'summary_suspended_vendor',
+            User.Role.VENDOR,
+            is_active=False,
+            status=User.AccountStatus.SUSPENDED,
+        )
         make_user('summary_admin', User.Role.ADMIN, is_staff=True)
         make_user('summary_hidden_sysadmin', User.Role.SYSTEM_ADMIN)
         make_user(
@@ -149,8 +159,8 @@ class AdminUserListingTests(TestCase):
             {
                 'total': 3,
                 'active': 2,
-                'deactivated': 1,
-                'suspended': 0,
+                'deactivated': 0,
+                'suspended': 1,
             },
         )
         self.assertIsNone(response.data['next'])

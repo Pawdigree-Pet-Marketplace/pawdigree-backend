@@ -8,6 +8,7 @@ from .admin_views import (
     AdministratorListCreateView,
     DeactivateAdministratorView,
     DeactivateUserView,
+    SuspendUserView,
 )
 
 urlpatterns = [
@@ -25,6 +26,11 @@ urlpatterns = [
         'users/<int:user_id>/deactivate/',
         DeactivateUserView.as_view(),
         name='admin-user-deactivate',
+    ),
+    path(
+        'users/<int:user_id>/suspend/',
+        SuspendUserView.as_view(),
+        name='admin-user-suspend',
     ),
     path(
         'administrators/',
