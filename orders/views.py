@@ -217,3 +217,35 @@ class AdminVendorOrderStatusView(VendorOrderStatusView):
     )
     def patch(self, request, pk):
         return super().patch(request, pk)
+    
+    
+class AdminVendorOrderListView(generics.ListAPIView):
+    serializer_class = VendorOrderDetailSerializer
+    permission_classes = (IsAdmin, IsSystemAdmin)
+    
+    @extend_schema(
+            tags=["orders"],
+            summary="List pending orders (admin)",
+            description=(
+                "Paid orders that contain the vendor's own products, newest "
+                "first, with the delivery details needed to ship them. Orders "
+                "that are unpaid or expired are not shown."
+            ),
+    )
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return VendorOrder.objects.none()
+
+        queryset = (
+            VendorOrder.objects.filter(order__status=Order.Status.PAID)
+            .select_related("order", "business")
+            .prefetch_related("items__product")
+            .order_by("-created_at")
+        )
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            if status_filter not in VendorOrder.Status.values:
+                raise ValidationError({"status": "Not a valid order status."})
+            queryset = queryset.filter(status=status_filter)
+        return queryset

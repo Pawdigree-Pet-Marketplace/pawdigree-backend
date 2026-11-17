@@ -2,6 +2,8 @@
 from django.urls import path
 
 from .views import (
+    AdminVendorOrderStatusView,
+    AdminVendorOrderListView,
     CheckoutView,
     CustomerOrderDetailView,
     CustomerOrderListView,
@@ -23,4 +25,6 @@ urlpatterns = [
         VendorOrderStatusView.as_view(),
         name="vendor-order-status",
     ),
+    path("admin/vendor-orders/", AdminVendorOrderListView.as_view(), name="admin-vendor-order-list"),
+    path("admin/vendor-orders/<int:pk>/status/", AdminVendorOrderStatusView.as_view(), name="admin-vendor-order-status"),
 ]
