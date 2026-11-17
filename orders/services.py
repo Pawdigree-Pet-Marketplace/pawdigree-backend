@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from accounts.models import User
+from audit.services import record as record_audit
 from cart.models import Cart, CartItem
 from cart.services import product_is_visible
 from common.permissions import ADMIN_ROLES
@@ -304,6 +305,22 @@ def change_status(vendor_order_id, new_status, actor):
                 )
             )
 
+        previous_status = vendor_order.status
         vendor_order.status = new_status
         vendor_order.save(update_fields=["status", "updated_at"])
+
+        # Vendors updating their own orders is routine and stays out of the
+        # log; changes made by an administrator are recorded.
+        if actor.role in ADMIN_ROLES:
+            record_audit(
+                actor=actor,
+                action="order.status_changed",
+                target=vendor_order,
+                details={
+                    "from_status": previous_status,
+                    "to_status": new_status,
+                    "order": str(vendor_order.order_id),
+                },
+            )
+
         return vendor_order
