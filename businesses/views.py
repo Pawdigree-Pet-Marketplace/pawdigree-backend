@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 
+from audit.services import record as record_audit
 from common.permissions import IsAdmin, IsVendor
 from .services import sync_vendor_approval
 from .models import Business, BusinessCategory, BusinessDecision
@@ -513,6 +514,18 @@ class AdminBusinessDecisionView(generics.GenericAPIView):
             from_status=data["from_status"],
             to_status=data["to_status"],
             reason=reason,
+        )
+
+        # The reason stays on the decision; the log only notes the action.
+        record_audit(
+            actor=request.user,
+            action="business.decided",
+            target=business,
+            details={
+                "decision": data["action"],
+                "from_status": data["from_status"],
+                "to_status": data["to_status"],
+            },
         )
 
         vendor_approved = sync_vendor_approval(business.vendor)
