@@ -130,7 +130,7 @@ class ServiceBulkUploadView(APIView):
     description=(
         "Public CSV template with the required columns and two example "
         "rows. category_id values must come from GET /api/categories/, "
-        "using a services or general category."
+        "using an active services category."
     ),
     responses={(200, "text/csv"): OpenApiTypes.STR},
 )

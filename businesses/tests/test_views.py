@@ -564,7 +564,9 @@ class TestPublicBusinessListing:
         business.verification_status = Business.VerificationStatus.APPROVED
         business.save()
 
-        category = Category.objects.create(name="Veterinary")
+        category = Category.objects.create(
+            name="Veterinary", kind=Category.Kind.MERCHANDISE
+        )
         BusinessCategory.objects.create(
             business=business,
             category=category,

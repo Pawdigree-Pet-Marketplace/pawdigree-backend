@@ -7,6 +7,8 @@ from .models import Category
 class CategorySerializer(serializers.ModelSerializer):
     """Validates and serializes marketplace categories."""
 
+    kind = serializers.ChoiceField(choices=Category.Kind.choices, required=True)
+
     class Meta:
         model = Category
         fields = (

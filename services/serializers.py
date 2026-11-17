@@ -26,7 +26,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.filter(
             is_active=True,
-            kind__in=(Category.Kind.SERVICES, Category.Kind.GENERAL),
+            kind=Category.Kind.SERVICES,
         ),
     )
     category_status = serializers.SerializerMethodField()

@@ -119,7 +119,16 @@ class PetSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class AdminPetUpdateSerializer(PetSerializer):
+class AdminPetSerializer(PetSerializer):
+    """What administrators see: a listing plus its business's name."""
+
+    business_name = serializers.CharField(source="business.name", read_only=True)
+
+    class Meta(PetSerializer.Meta):
+        fields = PetSerializer.Meta.fields + ("business_name",)
+
+
+class AdminPetUpdateSerializer(AdminPetSerializer):
     """Admin corrections to a listing.
 
     The business and owner can't be changed, and neither can the review

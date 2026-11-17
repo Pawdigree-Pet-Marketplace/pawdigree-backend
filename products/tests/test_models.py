@@ -16,6 +16,7 @@ class ProductModelTests(TestCase):
             role=User.Role.VENDOR,
         )
         cls.category = Category.objects.create(
+                           kind=Category.Kind.MERCHANDISE,
             name="Pet Toys",
         )
         cls.business = Business.objects.create(

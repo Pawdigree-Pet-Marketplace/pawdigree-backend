@@ -14,6 +14,7 @@ class ProductQuerySet(models.QuerySet):
             approved=True,
             is_active=True,
             category__is_active=True,
+            category__kind=Category.Kind.MERCHANDISE,
             business__is_active=True,
             business__verification_status=Business.VerificationStatus.APPROVED,
         )

@@ -43,7 +43,7 @@ class ProductViewsTests(TestCase):
             role=User.Role.CUSTOMER,
         )
 
-        cls.category = Category.objects.create(name="Pet Supplies")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Pet Supplies")
         cls.business = Business.objects.create(
             vendor=cls.vendor,
             name="Product Test Business",
@@ -529,6 +529,7 @@ class ProductViewsTests(TestCase):
 
     def test_anonymous_user_cannot_see_products_in_inactive_category(self):
         inactive_category = Category.objects.create(
+                                kind=Category.Kind.MERCHANDISE,
             name="Retired Category",
             is_active=False,
         )
@@ -598,16 +599,6 @@ class ProductViewsTests(TestCase):
         category = Category.objects.create(
             name="Merchandise Kind",
             kind=Category.Kind.MERCHANDISE,
-        )
-
-        response = self.post_product_with_category(category)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_vendor_can_create_product_in_general_category(self):
-        category = Category.objects.create(
-            name="General Kind",
-            kind=Category.Kind.GENERAL,
         )
 
         response = self.post_product_with_category(category)

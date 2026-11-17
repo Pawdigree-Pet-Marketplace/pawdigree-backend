@@ -73,6 +73,21 @@ class CancelBookingTests(BookingChangeTestCase):
         response = self.cancel(booking)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_customer_can_cancel_after_vendor_accepts_the_booking(self):
+        booking = self.make_booking()
+        self.client.force_authenticate(self.vendor)
+        vendor_response = self.client.patch(
+            reverse("booking-vendor-status", args=[booking.pk]),
+            {"status": Booking.Status.ACCEPTED},
+            format="json",
+        )
+        self.assertEqual(vendor_response.status_code, status.HTTP_200_OK)
+
+        response = self.cancel(booking)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Booking.Status.CANCELLED)
+
     def test_cancelling_frees_the_time(self):
         booking = self.make_booking()
         self.assertNotIn(at(self.day, 10), free_start_times(self.service, self.day))
@@ -141,6 +156,21 @@ class RescheduleBookingTests(BookingChangeTestCase):
         response = self.reschedule(booking, hour=11)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "pending")
+
+    def test_customer_can_reschedule_after_vendor_accepts_the_booking(self):
+        booking = self.make_booking(hour=10)
+        self.client.force_authenticate(self.vendor)
+        vendor_response = self.client.patch(
+            reverse("booking-vendor-status", args=[booking.pk]),
+            {"status": Booking.Status.ACCEPTED},
+            format="json",
+        )
+        self.assertEqual(vendor_response.status_code, status.HTTP_200_OK)
+
+        response = self.reschedule(booking, hour=11)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Booking.Status.PENDING)
 
     def test_old_time_is_freed_and_new_time_is_held(self):
         booking = self.make_booking(hour=10)

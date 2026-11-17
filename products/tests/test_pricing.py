@@ -18,7 +18,7 @@ class CartTotalTests(TestCase):
             password="test-password-123",
             role=User.Role.VENDOR,
         )
-        cls.category = Category.objects.create(name="Pet Food")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Pet Food")
         cls.business = Business.objects.create(
             vendor=cls.vendor,
             name="Total Shop",

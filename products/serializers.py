@@ -30,7 +30,7 @@ class ProductSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.filter(
             is_active=True,
-            kind__in=(Category.Kind.MERCHANDISE, Category.Kind.GENERAL),
+            kind=Category.Kind.MERCHANDISE,
         ),
     )
     

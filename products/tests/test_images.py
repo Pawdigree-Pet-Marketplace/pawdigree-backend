@@ -60,7 +60,7 @@ class ProductImageTests(APITestCase):
             password="test-password-123",
             role=User.Role.ADMIN,
         )
-        cls.category = Category.objects.create(name="Pet Toys")
+        cls.category = Category.objects.create(kind=Category.Kind.MERCHANDISE, name="Pet Toys")
         cls.business = Business.objects.create(
             vendor=cls.vendor,
             name="Image Shop",

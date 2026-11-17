@@ -25,6 +25,7 @@ class TestCategoryViews:
             {
                 "name": "Veterinary",
                 "description": "Veterinary services",
+                "kind": Category.Kind.SERVICES,
                 "is_active": True,
             },
             format="json",
@@ -33,10 +34,28 @@ class TestCategoryViews:
         assert response.status_code == status.HTTP_201_CREATED
         assert Category.objects.filter(name="Veterinary").exists()
 
+    def test_admin_cannot_create_general_category(self, api_client, admin):
+        api_client.force_authenticate(user=admin)
+
+        response = api_client.post(
+            reverse("category-list"),
+            {
+                "name": "Other",
+                "description": "Unsupported category kind",
+                "kind": "general",
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "kind" in response.data
+        assert not Category.objects.filter(name="Other").exists()
+
     def test_admin_can_update_category(self, api_client, admin):
         category = Category.objects.create(
             name="Veterinary",
             description="Veterinary services",
+            kind=Category.Kind.SERVICES,
         )
 
         api_client.force_authenticate(user=admin)
@@ -62,6 +81,7 @@ class TestCategoryViews:
             {
                 "name": "Veterinary",
                 "description": "Veterinary services",
+                "kind": Category.Kind.SERVICES,
                 "is_active": True,
             },
             format="json",
@@ -74,10 +94,12 @@ class TestCategoryViews:
     ):
         Category.objects.create(
             name="Inactive Category",
+            kind=Category.Kind.SERVICES,
             is_active=False,
         )
         Category.objects.create(
             name="Active Category",
+            kind=Category.Kind.SERVICES,
             is_active=True,
         )
 
@@ -96,6 +118,7 @@ class TestCategoryViews:
     ):
         Category.objects.create(
             name="Inactive Category",
+            kind=Category.Kind.SERVICES,
             is_active=False,
         )
 
@@ -111,7 +134,9 @@ class TestCategoryViews:
     def test_admin_deletes_category_by_deactivating_it(
         self, api_client, admin
     ):
-        category = Category.objects.create(name="Veterinary")
+        category = Category.objects.create(
+            name="Veterinary", kind=Category.Kind.SERVICES
+        )
 
         api_client.force_authenticate(user=admin)
 
@@ -129,10 +154,12 @@ class TestCategoryViews:
     def test_anonymous_user_can_list_active_categories(self, api_client):
         Category.objects.create(
             name="Active Category",
+            kind=Category.Kind.SERVICES,
             is_active=True,
         )
         Category.objects.create(
             name="Inactive Category",
+            kind=Category.Kind.SERVICES,
             is_active=False,
         )
 
@@ -150,6 +177,7 @@ class TestCategoryViews:
             {
                 "name": "Veterinary",
                 "description": "Veterinary services",
+                "kind": Category.Kind.SERVICES,
                 "is_active": True,
             },
             format="json",
@@ -161,6 +189,7 @@ class TestCategoryViews:
         category = Category.objects.create(
             name="Veterinary",
             description="Veterinary services",
+            kind=Category.Kind.SERVICES,
             is_active=True,
         )
 
@@ -184,6 +213,7 @@ class TestCategoryViews:
             {
                 "name": "Veterinary",
                 "description": "Veterinary services",
+                "kind": Category.Kind.SERVICES,
                 "is_active": True,
             },
             format="json",
@@ -196,6 +226,7 @@ class TestCategoryViews:
         category = Category.objects.create(
             name="Veterinary",
             description="Veterinary services",
+            kind=Category.Kind.SERVICES,
         )
 
         api_client.force_authenticate(user=system_admin)
@@ -217,6 +248,7 @@ class TestCategoryViews:
         category = Category.objects.create(
             name="Veterinary",
             description="Veterinary services",
+            kind=Category.Kind.SERVICES,
         )
 
         api_client.force_authenticate(user=system_admin)

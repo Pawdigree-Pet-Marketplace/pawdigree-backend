@@ -23,7 +23,11 @@ def make_business(vendor, name, **extra):
 
 
 def make_category(name):
-    return Category.objects.create(name=name, description=f"{name} services")
+    return Category.objects.create(
+        name=name,
+        description=f"{name} services",
+        kind=Category.Kind.SERVICES,
+    )
 
 
 def get_results(response):
