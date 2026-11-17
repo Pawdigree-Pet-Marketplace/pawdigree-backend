@@ -43,6 +43,43 @@ from .serializers import (
 MAX_IMAGES_PER_LISTING = 10
 
 
+def get_uploaded_images(request):
+    """Return the uploaded image files, rejecting more than the limit."""
+    uploaded_images = request.FILES.getlist("images")
+
+    if len(uploaded_images) > MAX_IMAGES_PER_LISTING:
+        raise serializers.ValidationError({
+            "images": (
+                f"You can upload at most {MAX_IMAGES_PER_LISTING} images."
+            )
+        })
+
+    return uploaded_images
+
+
+def validate_image_files(uploaded_images):
+    """Run the model's image validators on every file."""
+    image_field = PetImage._meta.get_field("image")
+    for uploaded_image in uploaded_images:
+        try:
+            image_field.run_validators(uploaded_image)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                {"images": exc.messages}
+            ) from exc
+
+
+def save_pet_images(pet, uploaded_images):
+    """Save the files as the pet's images; the first is the primary."""
+    for position, uploaded_image in enumerate(uploaded_images):
+        PetImage.objects.create(
+            pet=pet,
+            image=uploaded_image,
+            is_primary=(position == 0),
+            position=position,
+        )
+
+
 @extend_schema(
     tags=["pets"],
     summary="List or create pet listings",
@@ -65,38 +102,18 @@ class PetListCreateView(generics.ListCreateAPIView):
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        uploaded_images = request.FILES.getlist("images")
-
-        if len(uploaded_images) > MAX_IMAGES_PER_LISTING:
-            raise serializers.ValidationError({
-                "images": (
-                    f"You can upload at most {MAX_IMAGES_PER_LISTING} images."
-                )
-            })
+        uploaded_images = get_uploaded_images(request)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         # Validate every file before anything is saved, so a bad image
         # leaves no pet row and no orphaned file behind.
-        image_field = PetImage._meta.get_field("image")
-        for uploaded_image in uploaded_images:
-            try:
-                image_field.run_validators(uploaded_image)
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(
-                    {"images": exc.messages}
-                ) from exc
+        validate_image_files(uploaded_images)
 
         pet = serializer.save(vendor=request.user)
 
-        for position, uploaded_image in enumerate(uploaded_images):
-            PetImage.objects.create(
-                pet=pet,
-                image=uploaded_image,
-                is_primary=(position == 0),
-                position=position,
-            )
+        save_pet_images(pet, uploaded_images)
 
         headers = self.get_success_headers(serializer.data)
         response_serializer = self.get_serializer(pet)
@@ -505,14 +522,7 @@ class AdminPetListView(generics.ListCreateAPIView):
     )
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        uploaded_images = request.FILES.getlist("images")
-
-        if len(uploaded_images) > MAX_IMAGES_PER_LISTING:
-            raise serializers.ValidationError({
-                "images": (
-                    f"You can upload at most {MAX_IMAGES_PER_LISTING} images."
-                )
-            })
+        uploaded_images = get_uploaded_images(request)
 
         serializer = AdminPetCreateSerializer(
             data=request.data,
@@ -520,14 +530,7 @@ class AdminPetListView(generics.ListCreateAPIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        image_field = PetImage._meta.get_field("image")
-        for uploaded_image in uploaded_images:
-            try:
-                image_field.run_validators(uploaded_image)
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(
-                    {"images": exc.messages}
-                ) from exc
+        validate_image_files(uploaded_images)
 
         business = serializer.validated_data["business"]
         pet = serializer.save(
@@ -536,13 +539,7 @@ class AdminPetListView(generics.ListCreateAPIView):
             reviewed_at=timezone.now(),
         )
 
-        for position, uploaded_image in enumerate(uploaded_images):
-            PetImage.objects.create(
-                pet=pet,
-                image=uploaded_image,
-                is_primary=(position == 0),
-                position=position,
-            )
+        save_pet_images(pet, uploaded_images)
 
         record_audit(
             actor=request.user,
