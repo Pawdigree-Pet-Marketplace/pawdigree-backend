@@ -44,6 +44,7 @@ class AdminUserLifecycleTests(TestCase):
         self.assertEqual(response.data['status'], 'active')
         self.vendor.refresh_from_db()
         self.assertTrue(self.vendor.is_active)
+        self.assertEqual(self.vendor.status, User.AccountStatus.ACTIVE)
         event = AuditLog.objects.get(action='user.activated')
         self.assertEqual(event.actor, self.system_admin)
         self.assertEqual(event.target_id, str(self.vendor.pk))
@@ -61,6 +62,9 @@ class AdminUserLifecycleTests(TestCase):
         self.assertEqual(response.data['status'], 'deactivated')
         self.customer.refresh_from_db()
         self.assertFalse(self.customer.is_active)
+        self.assertEqual(
+            self.customer.status, User.AccountStatus.DEACTIVATED
+        )
         event = AuditLog.objects.get(action='user.deactivated')
         self.assertEqual(event.actor, self.system_admin)
         self.assertEqual(event.target_id, str(self.customer.pk))
@@ -70,6 +74,14 @@ class AdminUserLifecycleTests(TestCase):
         )
         self.assertEqual(
             refresh_response.status_code, status.HTTP_401_UNAUTHORIZED
+        )
+        login_response = APIClient().post(
+            reverse('customer-login'),
+            {'email': self.customer.email, 'password': 'SecurePass123!'},
+            format='json',
+        )
+        self.assertEqual(
+            login_response.status_code, status.HTTP_400_BAD_REQUEST
         )
 
     def test_repeating_a_deactivation_does_not_duplicate_audit_event(self):
@@ -158,13 +170,70 @@ class AdminUserLifecycleTests(TestCase):
         self.assertEqual(refreshed.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_only_system_admins_can_use_user_lifecycle_endpoints(self):
-        url = self.action_url(self.customer, 'deactivate')
+        urls = (
+            self.action_url(self.customer, 'activate'),
+            self.action_url(self.customer, 'deactivate'),
+            reverse('admin-user-suspend', args=[self.customer.pk]),
+        )
         for role in (User.Role.ADMIN, User.Role.VENDOR, User.Role.CUSTOMER):
             user = make_user(f'lifecycle_denied_{role.lower()}', role)
             self.client.force_authenticate(user=user)
-            response = self.client.post(url)
-            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            for url in urls:
+                response = self.client.post(
+                    url, {'reason': 'test'}, format='json'
+                )
+                self.assertEqual(
+                    response.status_code, status.HTTP_403_FORBIDDEN
+                )
 
         self.client.force_authenticate(user=None)
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        for url in urls:
+            response = self.client.post(url, {'reason': 'test'}, format='json')
+            self.assertEqual(
+                response.status_code, status.HTTP_401_UNAUTHORIZED
+            )
+
+    def test_protected_or_unknown_targets_are_hidden(self):
+        other_system_admin = make_user(
+            'lifecycle_other_sysadmin', User.Role.SYSTEM_ADMIN
+        )
+        self.client.force_authenticate(user=other_system_admin)
+        targets = (
+            self.system_admin,
+            make_user('lifecycle_regular_admin', User.Role.ADMIN),
+            make_user(
+                'lifecycle_superuser',
+                User.Role.VENDOR,
+                is_staff=True,
+                is_superuser=True,
+            ),
+        )
+        urls = [
+            self.action_url(target, action)
+            for target in targets
+            for action in ('activate', 'deactivate')
+        ]
+        urls.extend(
+            reverse('admin-user-suspend', args=[target.pk])
+            for target in targets
+        )
+        urls.extend(
+            reverse(f'admin-user-{action}', args=[99999999])
+            for action in ('activate', 'deactivate', 'suspend')
+        )
+
+        for url in urls:
+            response = self.client.post(
+                url, {'reason': 'test'}, format='json'
+            )
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_system_admin_cannot_change_own_account_status(self):
+        response = self.client.post(
+            self.action_url(self.system_admin, 'deactivate')
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.system_admin.refresh_from_db()
+        self.assertTrue(self.system_admin.is_active)
+        self.assertEqual(self.system_admin.status, User.AccountStatus.ACTIVE)
