@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from businesses.models import Business
 from categories.models import Category
+from common.validators import validate_description_length
 
 from .models import Product, ProductImage
 
@@ -70,6 +71,10 @@ class ProductSerializer(serializers.ModelSerializer):
                 "The product price must be greater than zero."
             )
 
+        return value
+
+    def validate_description(self, value):
+        validate_description_length(value)
         return value
 
 
