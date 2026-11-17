@@ -1,4 +1,8 @@
+import io
+
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 
 from businesses.models import Business
 from pets.models import Pet
@@ -47,3 +51,17 @@ def valid_pet_data(vendor_business):
         "size": Pet.Size.MEDIUM,
         "description": "Friendly and playful.",
     }
+
+
+@pytest.fixture
+def make_image():
+    def make(name="pet.png", size=(10, 10), color=(0, 255, 0)):
+        buffer = io.BytesIO()
+        Image.new("RGB", size, color).save(buffer, format="PNG")
+        return SimpleUploadedFile(
+            name,
+            buffer.getvalue(),
+            content_type="image/png",
+        )
+
+    return make

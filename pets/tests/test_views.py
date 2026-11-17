@@ -1,11 +1,7 @@
-import io
-from io import BytesIO
-
 import pytest
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
-from PIL import Image
 from rest_framework import status
 
 from accounts.models import User
@@ -13,18 +9,8 @@ from businesses.models import Business
 from pets.models import Pet, PetImage
 
 
-def make_image_file(filename="pet.png", *, size=(10, 10), color=(0, 255, 0)):
-    buffer = io.BytesIO()
-    Image.new("RGB", size, color).save(buffer, format="PNG")
-    return SimpleUploadedFile(
-        filename,
-        buffer.getvalue(),
-        content_type="image/png",
-    )
-
-
 @pytest.mark.django_db
-def test_valid_pet_image_is_accepted():
+def test_valid_pet_image_is_accepted(make_image):
     vendor = User.objects.create_user(
         username="petvendor",
         email="petvendor@example.com",
@@ -53,7 +39,7 @@ def test_valid_pet_image_is_accepted():
         listing_type=Pet.ListingType.ADOPTION,
     )
 
-    pet_image = PetImage(pet=pet, image=make_image_file())
+    pet_image = PetImage(pet=pet, image=make_image())
 
     pet_image.full_clean()
     pet_image.save()
@@ -204,21 +190,9 @@ def test_vendor_only_sees_own_pet_listings(
     assert "Other Pet" not in names
 
 
-def make_test_image(name="pet.png"):
-    image = Image.new("RGB", (20, 20), color="green")
-    image_bytes = BytesIO()
-    image.save(image_bytes, format="PNG")
-
-    return SimpleUploadedFile(
-        name,
-        image_bytes.getvalue(),
-        content_type="image/png",
-    )
-
-
 @pytest.mark.django_db
 def test_vendor_can_create_pet_listing_with_multiple_images(
-    api_client, vendor, valid_pet_data
+    api_client, vendor, valid_pet_data, make_image
 ):
     api_client.force_authenticate(user=vendor)
 
@@ -227,8 +201,8 @@ def test_vendor_can_create_pet_listing_with_multiple_images(
         {
             **valid_pet_data,
             "images": [
-                make_test_image("buddy-1.png"),
-                make_test_image("buddy-2.png"),
+                make_image("buddy-1.png"),
+                make_image("buddy-2.png"),
             ],
         },
         format="multipart",
