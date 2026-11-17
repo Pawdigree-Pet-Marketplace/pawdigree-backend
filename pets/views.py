@@ -445,7 +445,7 @@ class PetUpdateView(generics.UpdateAPIView):
     description="Active listings that are neither approved nor rejected, oldest first.",
 )
 class AdminPendingPetListView(generics.ListAPIView):
-    serializer_class = PetSerializer
+    serializer_class = AdminPetSerializer
     permission_classes = (IsAdmin,)
     pagination_class = PublicPetPagination
 
