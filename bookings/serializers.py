@@ -32,6 +32,7 @@ class BookingCreateSerializer(serializers.Serializer):
 
 class BookingSerializer(serializers.ModelSerializer):
     service_name = serializers.CharField(source="service.name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
         model = Booking
@@ -42,7 +43,9 @@ class BookingSerializer(serializers.ModelSerializer):
             "start_at",
             "end_at",
             "status",
+            "status_display",
             "notes",
+            "decision_reason",
             "created_at",
         )
         read_only_fields = fields
