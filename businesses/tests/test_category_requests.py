@@ -165,3 +165,30 @@ class TestBusinessCategoryRequests:
             business=business,
             category=category,
         ).exists()
+
+    def test_vendor_cannot_request_category_of_wrong_kind(
+        self, api_client, vendor, business
+    ):
+        business.business_type = Business.BusinessType.PRODUCT_SELLER
+        business.save(update_fields=["business_type"])
+        api_client.force_authenticate(user=vendor)
+        category = Category.objects.create(
+            name="Dog Walking",
+            kind=Category.Kind.SERVICES,
+            is_active=True,
+        )
+
+        response = api_client.post(
+            reverse(
+                "business-category-requests",
+                kwargs={"business_id": business.pk},
+            ),
+            {"category_ids": [category.pk]},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not BusinessCategory.objects.filter(
+            business=business,
+            category=category,
+        ).exists()
