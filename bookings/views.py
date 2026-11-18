@@ -3,6 +3,7 @@ from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_sche
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from common.permissions import IsCustomer, IsVendor
 from services.views import public_services
@@ -214,4 +215,50 @@ class BookingRescheduleView(generics.GenericAPIView):
             request.user, booking_id, serializer.validated_data["start_at"]
         )
         return Response(BookingSerializer(booking).data)
+    
+    
+@extend_schema(
+    tags=["bookings"],
+    summary="List my bookings",
+    description=(
+        "Returns the authenticated customer's own bookings, newest first, "
+        "with the service, time, current status and, for declined bookings, "
+        "the vendor's reason. Other customers' bookings are never returned. "
+        "Optional: status=pending|accepted|declined|completed|cancelled."
+    ),
+    parameters=[
+        OpenApiParameter(
+            "status",
+            str,
+            description="Only show bookings with this status, e.g. accepted.",
+        )
+    ],
+    responses={
+        200: BookingSerializer(many=True),
+        401: OpenApiResponse(description="Authentication is required."),
+        403: OpenApiResponse(description="Only customer accounts may use this endpoint."),
+    },
+)
+class CustomerBookingListView(generics.ListAPIView):
+    """List the authenticated customer's own bookings."""
+
+    serializer_class = BookingSerializer
+    permission_classes = (IsAuthenticated, IsCustomer)
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Booking.objects.none()
+
+        queryset = (
+            Booking.objects.filter(customer=self.request.user)
+            .select_related("service")
+            .order_by("-created_at", "-booking_id")
+        )
+
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            if status_filter not in Booking.Status.values:
+                raise ValidationError({"status": "Not a valid booking status."})
+            queryset = queryset.filter(status=status_filter)
+        return queryset
 
