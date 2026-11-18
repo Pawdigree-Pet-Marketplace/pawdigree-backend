@@ -4,6 +4,7 @@ from rest_framework import serializers
 from businesses.models import Business
 from categories.models import Category
 from common.validators import validate_description_length
+from .performance import LOW_STOCK_THRESHOLD
 
 from .models import Product, ProductImage
 
@@ -199,3 +200,60 @@ class PublicProductDetailSerializer(PublicProductSerializer):
             "description",
             "images",
         )
+        
+
+class PerformanceQuerySerializer(serializers.Serializer):
+    """Validates the query string of the admin performance endpoints."""
+
+    SORT_CHOICES = ("top_selling", "revenue", "lowest_stock", "name")
+
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+    low_stock_threshold = serializers.IntegerField(
+        required=False, min_value=0, default=LOW_STOCK_THRESHOLD
+    )
+    business = serializers.IntegerField(required=False, min_value=1)
+    low_stock = serializers.BooleanField(required=False)
+    search = serializers.CharField(required=False, allow_blank=True)
+    sort = serializers.ChoiceField(choices=SORT_CHOICES, default="top_selling")
+
+    def validate(self, attrs):
+        date_from, date_to = attrs.get("date_from"), attrs.get("date_to")
+        if date_from and date_to and date_from > date_to:
+            raise serializers.ValidationError(
+                {"date_from": "date_from cannot be after date_to."}
+            )
+        return attrs
+
+
+class BusinessPerformanceSerializer(serializers.ModelSerializer):
+    products_count = serializers.IntegerField(read_only=True)
+    low_stock_count = serializers.IntegerField(read_only=True)
+    orders_count = serializers.IntegerField(read_only=True)
+    units_sold = serializers.IntegerField(read_only=True)
+    revenue = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Business
+        fields = (
+            "id", "name", "products_count", "low_stock_count",
+            "orders_count", "units_sold", "revenue",
+        )
+        read_only_fields = fields
+
+
+class ProductPerformanceSerializer(serializers.ModelSerializer):
+    business_name = serializers.CharField(source="business.name", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    units_sold = serializers.IntegerField(read_only=True)
+    revenue = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    is_low_stock = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Product
+        fields = (
+            "id", "business", "business_name", "category_name", "name",
+            "price", "stock_quantity", "is_active", "approved",
+            "units_sold", "revenue", "is_low_stock",
+        )
+        read_only_fields = fields

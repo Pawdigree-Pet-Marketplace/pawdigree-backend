@@ -23,6 +23,7 @@ from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor
+from .performance import with_business_performance, with_product_performance
 
 from .models import Product
 from .notifications import notify_listing_approved, notify_listing_rejected
@@ -33,6 +34,9 @@ from .serializers import (
     PublicProductDetailSerializer,
     PublicProductSerializer,
     VendorProductSerializer,
+    BusinessPerformanceSerializer,
+    PerformanceQuerySerializer,
+    ProductPerformanceSerializer,
 )
 
 MAX_PRODUCT_IMAGES = 5
@@ -506,3 +510,88 @@ class ProductBulkTemplateView(APIView):
             ],
             "product_bulk_upload_template.csv",
         )
+        
+
+def read_performance_params(request):
+    """Validate and return the performance query string."""
+    serializer = PerformanceQuerySerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    return serializer.validated_data
+
+
+PRODUCT_PERFORMANCE_SORTS = {
+    "top_selling": ("-units_sold", "-revenue", "name"),
+    "revenue": ("-revenue", "-units_sold", "name"),
+    "lowest_stock": ("stock_quantity", "name"),
+    "name": ("name",),
+}
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Merchandise performance by vendor (administrators)",
+    description=(
+        "One row per merchandise business with units sold, revenue, number of "
+        "paid orders, product count and low-stock count. Only paid, "
+        "non-cancelled orders count as sales. Optional: date_from, date_to "
+        "(YYYY-MM-DD), low_stock_threshold (default 5)."
+    ),
+    parameters=[PerformanceQuerySerializer],
+)
+class AdminMerchandisePerformanceView(generics.ListAPIView):
+    serializer_class = BusinessPerformanceSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = PublicProductPagination
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Business.objects.none()
+
+        params = read_performance_params(self.request)
+        return with_business_performance(
+            date_from=params.get("date_from"),
+            date_to=params.get("date_to"),
+            low_stock_threshold=params["low_stock_threshold"],
+        ).order_by("-units_sold", "-revenue", "name")
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Product sales and stock (administrators)",
+    description=(
+        "One row per product with units sold, revenue, current stock and a "
+        "low-stock flag. Use business=<id> for one vendor's listings. "
+        "sort=top_selling gives the popular products; low_stock=true gives "
+        "only the active products at or below the threshold. Filters: "
+        "business, search, low_stock, low_stock_threshold, date_from, date_to."
+    ),
+    parameters=[PerformanceQuerySerializer],
+)
+class AdminProductPerformanceListView(generics.ListAPIView):
+    serializer_class = ProductPerformanceSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = PublicProductPagination
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Product.objects.none()
+
+        params = read_performance_params(self.request)
+        queryset = with_product_performance(
+            Product.objects.select_related("business", "category"),
+            date_from=params.get("date_from"),
+            date_to=params.get("date_to"),
+            low_stock_threshold=params["low_stock_threshold"],
+        )
+
+        if "business" in params:
+            queryset = queryset.filter(business_id=params["business"])
+
+        search = params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        if params.get("low_stock"):
+            queryset = queryset.filter(is_low_stock=True)
+
+        return queryset.order_by(*PRODUCT_PERFORMANCE_SORTS[params["sort"]])
