@@ -111,12 +111,12 @@ PESAPAL_BASE_URL = os.environ.get("PESAPAL_BASE_URL", "https://cybqa.pesapal.com
 PESAPAL_CONSUMER_KEY = os.environ.get("PESAPAL_CONSUMER_KEY", "")
 PESAPAL_CONSUMER_SECRET = os.environ.get("PESAPAL_CONSUMER_SECRET", "")
 PESAPAL_IPN_ID = os.environ.get("PESAPAL_IPN_ID", "")
-PESAPAL_CALLBACK_URL = os.environ.get("PESAPAL_CALLBACK_URL", "http://localhost:3000/payment/result/{order_id}")
+PESAPAL_CALLBACK_URL = os.environ.get("PESAPAL_CALLBACK_URL", "http://142.93.86.141:8000/payment/result/{order_id}")
 PESAPAL_CANCEL_URL = os.environ.get("PESAPAL_CANCEL_URL", "")
 
 SANDBOX_WEBHOOK_SECRET = os.environ.get("SANDBOX_WEBHOOK_SECRET", "dev-only-secret")
 SANDBOX_PAYMENT_PAGE = os.environ.get(
-    "SANDBOX_PAYMENT_PAGE", "http://localhost:5173/sandbox-pay"
+    "SANDBOX_PAYMENT_PAGE", "http://142.93.86.141:8000/sandbox-pay"
 )
 
 ANYMAIL = {
