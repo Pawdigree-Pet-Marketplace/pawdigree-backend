@@ -22,7 +22,7 @@ from accounts.models import User
 from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
-from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor
+from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor, IsSystemAdmin
 from .performance import with_business_performance, with_product_performance
 
 from .models import Product
@@ -529,7 +529,7 @@ PRODUCT_PERFORMANCE_SORTS = {
 
 @extend_schema(
     tags=["products"],
-    summary="Merchandise performance by vendor (administrators)",
+    summary="Sales and stock by vendor (administrators)",
     description=(
         "One row per merchandise business with units sold, revenue, number of "
         "paid orders, product count and low-stock count. Only paid, "
@@ -538,9 +538,9 @@ PRODUCT_PERFORMANCE_SORTS = {
     ),
     parameters=[PerformanceQuerySerializer],
 )
-class AdminMerchandisePerformanceView(generics.ListAPIView):
+class AdminVendorPerformanceView(generics.ListAPIView):
     serializer_class = BusinessPerformanceSerializer
-    permission_classes = (IsAdmin,)
+    permission_classes = (IsAdmin, IsSystemAdmin)
     pagination_class = PublicProductPagination
 
     def get_queryset(self):
@@ -569,7 +569,7 @@ class AdminMerchandisePerformanceView(generics.ListAPIView):
 )
 class AdminProductPerformanceListView(generics.ListAPIView):
     serializer_class = ProductPerformanceSerializer
-    permission_classes = (IsAdmin,)
+    permission_classes = (IsAdmin, IsSystemAdmin)
     pagination_class = PublicProductPagination
 
     def get_queryset(self):

@@ -1,8 +1,10 @@
 from django.urls import path
 
 from .views import (
+    AdminVendorPerformanceView,
     AdminPendingProductListView,
     AdminProductApproveView,
+    AdminProductPerformanceListView,
     AdminProductRejectView,
     ProductBulkTemplateView,
     ProductBulkUploadView,
@@ -58,4 +60,6 @@ urlpatterns = [
         ProductImageDeleteView.as_view(),
         name="product-image-delete",
     ),
+    path("admin/vendors/performance/", AdminVendorPerformanceView.as_view(), name="admin-vendor-performance"),
+    path("admin/merchandise/products/", AdminProductPerformanceListView.as_view(), name="admin-product-performance"),
 ]
