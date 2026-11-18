@@ -203,3 +203,11 @@ class PetImageEditSerializer(serializers.Serializer):
 
 class PetRejectSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=1000, trim_whitespace=True)
+
+class PetBusinessOptionSerializer(serializers.ModelSerializer):
+    """Just the id and name, for the admin Create Pet Listing dropdown."""
+
+    class Meta:
+        model = Business
+        fields = ("id", "name")
+        read_only_fields = fields

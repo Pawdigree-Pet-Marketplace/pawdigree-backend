@@ -34,6 +34,7 @@ from .serializers import (
     AdminPetCreateSerializer,
     AdminPetSerializer,
     AdminPetUpdateSerializer,
+    PetBusinessOptionSerializer,
     PetImageEditSerializer,
     PetRejectSerializer,
     PetSerializer,
@@ -780,5 +781,19 @@ class PetBulkTemplateView(APIView):
             ],
             "pet_listings_template.csv",
         )
+
+class AdminPetBusinessListView(generics.ListAPIView):
+    """Approved, active pet sale and adoption businesses (administrators)."""
+
+    serializer_class = PetBusinessOptionSerializer
+    permission_classes = (IsAdmin,)
+    pagination_class = None
+
+    def get_queryset(self):
+        return Business.objects.filter(
+            is_active=True,
+            verification_status=Business.VerificationStatus.APPROVED,
+            business_type=Business.BusinessType.PET_SALE_ADOPTION,
+        ).order_by("name")
 
 
