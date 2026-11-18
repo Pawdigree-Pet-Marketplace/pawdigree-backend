@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     AdminPendingPetListView,
     AdminPetApproveView,
+    AdminPetBusinessListView,
     AdminPetDetailView,
     AdminPetListView,
     AdminPetRejectView,
@@ -30,4 +31,5 @@ urlpatterns = [
     path("<int:pk>/", PetDetailView.as_view(), name="pet-detail"),
     path("<int:pk>/edit/", PetUpdateView.as_view(), name="pet-update"),
     path("admin/", AdminPetListView.as_view(), name="pet-admin-list"),
+    path("admin/businesses/", AdminPetBusinessListView.as_view(), name="pet-admin-businesses"),
 ]
