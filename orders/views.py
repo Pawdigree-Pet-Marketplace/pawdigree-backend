@@ -4,7 +4,7 @@ from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from common.permissions import IsCustomer, IsVendor, IsAdmin, IsSystemAdmin
+from common.permissions import IsAdmin, IsCustomer, IsVendor
 
 from .models import Order, VendorOrder
 from .serializers import (
@@ -203,7 +203,7 @@ class VendorOrderStatusView(generics.GenericAPIView):
 class AdminVendorOrderStatusView(VendorOrderStatusView):
     """Let an administrator move any vendor order to its next status."""
 
-    permission_classes = (IsAdmin, IsSystemAdmin)
+    permission_classes = (IsAdmin,)
 
     @extend_schema(
         tags=["orders"],
@@ -224,7 +224,7 @@ class AdminVendorOrderStatusView(VendorOrderStatusView):
     
 class AdminVendorOrderListView(generics.ListAPIView):
     serializer_class = VendorOrderDetailSerializer
-    permission_classes = (IsAdmin, IsSystemAdmin)
+    permission_classes = (IsAdmin,)
     
     @extend_schema(
             tags=["orders"],
