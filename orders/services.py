@@ -336,7 +336,7 @@ MANUAL_TRANSITIONS = {
 }
 
 
-def change_status(vendor_order_id, new_status, actor):
+def change_status(vendor_order_id, new_status, actor, reason=""):
     """Move a paid vendor order to its next status.
 
     A vendor can only change orders of their own businesses. Admins and
@@ -383,12 +383,33 @@ def change_status(vendor_order_id, new_status, actor):
             )
 
         previous_status = vendor_order.status
+        update_fields = ["status", "updated_at"]
         vendor_order.status = new_status
-        vendor_order.save(update_fields=["status", "updated_at"])
+
+        if new_status == _S.CANCELLED:
+            # The order was paid, so the customer is owed this portion back.
+            vendor_order.refund_status = VendorOrder.RefundStatus.REQUIRED
+            vendor_order.refund_amount = sum(
+                (item.subtotal for item in vendor_order.items.all()),
+                Decimal("0.00"),
+            ).quantize(TWO_PLACES)
+            vendor_order.cancelled_at = timezone.now()
+            vendor_order.cancelled_by = actor
+            vendor_order.cancel_reason = (reason or "")[:500]
+            update_fields += [
+                "refund_status",
+                "refund_amount",
+                "cancelled_at",
+                "cancelled_by",
+                "cancel_reason",
+            ]
+
+        vendor_order.save(update_fields=update_fields)
 
         # Vendors updating their own orders is routine and stays out of the
-        # log; changes made by an administrator are recorded.
-        if actor.role in ADMIN_ROLES:
+        # log; changes made by an administrator, and every cancellation of a
+        # paid order (it creates a refund), are recorded.
+        if actor.role in ADMIN_ROLES or new_status == _S.CANCELLED:
             record_audit(
                 actor=actor,
                 action="order.status_changed",

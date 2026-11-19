@@ -103,6 +103,10 @@ class VendorOrderDetailSerializer(serializers.ModelSerializer):
             "notes",
             "items",
             "total",
+            "refund_status",
+            "refund_amount",
+            "cancelled_at",
+            "cancel_reason",
             "created_at",
             "updated_at",
         )
@@ -117,3 +121,6 @@ class VendorOrderStatusSerializer(serializers.Serializer):
     """The new status a vendor wants to give an order."""
 
     status = serializers.ChoiceField(choices=VendorOrder.Status.choices)
+    reason = serializers.CharField(
+        required=False, allow_blank=True, max_length=500
+    )

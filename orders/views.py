@@ -186,7 +186,10 @@ class VendorOrderStatusView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         vendor_order = change_status(
-            pk, serializer.validated_data["status"], request.user
+            pk,
+            serializer.validated_data["status"],
+            request.user,
+            serializer.validated_data.get("reason", ""),
         )
 
         vendor_order = (
@@ -248,4 +251,12 @@ class AdminVendorOrderListView(generics.ListAPIView):
             if status_filter not in VendorOrder.Status.values:
                 raise ValidationError({"status": "Not a valid order status."})
             queryset = queryset.filter(status=status_filter)
+        refund_filter = self.request.query_params.get("refund_status")
+        if refund_filter:
+            refund_filter = refund_filter.upper()
+            if refund_filter not in VendorOrder.RefundStatus.values:
+                raise ValidationError(
+                    {"refund_status": "Not a valid refund status."}
+                )
+            queryset = queryset.filter(refund_status=refund_filter)
         return queryset
