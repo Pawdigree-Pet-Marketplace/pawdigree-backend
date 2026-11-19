@@ -78,3 +78,18 @@ class ReportSubmissionSerializer(serializers.Serializer):
 
         attrs["reported_item_id"] = str(converted_id)
         return attrs
+
+
+class ReportResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Report
+        fields = (
+            "id",
+            "reason",
+            "description",
+            "reported_item_type",
+            "reported_item_id",
+            "status",
+            "created_at",
+        )
+        read_only_fields = fields
