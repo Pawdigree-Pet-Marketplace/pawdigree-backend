@@ -56,7 +56,20 @@ class CartItem(TimeStampedModel):
     every time, so the cart always shows the current price."""
 
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="cart_items")
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="cart_items",
+        null=True,
+        blank=True,
+    )
+    pet = models.ForeignKey(
+        "pets.Pet",
+        on_delete=models.CASCADE,
+        related_name="cart_items",
+        null=True,
+        blank=True,
+    )
     quantity = models.PositiveIntegerField(default=1)
     
     class Meta:
@@ -69,6 +82,23 @@ class CartItem(TimeStampedModel):
                 fields=["cart", "product"],
                 name="unique_product_per_cart",
             ),
+            models.UniqueConstraint(
+                fields=["cart", "pet"],
+                name="unique_pet_per_cart",
+            ),
+            # a line is either a product or a pet, never both or neither
+            models.CheckConstraint(
+                condition=(
+                    Q(product__isnull=False, pet__isnull=True)
+                    | Q(product__isnull=True, pet__isnull=False)
+                ),
+                name="cart_item_product_xor_pet",
+            ),
+            # a pet is one animal, so its quantity is always 1
+            models.CheckConstraint(
+                condition=Q(pet__isnull=True) | Q(quantity=1),
+                name="cart_item_pet_quantity_is_one",
+            ),
             # the quantity of an item in a cart cannot be less than 1
             models.CheckConstraint(
                 condition=Q(quantity__gte=1),
@@ -77,4 +107,4 @@ class CartItem(TimeStampedModel):
         )
         
     def __str__(self):
-        return f"{self.quantity} x {self.product}"
+        return f"{self.quantity} x {self.product or self.pet}"
