@@ -183,7 +183,7 @@ class PublicServiceListTests(TestCase):
             {
                 "service_id", "name", "service_type", "description", "price",
                 "duration", "availability_status", "category_name",
-                "business_name", "city_district", "image",
+                "business_name", "city_district", "image","review_count","average_rating"
             },
         )
         self.assertEqual(item["category_name"], self.category.name)
