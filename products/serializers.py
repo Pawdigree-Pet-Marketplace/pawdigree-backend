@@ -200,6 +200,8 @@ class PublicProductDetailSerializer(PublicProductSerializer):
         fields = PublicProductSerializer.Meta.fields + (
             "description",
             "images",
+            "average_rating",
+            "review_count",
         )
         
     average_rating = serializers.SerializerMethodField()
