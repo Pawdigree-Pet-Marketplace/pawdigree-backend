@@ -39,8 +39,7 @@ class PublicServicePagination(PageNumberPagination):
 
 def public_services():
     """Services available to customers through an approved business category."""
-    
-    
+        
     return with_ratings(
         Service.objects.filter(
             approved=True,
@@ -54,7 +53,8 @@ def public_services():
                 BusinessCategory.ApprovalStatus.APPROVED
             ),
         )
-        .select_related("business", "category", "service")
+        .select_related("business", "category"),
+        "service",
     )
 
 
