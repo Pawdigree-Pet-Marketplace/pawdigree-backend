@@ -422,3 +422,57 @@ def change_status(vendor_order_id, new_status, actor, reason=""):
             )
 
         return vendor_order
+
+
+def mark_refunded(vendor_order_id, actor):
+    """Confirm that an administrator has paid back a cancelled vendor order.
+
+    Only a vendor order whose refund is REQUIRED can be marked REFUNDED.
+    A pet in the order stays SOLD until this point, then goes back on sale.
+    """
+    if actor.role not in ADMIN_ROLES:
+        raise PermissionDenied("Only an administrator can confirm a refund.")
+
+    with transaction.atomic():
+        vendor_order = (
+            VendorOrder.objects.select_for_update(of=("self",))
+            .select_related("order")
+            .filter(pk=vendor_order_id)
+            .first()
+        )
+        if vendor_order is None:
+            raise NotFound("Order not found.")
+
+        if vendor_order.refund_status != VendorOrder.RefundStatus.REQUIRED:
+            raise ValidationError(
+                {"refund_status": "This order does not need a refund."}
+            )
+
+        vendor_order.refund_status = VendorOrder.RefundStatus.REFUNDED
+        vendor_order.save(update_fields=["refund_status", "updated_at"])
+
+        pet_ids = list(
+            OrderItem.objects.filter(
+                vendor_order=vendor_order, pet__isnull=False
+            ).values_list("pet_id", flat=True)
+        )
+        if pet_ids:
+            list(
+                Pet.objects.select_for_update()
+                .filter(pk__in=pet_ids)
+                .order_by("pk")
+            )
+            Pet.objects.filter(
+                pk__in=pet_ids, adoption_status=Pet.AdoptionStatus.SOLD
+            ).update(adoption_status=Pet.AdoptionStatus.AVAILABLE)
+
+        record_audit(
+            actor=actor,
+            action="order.refund_confirmed",
+            target=vendor_order,
+            details={
+                "amount": str(vendor_order.refund_amount),
+                "order": str(vendor_order.order_id),
+            },
+        )
+        return vendor_order

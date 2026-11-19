@@ -13,7 +13,7 @@ from .serializers import (
     VendorOrderDetailSerializer,
     VendorOrderStatusSerializer,
 )
-from .services import change_status, checkout
+from .services import change_status, checkout, mark_refunded
 
 
 class CheckoutView(generics.GenericAPIView):
@@ -260,3 +260,31 @@ class AdminVendorOrderListView(generics.ListAPIView):
                 )
             queryset = queryset.filter(refund_status=refund_filter)
         return queryset
+
+
+
+class AdminVendorOrderRefundView(generics.GenericAPIView):
+    """Let an administrator confirm that a cancelled order was refunded."""
+
+    serializer_class = VendorOrderDetailSerializer
+    permission_classes = (IsAdmin,)
+
+    @extend_schema(
+        tags=["orders"],
+        summary="Confirm a refund (admin)",
+        description=(
+            "Marks a cancelled, paid vendor order as REFUNDED once the money "
+            "has been paid back to the customer by hand. A pet in the order "
+            "goes back on sale. The action is recorded in the audit log."
+        ),
+        request=None,
+        responses={200: VendorOrderDetailSerializer},
+    )
+    def post(self, request, pk):
+        vendor_order = mark_refunded(pk, request.user)
+        vendor_order = (
+            VendorOrder.objects.select_related("order", "business")
+            .prefetch_related("items__product", "items__pet")
+            .get(pk=vendor_order.pk)
+        )
+        return Response(VendorOrderDetailSerializer(vendor_order).data)
