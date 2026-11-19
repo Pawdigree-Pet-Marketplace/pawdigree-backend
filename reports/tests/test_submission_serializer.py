@@ -276,6 +276,21 @@ class ReportSubmissionSerializerTests(TestCase):
             with self.subTest(target_type=target_type):
                 self.assert_valid(self.payload(target_type, target.pk))
 
+    def test_unavailable_service_is_valid_report_target(self):
+        service = Service.objects.create(
+            business=self.business,
+            name="Unavailable Report Target",
+            service_type="Grooming",
+            description="Currently unavailable",
+            price="1.00",
+            duration=15,
+            availability_status=Service.AvailabilityStatus.UNAVAILABLE,
+        )
+
+        values = self.assert_valid(self.payload("SERVICE", service.pk))
+
+        self.assertEqual(values["reported_item_id"], str(service.pk))
+
     def test_reporter_status_and_other_fields_are_not_accepted(self):
         for extra in (
             {"reporter": self.vendor.pk},
