@@ -75,6 +75,11 @@ class VendorOrder(TimeStampedModel):
         CANCELLED = "CANCELLED", "Cancelled"
         EXPIRED = "EXPIRED", "Expired"
 
+    class RefundStatus(models.TextChoices):
+        NONE = "NONE", "No refund"
+        REQUIRED = "REQUIRED", "Refund required"
+        REFUNDED = "REFUNDED", "Refunded"
+
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
@@ -90,6 +95,25 @@ class VendorOrder(TimeStampedModel):
         choices=Status.choices,
         default=Status.PENDING_PAYMENT,
     )
+    refund_status = models.CharField(
+        max_length=10,
+        choices=RefundStatus.choices,
+        default=RefundStatus.NONE,
+    )
+    refund_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cancelled_vendor_orders",
+    )
+    cancel_reason = models.CharField(max_length=500, blank=True)
 
     class Meta:
         ordering = ("created_at",)

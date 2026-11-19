@@ -2,8 +2,9 @@
 from django.urls import path
 
 from .views import (
-    AdminVendorOrderStatusView,
     AdminVendorOrderListView,
+    AdminVendorOrderRefundView,
+    AdminVendorOrderStatusView,
     CheckoutView,
     CustomerOrderDetailView,
     CustomerOrderListView,
@@ -27,4 +28,9 @@ urlpatterns = [
     ),
     path("admin/vendor-orders/", AdminVendorOrderListView.as_view(), name="admin-vendor-order-list"),
     path("admin/vendor-orders/<int:pk>/status/", AdminVendorOrderStatusView.as_view(), name="admin-vendor-order-status"),
+    path(
+        "admin/vendor-orders/<int:pk>/refund/",
+        AdminVendorOrderRefundView.as_view(),
+        name="admin-vendor-order-refund",
+    ),
 ]
