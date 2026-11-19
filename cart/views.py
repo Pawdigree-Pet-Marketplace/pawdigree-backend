@@ -108,8 +108,9 @@ class CartItemCreateView(generics.GenericAPIView):
 
         cart, created = add_to_cart(
             owner=owner_from_request(request),
-            product_id=serializer.validated_data["product"],
+            product_id=serializer.validated_data.get("product"),
             quantity=serializer.validated_data["quantity"],
+            pet_id=serializer.validated_data.get("pet"),
         )
 
         return cart_response(
