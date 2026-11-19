@@ -52,6 +52,17 @@ def _has_approved_adoption(customer, pet):
     return AdoptionApplication.objects.filter(
         customer=customer, pet=pet, status=AdoptionApplication.Status.APPROVED
     ).exists()
+    
+    
+def _has_completed_pet_deal(customer, pet):
+    """Sale: the pet was delivered. Adoption: the application was approved."""
+    if pet.listing_type == Pet.ListingType.SALE:
+        return OrderItem.objects.filter(
+            pet=pet,
+            vendor_order__order__customer=customer,
+            vendor_order__status=VendorOrder.Status.DELIVERED,
+        ).exists()
+    return _has_approved_adoption(customer, pet)
 
 
 # kind -> (the "did they really complete it?" check, message if they didn't)
@@ -65,8 +76,9 @@ COMPLETION_CHECKS = {
         "You can review a service after your booking is completed.",
     ),
     "pet": (
-        _has_approved_adoption,
-        "You can review a pet after your application has been approved.",
+        _has_completed_pet_deal,
+        "You can review a pet after your purchase is delivered "
+        "or your adoption is approved.",
     ),
 }
 
