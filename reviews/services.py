@@ -1,7 +1,9 @@
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied, ValidationError
+
 
 from accounts.models import User
 from orders.models import OrderItem, VendorOrder
@@ -112,3 +114,19 @@ def rating_summary(field, target):
         "average_rating": round(average, 1) if average is not None else None,
         "review_count": data["count"],
     }
+    
+    
+def with_ratings(queryset, field):
+    """Add average_rating and review_count to every row in one query.
+    Subqueries are used instead of Avg()/Count() joins, because the public
+    service list already joins other tables and a second join could
+    multiply rows and corrupt the numbers."""
+    
+    visible = Review.objects.filter(is_visible=True, **{field: OuterRef("pk")})
+    per_item = visible.order_by().values(field)
+    return queryset.annotate(
+        average_rating=Subquery(per_item.annotate(a=Avg("rating")).values("a")),
+        review_count=Coalesce(
+            Subquery(per_item.annotate(c=Count("id")).values("c")), 0
+        ),
+    )
