@@ -248,3 +248,54 @@ def test_locations_lists_towns_of_public_pets_only(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data == ["Kampala"]
+
+@pytest.mark.django_db
+def test_detail_shows_reserved_and_sold_pets_with_their_status(
+    api_client, vendor, vendor_business
+):
+    reserved = make_pet(
+        vendor, vendor_business, "Held", adoption_status=Pet.AdoptionStatus.RESERVED
+    )
+    sold = make_pet(
+        vendor, vendor_business, "Gone home", adoption_status=Pet.AdoptionStatus.SOLD
+    )
+
+    for pet, expected in ((reserved, "RESERVED"), (sold, "SOLD")):
+        response = api_client.get(reverse("pet-public-detail", args=[pet.pk]))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["adoption_status"] == expected
+
+
+@pytest.mark.django_db
+def test_list_still_hides_reserved_and_sold_pets(
+    api_client, vendor, vendor_business
+):
+    make_pet(vendor, vendor_business, "Open")
+    make_pet(
+        vendor, vendor_business, "Held", adoption_status=Pet.AdoptionStatus.RESERVED
+    )
+    make_pet(
+        vendor, vendor_business, "Gone home", adoption_status=Pet.AdoptionStatus.SOLD
+    )
+
+    response = api_client.get(reverse(LIST_URL))
+
+    assert names(response) == ["Open"]
+
+
+@pytest.mark.django_db
+def test_detail_still_hides_an_unapproved_reserved_pet(
+    api_client, vendor, vendor_business
+):
+    pet = make_pet(
+        vendor,
+        vendor_business,
+        "Hidden",
+        approved=False,
+        adoption_status=Pet.AdoptionStatus.RESERVED,
+    )
+
+    response = api_client.get(reverse("pet-public-detail", args=[pet.pk]))
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
