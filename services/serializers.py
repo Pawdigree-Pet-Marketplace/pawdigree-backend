@@ -7,6 +7,7 @@ from rest_framework import serializers
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
 from common.validators import validate_description_length
+from reviews.serializers import RatingSummaryMixin
 
 from .models import AvailabilitySlot, Service
 
@@ -217,9 +218,9 @@ class ServiceRejectSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=1000, trim_whitespace=True)
 
 
-class PublicServiceSerializer(serializers.ModelSerializer):
+class PublicServiceSerializer(RatingSummaryMixin, serializers.ModelSerializer):
     """Customer-facing service card with a business-logo image fallback."""
-
+    rating_field = "service"
     category_name = serializers.CharField(source="category.name", read_only=True)
     business_name = serializers.CharField(source="business.name", read_only=True)
     city_district = serializers.CharField(
@@ -242,6 +243,8 @@ class PublicServiceSerializer(serializers.ModelSerializer):
             "business_name",
             "city_district",
             "image",
+            "average_rating", 
+            "review_count",
         )
         read_only_fields = fields
 
