@@ -52,9 +52,9 @@ def _release_locked(order, new_status):
     transaction.atomic().
     """
     _restock(
-        OrderItem.objects.filter(vendor_order__order=order).values_list(
-            "product_id", "quantity"
-        )
+        OrderItem.objects.filter(
+            vendor_order__order=order, product__isnull=False
+        ).values_list("product_id", "quantity")
     )
 
     order.status = new_status
@@ -300,9 +300,9 @@ def change_status(vendor_order_id, new_status, actor):
 
         if new_status == _S.CANCELLED:
             _restock(
-                OrderItem.objects.filter(vendor_order=vendor_order).values_list(
-                    "product_id", "quantity"
-                )
+                OrderItem.objects.filter(
+                    vendor_order=vendor_order, product__isnull=False
+                ).values_list("product_id", "quantity")
             )
 
         previous_status = vendor_order.status
