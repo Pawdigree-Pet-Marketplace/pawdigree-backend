@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from businesses.models import Business
 from common.validators import validate_description_length
+from reviews.serializers import RatingSummaryMixin
 
 from .models import Pet, PetImage
 
@@ -62,7 +63,9 @@ class PetSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "is_active",
             "created_at",
-            "updated_at",
+            "updated_at",            
+            "average_rating", 
+            "review_count",
         )
 
     def validate_description(self, value):
@@ -164,9 +167,10 @@ class AdminPetCreateSerializer(PetSerializer):
         return value
 
 
-class PublicPetSerializer(serializers.ModelSerializer):
+class PublicPetSerializer(RatingSummaryMixin, serializers.ModelSerializer):
     """Customer-facing listing: no vendor id and no internal flags."""
-
+    
+    rating_field = "pet"
     images = PetImageSerializer(many=True, read_only=True)
     business_name = serializers.CharField(source="business.name", read_only=True)
 

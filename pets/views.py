@@ -21,6 +21,7 @@ from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import IsAdmin, IsVendor
+from reviews.services import with_ratings
 
 from .filters import (
     SORT_OPTIONS,
@@ -156,10 +157,11 @@ class PublicPetPagination(PageNumberPagination):
 
 
 def public_pet_queryset():
-    return (
+    return with_ratings(
         Pet.objects.publicly_visible()
         .select_related("business")
-        .prefetch_related("images")
+        .prefetch_related("images"),
+        "pet",
     )
 
 

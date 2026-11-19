@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .services import rating_summary
 
 from .models import Review
 
@@ -47,3 +48,32 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 class ReviewVisibilitySerializer(serializers.Serializer):
     is_visible = serializers.BooleanField()
+    
+    
+from .services import rating_summary
+
+
+class RatingSummaryMixin(serializers.Serializer):
+    """Adds average_rating and review_count to a public serializer.
+    Set rating_field to "product", "service" or "pet". If the queryset was
+    built with with_ratings(), the numbers are already on the object;
+    otherwise (a detail page) it asks the database once."""
+
+    rating_field = None
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+
+    def _summary(self, obj):
+        if hasattr(obj, "review_count"):
+            average = obj.average_rating
+            return {
+                "average_rating": round(average, 1) if average is not None else None,
+                "review_count": obj.review_count,
+            }
+        return rating_summary(self.rating_field, obj)
+
+    def get_average_rating(self, obj) -> float | None:
+        return self._summary(obj)["average_rating"]
+
+    def get_review_count(self, obj) -> int:
+        return self._summary(obj)["review_count"]

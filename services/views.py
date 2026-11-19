@@ -16,6 +16,7 @@ from audit.services import record as record_audit
 from businesses.models import Business, BusinessCategory
 from categories.models import Category
 from common.permissions import IsAdmin, IsVendor
+from reviews.services import with_ratings
 
 from .filters import filter_public_services
 from .models import AvailabilitySlot, Service
@@ -38,7 +39,9 @@ class PublicServicePagination(PageNumberPagination):
 
 def public_services():
     """Services available to customers through an approved business category."""
-    return (
+    
+    
+    return with_ratings(
         Service.objects.filter(
             approved=True,
             is_active=True,
@@ -51,7 +54,7 @@ def public_services():
                 BusinessCategory.ApprovalStatus.APPROVED
             ),
         )
-        .select_related("business", "category")
+        .select_related("business", "category", "service")
     )
 
 
