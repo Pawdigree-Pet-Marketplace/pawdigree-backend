@@ -8,6 +8,8 @@ from orders.models import OrderItem, VendorOrder
 from pets.models import Pet
 from products.models import Product
 from services.models import Service
+from adoptions.models import AdoptionApplication
+from bookings.models import Booking
 
 from .models import Review
 
@@ -17,8 +19,6 @@ TARGETS = {
     "pet": ("pet", Pet),
 }
 
-
-OPEN_KINDS = {"product"}
 
 
 def resolve_target(kind, target_id):
@@ -38,20 +38,49 @@ def _has_completed_purchase(customer, product):
     ).exists()
 
 
+def _has_completed_booking(customer, service):
+    """A booking the vendor marked as completed."""
+    return Booking.objects.filter(
+        customer=customer, service=service, status=Booking.Status.COMPLETED
+    ).exists()
+
+
+def _has_approved_adoption(customer, pet):
+    """An adoption application the vendor approved."""
+    return AdoptionApplication.objects.filter(
+        customer=customer, pet=pet, status=AdoptionApplication.Status.APPROVED
+    ).exists()
+
+
+# kind -> (the "did they really complete it?" check, message if they didn't)
+COMPLETION_CHECKS = {
+    "product": (
+        _has_completed_purchase,
+        "You can review a product after it has been delivered to you.",
+    ),
+    "service": (
+        _has_completed_booking,
+        "You can review a service after your booking is completed.",
+    ),
+    "pet": (
+        _has_approved_adoption,
+        "You can review a pet after your application has been approved.",
+    ),
+}
+
+
 def check_eligibility(customer, kind, target):
     """Return (allowed, reason). The reason is shown to the customer."""
     if customer.role != User.Role.CUSTOMER:
         return False, "Only customers can write reviews."
 
-    if kind not in OPEN_KINDS:
-        return False, f"Reviews for {kind}s are not open yet."
-
     field = TARGETS[kind][0]
     if Review.objects.filter(customer=customer, **{field: target}).exists():
         return False, "You have already reviewed this."
 
-    if kind == "product" and not _has_completed_purchase(customer, target):
-        return False, "You can review a product after it has been delivered to you."
+    completed, message = COMPLETION_CHECKS[kind]
+    if not completed(customer, target):
+        return False, message
 
     return True, ""
 
