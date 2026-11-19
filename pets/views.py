@@ -493,7 +493,8 @@ class AdminPendingPetListView(generics.ListAPIView):
         OpenApiParameter("species", str, description="One or more, comma separated."),
         OpenApiParameter("listing_type", str, description="ADOPTION or SALE."),
         OpenApiParameter(
-            "adoption_status", str, description="AVAILABLE, PENDING or ADOPTED."
+            "adoption_status", str,
+            description="AVAILABLE, PENDING, ADOPTED, RESERVED or SOLD.",
         ),
         OpenApiParameter(
             "review_status", str, description="APPROVED, PENDING or REJECTED."

@@ -65,6 +65,16 @@ class PetSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    def validate_adoption_status(self, value):
+        """RESERVED and SOLD are set by checkout, never by a listing edit."""
+        locked = (Pet.AdoptionStatus.RESERVED, Pet.AdoptionStatus.SOLD)
+        current = getattr(self.instance, "adoption_status", None)
+        if value != current and (value in locked or current in locked):
+            raise serializers.ValidationError(
+                "This status is set by checkout and cannot be changed here."
+            )
+        return value
+
     def validate_description(self, value):
         validate_description_length(value)
         return value
