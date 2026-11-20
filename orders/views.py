@@ -243,7 +243,7 @@ class AdminVendorOrderListView(generics.ListAPIView):
         queryset = (
             VendorOrder.objects.filter(order__status=Order.Status.PAID)
             .select_related("order", "business")
-            .prefetch_related("items__product")
+            .prefetch_related("items__product", "items__pet")
             .order_by("-created_at")
         )
         status_filter = self.request.query_params.get("status")

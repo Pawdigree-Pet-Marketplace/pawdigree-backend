@@ -17,6 +17,8 @@ from orders.services import cancel_unpaid_order, expire_overdue_orders, mark_pai
 
 from .gateways import GatewayError, get_gateway
 from .models import Payment
+from notification.services import after_commit
+from .notifications import notify_payment_failed, notify_payment_needs_refund
 
 
 class PaymentGatewayUnavailable(APIException):
@@ -95,6 +97,7 @@ def process_gateway_event(event):
             payment.failure_reason = event.failure_reason[:255]
             payment.save()
             cancel_unpaid_order(payment.order_id)
+            after_commit(lambda: notify_payment_failed(payment.order_id))
             return payment
 
         if event.amount != payment.amount or event.currency != payment.currency:
@@ -102,6 +105,7 @@ def process_gateway_event(event):
             payment.failure_reason = "The amount paid did not match the order total."
             payment.save()
             cancel_unpaid_order(payment.order_id)
+            after_commit(lambda: notify_payment_needs_refund(payment.pk))
             return payment
 
         try:
@@ -109,9 +113,11 @@ def process_gateway_event(event):
         except ValidationError:
             payment.status = Payment.Status.REFUND_REQUIRED
             payment.failure_reason = ("Payment arrived after the order was cancelled or expired.")
+            after_commit(lambda: notify_payment_needs_refund(payment.pk))
         else:
             payment.status = Payment.Status.PAID
             payment.paid_at = timezone.now()
 
         payment.save()
+        
         return payment

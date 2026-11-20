@@ -16,6 +16,12 @@ from cart.services import product_is_visible
 from common.permissions import ADMIN_ROLES
 from products.models import Product
 
+from notification.services import after_commit
+from .notifications import (
+    notify_order_expired, notify_order_paid, notify_order_placed,
+    notify_refund_confirmed, notify_status_changed,
+)
+
 from .models import Order, OrderItem, VendorOrder
 
 TWO_PLACES = Decimal("0.01")
@@ -215,6 +221,7 @@ def checkout(customer, shipping):
                     stock_quantity=F("stock_quantity") - item.quantity
                 )
 
+        after_commit(lambda: notify_order_placed(order.pk))
         return order
 
 
@@ -258,6 +265,7 @@ def expire_overdue_orders():
             ):
                 _release_locked(order, Order.Status.EXPIRED)
                 expired += 1
+                after_commit(lambda oid=order.pk: notify_order_expired(oid))
     return expired
 
 def mark_paid(order_id):
@@ -321,7 +329,8 @@ def mark_paid(order_id):
             CartItem.objects.filter(
                 cart__customer=order.customer, pet_id__in=bought_pet_ids
             ).delete()
-
+        
+        after_commit(lambda: notify_order_paid(order.pk))
         return order
 
 
@@ -421,6 +430,7 @@ def change_status(vendor_order_id, new_status, actor, reason=""):
                 },
             )
 
+        after_commit(lambda: notify_status_changed(vendor_order.pk, new_status))
         return vendor_order
 
 
@@ -475,4 +485,6 @@ def mark_refunded(vendor_order_id, actor):
                 "order": str(vendor_order.order_id),
             },
         )
+        
+        after_commit(lambda: notify_refund_confirmed(vendor_order.pk))
         return vendor_order
