@@ -101,6 +101,7 @@ INSTALLED_APPS = [
     'payments',
     'bookings',
     'audit',
+    'reports.apps.ReportsConfig',
     'reviews',
 ]
 
