@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .services import rating_summary
 
-from .models import Review
+from .models import Review, ReviewReply
 
 
 
@@ -78,3 +78,20 @@ class RatingSummaryMixin(serializers.Serializer):
 
     def get_review_count(self, obj) -> int:
         return self._summary(obj)["review_count"]
+    
+    
+class ReviewReplyCreateSerializer(serializers.Serializer):
+    body = serializers.CharField(max_length=1000, trim_whitespace=True)
+
+
+class ReviewReplySerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+    author_role = serializers.CharField(source="author.role", read_only=True)
+
+    class Meta:
+        model = ReviewReply
+        fields = ("id", "review_id", "author_name", "author_role", "body", "created_at")
+        read_only_fields = fields
+
+    def get_author_name(self, obj) -> str:
+        return short_name(obj.author)
