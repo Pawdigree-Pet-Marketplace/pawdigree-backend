@@ -4,6 +4,15 @@ from .services import rating_summary
 from .models import Review
 
 
+
+def short_name(user) -> str:
+    """First name and last initial, so we don't expose full names."""
+    first = (user.first_name or "").strip()
+    last = (user.last_name or "").strip()
+    if not first:
+        return "Customer"
+    return f"{first} {last[0]}." if last else first
+
 class ReviewCreateSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=("product", "service", "pet"))
     target_id = serializers.IntegerField(min_value=1)
@@ -38,21 +47,13 @@ class ReviewSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_reviewer(self, obj) -> str:
-        """First name and last initial, so we don't expose full names."""
-        first = (obj.customer.first_name or "").strip()
-        last = (obj.customer.last_name or "").strip()
-        if not first:
-            return "Customer"
-        return f"{first} {last[0]}." if last else first
+        return short_name(obj.customer)
 
 
 class ReviewVisibilitySerializer(serializers.Serializer):
     is_visible = serializers.BooleanField()
     
     
-from .services import rating_summary
-
-
 class RatingSummaryMixin(serializers.Serializer):
     """Adds average_rating and review_count to a public serializer.
     Set rating_field to "product", "service" or "pet". If the queryset was
