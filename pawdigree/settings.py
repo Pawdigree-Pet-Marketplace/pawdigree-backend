@@ -350,6 +350,7 @@ SPECTACULAR_SETTINGS = {
         'BusinessDecisionActionEnum': 'pawdigree.schema_enums.BusinessDecisionAction',
         'AdminAuditActionEnum': 'pawdigree.schema_enums.AdminAuditAction',
         'DocumentReviewActionEnum': 'pawdigree.schema_enums.DocumentReviewAction',
+        'PaymentStatusEnum': 'pawdigree.schema_enums.PaymentStatus',
     },
     'TAGS': [
         {'name': 'auth', 'description': 'Accounts, login and registration'},
