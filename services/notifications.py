@@ -14,10 +14,12 @@ def _notify(service, notification_type, message, email_subject):
 
     try:
         create_notification(
-            user=vendor,
-            notification_type=notification_type,
+            user=vendor, 
+            notification_type=notification_type, 
             message=message,
-            reference_id=service.pk,
+            reference_id=service.pk, 
+            reference_type="service", 
+            business=service.business
         )
     except Exception:
         logger.exception(
