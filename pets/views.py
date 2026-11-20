@@ -21,6 +21,7 @@ from audit.services import record as record_audit
 from businesses.models import Business
 from common.bulk_csv import csv_template_response, read_bulk_csv
 from common.permissions import IsAdmin, IsVendor
+from reviews.services import with_ratings
 
 from .filters import (
     SORT_OPTIONS,
@@ -156,10 +157,11 @@ class PublicPetPagination(PageNumberPagination):
 
 
 def public_pet_queryset():
-    return (
+    return with_ratings(
         Pet.objects.publicly_visible()
         .select_related("business")
-        .prefetch_related("images")
+        .prefetch_related("images"),
+        "pet",
     )
 
 
@@ -231,7 +233,11 @@ class PublicPetListView(generics.ListAPIView):
     summary="View one pet listing",
     description=(
         "Public detail of one approved, active pet listing. Open to "
-        "everyone. Deactivated and unapproved listings return 404."
+        "everyone. The pet can be in any adoption_status (AVAILABLE, "
+        "RESERVED, SOLD and so on), so an old link or an order page still "
+        "works and the frontend can show the status. Deactivated and "
+        "unapproved listings return 404. The public list only shows "
+        "AVAILABLE pets."
     ),
 )
 class PublicPetDetailView(generics.RetrieveAPIView):
@@ -240,7 +246,13 @@ class PublicPetDetailView(generics.RetrieveAPIView):
     authentication_classes = ()
 
     def get_queryset(self):
-        return public_pet_queryset()
+        # Unlike the public list, this keeps RESERVED and SOLD pets, so a
+        # customer can still open the page of a pet they are buying or bought.
+        return (
+            Pet.objects.filter(approved=True, is_active=True)
+            .select_related("business")
+            .prefetch_related("images")
+        )
 
 
 @extend_schema(
@@ -493,7 +505,8 @@ class AdminPendingPetListView(generics.ListAPIView):
         OpenApiParameter("species", str, description="One or more, comma separated."),
         OpenApiParameter("listing_type", str, description="ADOPTION or SALE."),
         OpenApiParameter(
-            "adoption_status", str, description="AVAILABLE, PENDING or ADOPTED."
+            "adoption_status", str,
+            description="AVAILABLE, PENDING, ADOPTED, RESERVED or SOLD.",
         ),
         OpenApiParameter(
             "review_status", str, description="APPROVED, PENDING or REJECTED."

@@ -5,6 +5,8 @@ from businesses.models import Business
 from categories.models import Category
 from common.validators import validate_description_length
 from .performance import LOW_STOCK_THRESHOLD
+from reviews.services import rating_summary
+from reviews.serializers import RatingSummaryMixin
 
 from .models import Product, ProductImage
 
@@ -190,17 +192,18 @@ class PublicProductSerializer(serializers.ModelSerializer):
         return request.build_absolute_uri(url) if request else url
 
 
-class PublicProductDetailSerializer(PublicProductSerializer):
+class PublicProductDetailSerializer(RatingSummaryMixin, PublicProductSerializer):
     """The full product page: the list fields plus description and images."""
 
     images = ProductImageSerializer(many=True, read_only=True)
-
+    rating_field = "product"
     class Meta(PublicProductSerializer.Meta):
         fields = PublicProductSerializer.Meta.fields + (
             "description",
             "images",
-        )
-        
+            "average_rating",
+            "review_count",
+        )          
 
 class PerformanceQuerySerializer(serializers.Serializer):
     """Validates the query string of the admin performance endpoints."""
@@ -257,3 +260,6 @@ class ProductPerformanceSerializer(serializers.ModelSerializer):
             "units_sold", "revenue", "is_low_stock",
         )
         read_only_fields = fields
+        
+        
+

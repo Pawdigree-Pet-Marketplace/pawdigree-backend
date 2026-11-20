@@ -75,6 +75,11 @@ class VendorOrder(TimeStampedModel):
         CANCELLED = "CANCELLED", "Cancelled"
         EXPIRED = "EXPIRED", "Expired"
 
+    class RefundStatus(models.TextChoices):
+        NONE = "NONE", "No refund"
+        REQUIRED = "REQUIRED", "Refund required"
+        REFUNDED = "REFUNDED", "Refunded"
+
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
@@ -90,6 +95,25 @@ class VendorOrder(TimeStampedModel):
         choices=Status.choices,
         default=Status.PENDING_PAYMENT,
     )
+    refund_status = models.CharField(
+        max_length=10,
+        choices=RefundStatus.choices,
+        default=RefundStatus.NONE,
+    )
+    refund_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cancelled_vendor_orders",
+    )
+    cancel_reason = models.CharField(max_length=500, blank=True)
 
     class Meta:
         ordering = ("created_at",)
@@ -116,6 +140,15 @@ class OrderItem(TimeStampedModel):
         "products.Product",
         on_delete=models.PROTECT,
         related_name="order_items",
+        null=True,
+        blank=True,
+    )
+    pet = models.ForeignKey(
+        "pets.Pet",
+        on_delete=models.PROTECT,
+        related_name="order_items",
+        null=True,
+        blank=True,
     )
     quantity = models.PositiveIntegerField(
         validators=[MinValueValidator(1)],
@@ -133,9 +166,24 @@ class OrderItem(TimeStampedModel):
                 fields=("vendor_order", "product"),
                 name="unique_product_per_vendor_order",
             ),
+            models.UniqueConstraint(
+                fields=("vendor_order", "pet"),
+                name="unique_pet_per_vendor_order",
+            ),
             models.CheckConstraint(
                 condition=Q(quantity__gte=1),
                 name="order_item_quantity_gte_1",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(product__isnull=False, pet__isnull=True)
+                    | Q(product__isnull=True, pet__isnull=False)
+                ),
+                name="order_item_product_xor_pet",
+            ),
+            models.CheckConstraint(
+                condition=Q(pet__isnull=True) | Q(quantity=1),
+                name="order_item_pet_quantity_is_one",
             ),
         )
 
@@ -143,8 +191,16 @@ class OrderItem(TimeStampedModel):
     def subtotal(self):
         return self.unit_price * self.quantity
 
+    @property
+    def item_name(self):
+        return self.pet.name if self.pet_id else self.product.name
+
+    @property
+    def item_type(self):
+        return "pet" if self.pet_id else "product"
+
     def __str__(self):
         return (
-            f"{self.product.name} x {self.quantity} "
+            f"{self.item_name} x {self.quantity} "
             f"(Vendor order #{self.vendor_order_id})"
         )

@@ -34,6 +34,8 @@ class Pet(models.Model):
         AVAILABLE = 'AVAILABLE', 'Available'
         PENDING = 'PENDING', 'Pending'
         ADOPTED = 'ADOPTED', 'Adopted'
+        RESERVED = 'RESERVED', 'Reserved'
+        SOLD = 'SOLD', 'Sold'
 
     class ListingType(models.TextChoices):
         ADOPTION = "ADOPTION", "Adoption"

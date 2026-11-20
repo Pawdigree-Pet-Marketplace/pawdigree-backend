@@ -4,7 +4,7 @@ from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from common.permissions import IsCustomer, IsVendor, IsAdmin, IsSystemAdmin
+from common.permissions import IsAdmin, IsCustomer, IsVendor
 
 from .models import Order, VendorOrder
 from .serializers import (
@@ -13,7 +13,7 @@ from .serializers import (
     VendorOrderDetailSerializer,
     VendorOrderStatusSerializer,
 )
-from .services import change_status, checkout
+from .services import change_status, checkout, mark_refunded
 
 
 class CheckoutView(generics.GenericAPIView):
@@ -186,7 +186,10 @@ class VendorOrderStatusView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         vendor_order = change_status(
-            pk, serializer.validated_data["status"], request.user
+            pk,
+            serializer.validated_data["status"],
+            request.user,
+            serializer.validated_data.get("reason", ""),
         )
 
         vendor_order = (
@@ -200,7 +203,7 @@ class VendorOrderStatusView(generics.GenericAPIView):
 class AdminVendorOrderStatusView(VendorOrderStatusView):
     """Let an administrator move any vendor order to its next status."""
 
-    permission_classes = (IsAdmin, IsSystemAdmin)
+    permission_classes = (IsAdmin,)
 
     @extend_schema(
         tags=["orders"],
@@ -221,7 +224,7 @@ class AdminVendorOrderStatusView(VendorOrderStatusView):
     
 class AdminVendorOrderListView(generics.ListAPIView):
     serializer_class = VendorOrderDetailSerializer
-    permission_classes = (IsAdmin, IsSystemAdmin)
+    permission_classes = (IsAdmin,)
     
     @extend_schema(
             tags=["orders"],
@@ -248,4 +251,40 @@ class AdminVendorOrderListView(generics.ListAPIView):
             if status_filter not in VendorOrder.Status.values:
                 raise ValidationError({"status": "Not a valid order status."})
             queryset = queryset.filter(status=status_filter)
+        refund_filter = self.request.query_params.get("refund_status")
+        if refund_filter:
+            refund_filter = refund_filter.upper()
+            if refund_filter not in VendorOrder.RefundStatus.values:
+                raise ValidationError(
+                    {"refund_status": "Not a valid refund status."}
+                )
+            queryset = queryset.filter(refund_status=refund_filter)
         return queryset
+
+
+
+class AdminVendorOrderRefundView(generics.GenericAPIView):
+    """Let an administrator confirm that a cancelled order was refunded."""
+
+    serializer_class = VendorOrderDetailSerializer
+    permission_classes = (IsAdmin,)
+
+    @extend_schema(
+        tags=["orders"],
+        summary="Confirm a refund (admin)",
+        description=(
+            "Marks a cancelled, paid vendor order as REFUNDED once the money "
+            "has been paid back to the customer by hand. A pet in the order "
+            "goes back on sale. The action is recorded in the audit log."
+        ),
+        request=None,
+        responses={200: VendorOrderDetailSerializer},
+    )
+    def post(self, request, pk):
+        vendor_order = mark_refunded(pk, request.user)
+        vendor_order = (
+            VendorOrder.objects.select_related("order", "business")
+            .prefetch_related("items__product", "items__pet")
+            .get(pk=vendor_order.pk)
+        )
+        return Response(VendorOrderDetailSerializer(vendor_order).data)

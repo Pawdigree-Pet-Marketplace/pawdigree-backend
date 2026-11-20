@@ -1,3 +1,5 @@
+from cart.services import pet_is_buyable
+from pets.models import Pet
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -45,6 +47,18 @@ def _restock(rows):
         )
 
 
+def _release_pets(pet_ids):
+    """Make reserved pets available again. Only RESERVED pets are touched,
+    so a SOLD pet is never freed by mistake."""
+    pet_ids = list(pet_ids)
+    if not pet_ids:
+        return
+    list(Pet.objects.select_for_update().filter(pk__in=pet_ids).order_by("pk"))
+    Pet.objects.filter(
+        pk__in=pet_ids, adoption_status=Pet.AdoptionStatus.RESERVED
+    ).update(adoption_status=Pet.AdoptionStatus.AVAILABLE)
+
+
 def _release_locked(order, new_status):
     """Put an unpaid order's stock back and set its final status.
 
@@ -52,9 +66,15 @@ def _release_locked(order, new_status):
     transaction.atomic().
     """
     _restock(
-        OrderItem.objects.filter(vendor_order__order=order).values_list(
-            "product_id", "quantity"
-        )
+        OrderItem.objects.filter(
+            vendor_order__order=order, product__isnull=False
+        ).values_list("product_id", "quantity")
+    )
+
+    _release_pets(
+        OrderItem.objects.filter(
+            vendor_order__order=order, pet__isnull=False
+        ).values_list("pet_id", flat=True)
     )
 
     order.status = new_status
@@ -97,6 +117,18 @@ def checkout(customer, shipping):
             _release_locked(unpaid, Order.Status.CANCELLED)
 
         cart_items = list(cart.items.all())
+        pet_items = [item for item in cart_items if item.pet_id]
+        cart_items = [item for item in cart_items if item.product_id]
+
+        # Lock every pet in the cart, in a fixed order, so two customers
+        # cannot buy the same animal.
+        pets = {
+            pet.pk: pet
+            for pet in Pet.objects.select_for_update(of=("self",))
+            .select_related("business")
+            .filter(pk__in=[item.pet_id for item in pet_items])
+            .order_by("pk")
+        }
 
         # Lock every product in the cart, in a fixed order. Nobody else can
         # buy them until this transaction ends, so the stock check below
@@ -120,15 +152,29 @@ def checkout(customer, shipping):
                 problems.append(
                     f"Only {product.stock_quantity} of {product.name} left in stock."
                 )
+        for item in pet_items:
+            pet = pets[item.pet_id]
+            if not pet_is_buyable(pet):
+                problems.append(f"{pet.name} is no longer available.")
         if problems:
             raise ValidationError({"items": problems})
 
         by_business = defaultdict(list)
         for item in cart_items:
             by_business[products[item.product_id].business_id].append(item)
+        for item in pet_items:
+            by_business[pets[item.pet_id].business_id].append(item)
 
         subtotal = sum(
-            (products[item.product_id].price * item.quantity for item in cart_items),
+            (
+                (
+                    products[item.product_id].price
+                    if item.product_id
+                    else pets[item.pet_id].price
+                )
+                * item.quantity
+                for item in cart_items + pet_items
+            ),
             Decimal("0.00"),
         ).quantize(TWO_PLACES)
 
@@ -146,6 +192,18 @@ def checkout(customer, shipping):
                 business_id=business_id,
             )
             for item in items:
+                if item.pet_id:
+                    pet = pets[item.pet_id]
+                    OrderItem.objects.create(
+                        vendor_order=vendor_order,
+                        pet=pet,
+                        quantity=1,
+                        unit_price=pet.price,
+                    )
+                    Pet.objects.filter(pk=pet.pk).update(
+                        adoption_status=Pet.AdoptionStatus.RESERVED
+                    )
+                    continue
                 product = products[item.product_id]
                 OrderItem.objects.create(
                     vendor_order=vendor_order,
@@ -245,6 +303,25 @@ def mark_paid(order_id):
             product_id__in=list(bought_product_ids),
         ).delete()
 
+        # Pets that were paid for are sold and leave the cart.
+        bought_pet_ids = list(
+            OrderItem.objects.filter(
+                vendor_order__order=order, pet__isnull=False
+            ).values_list("pet_id", flat=True)
+        )
+        if bought_pet_ids:
+            list(
+                Pet.objects.select_for_update()
+                .filter(pk__in=bought_pet_ids)
+                .order_by("pk")
+            )
+            Pet.objects.filter(pk__in=bought_pet_ids).update(
+                adoption_status=Pet.AdoptionStatus.SOLD
+            )
+            CartItem.objects.filter(
+                cart__customer=order.customer, pet_id__in=bought_pet_ids
+            ).delete()
+
         return order
 
 
@@ -259,7 +336,7 @@ MANUAL_TRANSITIONS = {
 }
 
 
-def change_status(vendor_order_id, new_status, actor):
+def change_status(vendor_order_id, new_status, actor, reason=""):
     """Move a paid vendor order to its next status.
 
     A vendor can only change orders of their own businesses. Admins and
@@ -300,18 +377,39 @@ def change_status(vendor_order_id, new_status, actor):
 
         if new_status == _S.CANCELLED:
             _restock(
-                OrderItem.objects.filter(vendor_order=vendor_order).values_list(
-                    "product_id", "quantity"
-                )
+                OrderItem.objects.filter(
+                    vendor_order=vendor_order, product__isnull=False
+                ).values_list("product_id", "quantity")
             )
 
         previous_status = vendor_order.status
+        update_fields = ["status", "updated_at"]
         vendor_order.status = new_status
-        vendor_order.save(update_fields=["status", "updated_at"])
+
+        if new_status == _S.CANCELLED:
+            # The order was paid, so the customer is owed this portion back.
+            vendor_order.refund_status = VendorOrder.RefundStatus.REQUIRED
+            vendor_order.refund_amount = sum(
+                (item.subtotal for item in vendor_order.items.all()),
+                Decimal("0.00"),
+            ).quantize(TWO_PLACES)
+            vendor_order.cancelled_at = timezone.now()
+            vendor_order.cancelled_by = actor
+            vendor_order.cancel_reason = (reason or "")[:500]
+            update_fields += [
+                "refund_status",
+                "refund_amount",
+                "cancelled_at",
+                "cancelled_by",
+                "cancel_reason",
+            ]
+
+        vendor_order.save(update_fields=update_fields)
 
         # Vendors updating their own orders is routine and stays out of the
-        # log; changes made by an administrator are recorded.
-        if actor.role in ADMIN_ROLES:
+        # log; changes made by an administrator, and every cancellation of a
+        # paid order (it creates a refund), are recorded.
+        if actor.role in ADMIN_ROLES or new_status == _S.CANCELLED:
             record_audit(
                 actor=actor,
                 action="order.status_changed",
@@ -323,4 +421,58 @@ def change_status(vendor_order_id, new_status, actor):
                 },
             )
 
+        return vendor_order
+
+
+def mark_refunded(vendor_order_id, actor):
+    """Confirm that an administrator has paid back a cancelled vendor order.
+
+    Only a vendor order whose refund is REQUIRED can be marked REFUNDED.
+    A pet in the order stays SOLD until this point, then goes back on sale.
+    """
+    if actor.role not in ADMIN_ROLES:
+        raise PermissionDenied("Only an administrator can confirm a refund.")
+
+    with transaction.atomic():
+        vendor_order = (
+            VendorOrder.objects.select_for_update(of=("self",))
+            .select_related("order")
+            .filter(pk=vendor_order_id)
+            .first()
+        )
+        if vendor_order is None:
+            raise NotFound("Order not found.")
+
+        if vendor_order.refund_status != VendorOrder.RefundStatus.REQUIRED:
+            raise ValidationError(
+                {"refund_status": "This order does not need a refund."}
+            )
+
+        vendor_order.refund_status = VendorOrder.RefundStatus.REFUNDED
+        vendor_order.save(update_fields=["refund_status", "updated_at"])
+
+        pet_ids = list(
+            OrderItem.objects.filter(
+                vendor_order=vendor_order, pet__isnull=False
+            ).values_list("pet_id", flat=True)
+        )
+        if pet_ids:
+            list(
+                Pet.objects.select_for_update()
+                .filter(pk__in=pet_ids)
+                .order_by("pk")
+            )
+            Pet.objects.filter(
+                pk__in=pet_ids, adoption_status=Pet.AdoptionStatus.SOLD
+            ).update(adoption_status=Pet.AdoptionStatus.AVAILABLE)
+
+        record_audit(
+            actor=actor,
+            action="order.refund_confirmed",
+            target=vendor_order,
+            details={
+                "amount": str(vendor_order.refund_amount),
+                "order": str(vendor_order.order_id),
+            },
+        )
         return vendor_order

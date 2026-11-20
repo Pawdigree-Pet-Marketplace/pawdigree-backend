@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from businesses.models import Business
 from common.validators import validate_description_length
+from reviews.serializers import RatingSummaryMixin
 
 from .models import Pet, PetImage
 
@@ -62,8 +63,20 @@ class PetSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "is_active",
             "created_at",
-            "updated_at",
+            "updated_at",            
+            "average_rating", 
+            "review_count",
         )
+
+    def validate_adoption_status(self, value):
+        """RESERVED and SOLD are set by checkout, never by a listing edit."""
+        locked = (Pet.AdoptionStatus.RESERVED, Pet.AdoptionStatus.SOLD)
+        current = getattr(self.instance, "adoption_status", None)
+        if value != current and (value in locked or current in locked):
+            raise serializers.ValidationError(
+                "This status is set by checkout and cannot be changed here."
+            )
+        return value
 
     def validate_description(self, value):
         validate_description_length(value)
@@ -164,9 +177,10 @@ class AdminPetCreateSerializer(PetSerializer):
         return value
 
 
-class PublicPetSerializer(serializers.ModelSerializer):
+class PublicPetSerializer(RatingSummaryMixin, serializers.ModelSerializer):
     """Customer-facing listing: no vendor id and no internal flags."""
-
+    
+    rating_field = "pet"
     images = PetImageSerializer(many=True, read_only=True)
     business_name = serializers.CharField(source="business.name", read_only=True)
 

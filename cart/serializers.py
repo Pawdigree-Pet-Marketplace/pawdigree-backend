@@ -6,11 +6,13 @@ class CartLineSerializer(serializers.Serializer):
 
     # source="item.id" follows  CartLine -> item -> id.
     id = serializers.IntegerField(source="item.id")
-    product_id = serializers.IntegerField(source="item.product_id")
-    name = serializers.CharField(source="item.product.name")
-    business_name = serializers.CharField(source="item.product.business.name")
+    item_type = serializers.SerializerMethodField()
+    product_id = serializers.IntegerField(source="item.product_id", allow_null=True)
+    pet_id = serializers.IntegerField(source="item.pet_id", allow_null=True)
+    name = serializers.SerializerMethodField()
+    business_name = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
-    unit_price = serializers.DecimalField(source="item.product.price", max_digits=12, decimal_places=2)
+    unit_price = serializers.SerializerMethodField()
     quantity = serializers.IntegerField(source="item.quantity")
     line_total = serializers.DecimalField(max_digits=16, decimal_places=2)
     available = serializers.BooleanField()
@@ -18,9 +20,28 @@ class CartLineSerializer(serializers.Serializer):
     max_quantity = serializers.IntegerField()
     
     
+    def get_item_type(self, obj) -> str:
+        return "pet" if obj.item.pet_id else "product"
+
+    def get_name(self, obj) -> str:
+        item = obj.item
+        return item.pet.name if item.pet_id else item.product.name
+
+    def get_business_name(self, obj) -> str:
+        item = obj.item
+        owner = item.pet if item.pet_id else item.product
+        return owner.business.name
+
+    def get_unit_price(self, obj) -> str:
+        item = obj.item
+        price = item.pet.price if item.pet_id else item.product.price
+        return f"{(price or 0):.2f}"
+
     def get_image(self, obj) -> str | None:
         # The images were prefetched.
-        first = next(iter(obj.item.product.images.all()), None)
+        item = obj.item
+        owner = item.pet if item.pet_id else item.product
+        first = next(iter(owner.images.all()), None)
         if first is None:
             return None
 
@@ -44,12 +65,24 @@ class CartSerializer(serializers.Serializer):
 class AddToCartSerializer(serializers.Serializer):
     """Validates the request body. The client sends only these two values."""
 
-    product = serializers.IntegerField(min_value=1)
+    product = serializers.IntegerField(min_value=1, required=False)
+    pet = serializers.IntegerField(min_value=1, required=False)
     quantity = serializers.IntegerField(
         min_value=1,
         max_value=MAX_QUANTITY_PER_ITEM,
         default=1,
     )
+
+    def validate(self, attrs):
+        if ("product" in attrs) == ("pet" in attrs):
+            raise serializers.ValidationError(
+                "Send either product or pet, not both."
+            )
+        if "pet" in attrs and attrs["quantity"] != 1:
+            raise serializers.ValidationError(
+                {"quantity": "A pet can only be added once."}
+            )
+        return attrs
     
 class UpdateCartItemSerializer(serializers.Serializer):
     """Validates the new quantity. Zero is refused: use DELETE to remove a line."""

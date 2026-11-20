@@ -8,6 +8,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from accounts.models import User
 from businesses.models import Business
 from categories.models import Category
+from pets.models import Pet
 from products.models import Product
 
 from .models import MAX_LINES_PER_CART, MAX_QUANTITY_PER_ITEM, Cart, CartItem
@@ -26,6 +27,22 @@ def product_is_visible(product):
         and product.is_active
         and product.category.is_active
         and product.category.kind == Category.Kind.MERCHANDISE
+        and business.is_active
+        and business.verification_status == Business.VerificationStatus.APPROVED
+    )
+
+
+def pet_is_buyable(pet):
+    """A pet can be bought only if it is an approved, active sale listing
+    that is still available, has a price, and belongs to an approved business."""
+    business = pet.business
+    return (
+        pet.approved
+        and pet.is_active
+        and pet.listing_type == Pet.ListingType.SALE
+        and pet.adoption_status == Pet.AdoptionStatus.AVAILABLE
+        and pet.price is not None
+        and pet.price > 0
         and business.is_active
         and business.verification_status == Business.VerificationStatus.APPROVED
     )
@@ -54,6 +71,11 @@ class CartSummary:
 
 def describe_line(item):
     """Why a line can't be bought as it stands, or None if it can."""
+    if item.pet_id:
+        if pet_is_buyable(item.pet):
+            return None
+        return "This pet is no longer available."
+
     product = item.product
 
     if not product_is_visible(product):
@@ -73,9 +95,27 @@ def build_cart_summary(items):
     total_quantity = 0
 
     for item in items:
-        product = item.product
         issue = describe_line(item)
         available = issue is None
+
+        if item.pet_id:
+            pet_price = item.pet.price or Decimal("0.00")
+            line_total = (pet_price * item.quantity).quantize(TWO_PLACES)
+            if available:
+                total += line_total
+                total_quantity += item.quantity
+            lines.append(
+                CartLine(
+                    item=item,
+                    line_total=line_total,
+                    available=available,
+                    issue=issue,
+                    max_quantity=1 if available else 0,
+                )
+            )
+            continue
+
+        product = item.product
 
         # Decimal times a whole number is exact, so there are no rounding errors.
         line_total = (product.price * item.quantity).quantize(TWO_PLACES)
@@ -175,8 +215,10 @@ def summarize_cart(cart):
     """Calculate the summary for a cart we already have in hand."""
     items = (
         cart.items
-        .select_related("product__business", "product__category")
-        .prefetch_related("product__images")
+        .select_related(
+            "product__business", "product__category", "pet__business"
+        )
+        .prefetch_related("product__images", "pet__images")
     )
     return build_cart_summary(items)
 
@@ -189,7 +231,53 @@ def get_cart_summary(owner):
     return summarize_cart(cart)
 
 
-def add_to_cart(owner, product_id, quantity):
+def _add_pet_to_cart(owner, pet_id):
+    """Add a pet for sale to the cart. A pet is one animal, so adding it
+    twice changes nothing. Returns (cart, created)."""
+    _check_owner(owner)
+
+    with transaction.atomic():
+        cart = _get_or_create_cart(owner)
+
+        try:
+            pet = (
+                Pet.objects.publicly_visible()
+                .select_related("business")
+                .get(pk=pet_id)
+            )
+        except Pet.DoesNotExist:
+            raise NotFound("This pet is not available.")
+
+        if pet.listing_type != Pet.ListingType.SALE:
+            raise ValidationError({
+                "pet": (
+                    "This pet is listed for adoption, not for sale. "
+                    "Contact the vendor to adopt."
+                )
+            })
+        if not pet_is_buyable(pet):
+            raise NotFound("This pet is not available.")
+
+        if CartItem.objects.filter(cart=cart, pet=pet).exists():
+            return cart, False
+
+        if cart.items.count() >= MAX_LINES_PER_CART:
+            raise ValidationError({
+                "pet": f"Your cart can hold at most {MAX_LINES_PER_CART} items."
+            })
+
+        CartItem.objects.create(cart=cart, pet=pet, quantity=1)
+        return cart, True
+
+
+def add_to_cart(owner, product_id=None, quantity=1, pet_id=None):
+    """Add a product, or a pet for sale, to the cart."""
+    if pet_id is not None:
+        return _add_pet_to_cart(owner, pet_id)
+    return _add_product_to_cart(owner, product_id, quantity)
+
+
+def _add_product_to_cart(owner, product_id, quantity):
     """Add a product to the cart, or raise its quantity if it's already there.
 
     Returns (cart, created). Everything happens in one transaction, so a
@@ -269,12 +357,28 @@ def merge_guest_cart(customer, guest_token):
         if guest_cart is None:
             return  # another request merged it in the meantime
 
-        existing = {item.product_id: item for item in cart.items.all()}
+        existing = {
+            item.product_id: item for item in cart.items.all() if item.product_id
+        }
+        existing_pet_ids = {
+            item.pet_id for item in cart.items.all() if item.pet_id
+        }
         guest_items = guest_cart.items.select_related(
-            "product__business", "product__category"
+            "product__business", "product__category", "pet__business"
         )
 
         for guest_item in guest_items:
+            if guest_item.pet_id:
+                pet = guest_item.pet
+                if (
+                    pet.pk not in existing_pet_ids
+                    and pet_is_buyable(pet)
+                    and len(existing) + len(existing_pet_ids) < MAX_LINES_PER_CART
+                ):
+                    CartItem.objects.create(cart=cart, pet=pet, quantity=1)
+                    existing_pet_ids.add(pet.pk)
+                continue
+
             product = guest_item.product
 
             if not product_is_visible(product) or product.stock_quantity == 0:
@@ -305,6 +409,14 @@ def merge_guest_cart(customer, guest_token):
 def set_item_quantity(owner, item_id, quantity):
     """Set the exact quantity of one cart line."""
     _check_owner(owner)
+
+    # A pet is one animal: there is no quantity to change.
+    if CartItem.objects.filter(
+        pk=item_id, pet__isnull=False, cart=_find_cart(owner)
+    ).exists():
+        raise ValidationError(
+            {"quantity": "A pet is bought once, so its quantity cannot be changed."}
+        )
 
     with transaction.atomic():
         cart = _find_cart(owner, lock=True)

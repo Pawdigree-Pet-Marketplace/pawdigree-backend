@@ -23,14 +23,19 @@ class CheckoutSerializer(serializers.Serializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField(read_only=True)
-    name = serializers.CharField(source="product.name", read_only=True)
+    pet_id = serializers.IntegerField(read_only=True)
+    item_type = serializers.CharField(read_only=True)
+    name = serializers.CharField(source="item_name", read_only=True)
     subtotal = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
 
     class Meta:
         model = OrderItem
-        fields = ("id", "product_id", "name", "quantity", "unit_price", "subtotal")
+        fields = (
+            "id", "item_type", "product_id", "pet_id", "name",
+            "quantity", "unit_price", "subtotal",
+        )
         read_only_fields = fields
 
 
@@ -98,6 +103,10 @@ class VendorOrderDetailSerializer(serializers.ModelSerializer):
             "notes",
             "items",
             "total",
+            "refund_status",
+            "refund_amount",
+            "cancelled_at",
+            "cancel_reason",
             "created_at",
             "updated_at",
         )
@@ -112,3 +121,6 @@ class VendorOrderStatusSerializer(serializers.Serializer):
     """The new status a vendor wants to give an order."""
 
     status = serializers.ChoiceField(choices=VendorOrder.Status.choices)
+    reason = serializers.CharField(
+        required=False, allow_blank=True, max_length=500
+    )
