@@ -1,5 +1,9 @@
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,15 +16,15 @@ from common.permissions import ADMIN_ROLES, IsAdmin
 from .models import Review, ReviewReply
 from .serializers import (
     ReviewCreateSerializer,
+    ReviewReplyCreateSerializer,
+    ReviewReplySerializer,
     ReviewSerializer,
     ReviewUpdateSerializer,
     ReviewVisibilitySerializer,
-    ReviewReplyCreateSerializer,
-    ReviewReplySerializer,
-    create_reply,
 )
 from .services import (
     check_eligibility,
+    create_reply,
     create_review,
     rating_summary,
     resolve_target,
