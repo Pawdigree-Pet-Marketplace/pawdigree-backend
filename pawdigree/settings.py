@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     'audit',
     'reports.apps.ReportsConfig',
     'reviews',
+    'admin_reports'
 ]
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
@@ -202,6 +203,7 @@ TIME_ZONE = 'UTC'
 # Weekly service slots are plain times, so bookings need one real zone
 # to turn "Monday 09:00" into an exact moment. Stored datetimes stay UTC.
 BOOKING_TIME_ZONE = 'Africa/Kampala'
+REPORT_TIME_ZONE = BOOKING_TIME_ZONE
 
 USE_I18N = True
 
