@@ -296,6 +296,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+# Lets the browser read the download filename on report exports.
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
 
 # Add production frontend URL(s) from the environment
 extra_origins = os.environ.get("FRONTEND_URL", "")
