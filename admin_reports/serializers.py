@@ -37,3 +37,15 @@ class SavedReportDetailSerializer(SavedReportListSerializer):
     class Meta(SavedReportListSerializer.Meta):
         fields = SavedReportListSerializer.Meta.fields + ("data",)
         read_only_fields = fields
+        
+class SavedReportTrashSerializer(SavedReportListSerializer):
+    deleted_by_email = serializers.EmailField(
+        source="deleted_by.email", read_only=True, default=None
+    )
+    restorable_until = serializers.DateTimeField(read_only=True)
+
+    class Meta(SavedReportListSerializer.Meta):
+        fields = SavedReportListSerializer.Meta.fields + (
+            "deleted_at", "deleted_by_email", "restorable_until",
+        )
+        read_only_fields = fields

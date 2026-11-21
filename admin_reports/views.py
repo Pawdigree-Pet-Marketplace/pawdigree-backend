@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.text import slugify
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -6,9 +7,11 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
 
 from accounts.models import User
-from accounts.permissions import IsAdmin  # use the same import as reviews/views.py
+from audit.services import record
+from common.permissions import IsAdmin
 
 from .exporters import export_response
 from .filters import REPORT_FILTERS, ReportFilterSerializer
@@ -17,8 +20,9 @@ from .serializers import (
     SavedReportCreateSerializer,
     SavedReportDetailSerializer,
     SavedReportListSerializer,
+    SavedReportTrashSerializer
 )
-from .services import generate_report, save_report
+from .services import generate_report, record_export, save_report
 
 TAG = "admin-reports"
 
@@ -49,6 +53,7 @@ class LiveReportView(APIView):
         report = generate_report(self.report_type, request.query_params)
         fmt = request.query_params.get("export")
         if fmt:  # already validated as xlsx/pdf by the filter serializer
+            record_export(request.user, report, fmt)
             f = report["filters"]
             return export_response(
                 report, fmt,
@@ -123,18 +128,36 @@ class SavedReportListCreateView(generics.ListCreateAPIView):
         )
 
 
+DENIED = (
+    "Only the admin who saved this report, or a system admin, can do this."
+)
+
+
+def can_manage(user, report):
+    """The creator, or a system admin (who acts above other admins)."""
+    return (
+        report.generated_by_id == user.id
+        or user.role == User.Role.SYSTEM_ADMIN
+        or user.is_superuser
+    )
+
+
 @extend_schema_view(
     get=extend_schema(
         tags=[TAG], summary="View or export a saved report (admin)",
         description="Add export=xlsx or export=pdf to download it.",
         responses={200: SavedReportDetailSerializer},
     ),
-    delete=extend_schema(tags=[TAG], summary="Delete a saved report (admin)"),
+    delete=extend_schema(
+        tags=[TAG],
+        summary="Move a saved report to the trash (admin)",
+        description="Restorable for 30 days, then permanently deleted.",
+    ),
 )
 class SavedReportDetailView(generics.RetrieveDestroyAPIView):
     permission_classes = (IsAdmin,)
     serializer_class = SavedReportDetailSerializer
-    queryset = SavedReport.objects.select_related("generated_by")
+    queryset = SavedReport.objects.select_related("generated_by")  # active only
 
     def retrieve(self, request, *args, **kwargs):
         saved = self.get_object()
@@ -142,6 +165,7 @@ class SavedReportDetailView(generics.RetrieveDestroyAPIView):
         if fmt:
             if fmt not in ("xlsx", "pdf"):
                 raise ValidationError({"export": "Use xlsx or pdf."})
+            record_export(request.user, saved.data, fmt, saved=saved)
             return export_response(
                 saved.data, fmt, slugify(saved.name) or f"report-{saved.pk}"
             )
@@ -149,10 +173,78 @@ class SavedReportDetailView(generics.RetrieveDestroyAPIView):
 
     def perform_destroy(self, instance):
         user = self.request.user
-        is_owner = instance.generated_by_id == user.id
-        is_system = user.role == User.Role.SYSTEM_ADMIN or user.is_superuser
-        if not (is_owner or is_system):
-            raise PermissionDenied(
-                "Only the admin who saved this report can delete it."
+        if not can_manage(user, instance):
+            raise PermissionDenied(DENIED)
+        with transaction.atomic():
+            instance.soft_delete(user)
+            record(
+                actor=user,
+                action="report.deleted",
+                target=instance,
+                details={
+                    "name": instance.name,
+                    "report_type": instance.report_type,
+                    "filters": instance.filters,
+                    "saved_by": (
+                        instance.generated_by.email
+                        if instance.generated_by else ""
+                    ),
+                    "saved_at": instance.created_at.isoformat(),
+                    "restorable_until": instance.restorable_until.isoformat(),
+                    "deleted_by_system_admin": (
+                        instance.generated_by_id != user.id
+                    ),
+                },
             )
-        instance.delete()
+
+
+@extend_schema(
+    tags=[TAG],
+    summary="List deleted reports that can still be restored (admin)",
+    responses={200: SavedReportTrashSerializer(many=True)},
+)
+class SavedReportTrashListView(generics.ListAPIView):
+    permission_classes = (IsAdmin,)
+    pagination_class = SavedReportPagination
+    serializer_class = SavedReportTrashSerializer
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return SavedReport.all_objects.none()
+        return (
+            SavedReport.all_objects.restorable()
+            .select_related("generated_by", "deleted_by")
+            .defer("data")
+            .order_by("-deleted_at")
+        )
+
+
+class SavedReportRestoreView(APIView):
+    permission_classes = (IsAdmin,)
+
+    @extend_schema(
+        tags=[TAG],
+        summary="Restore a deleted saved report (admin)",
+        description="Only works within 30 days of deletion.",
+        request=None,
+        responses={200: SavedReportListSerializer},
+    )
+    def post(self, request, pk):
+        # restorable() already excludes anything past the 30-day window.
+        report = get_object_or_404(
+            SavedReport.all_objects.restorable()
+            .select_related("generated_by")
+            .defer("data"),
+            pk=pk,
+        )
+        if not can_manage(request.user, report):
+            raise PermissionDenied(DENIED)
+        with transaction.atomic():
+            report.restore()
+            record(
+                actor=request.user,
+                action="report.restored",
+                target=report,
+                details={"name": report.name, "report_type": report.report_type},
+            )
+        return Response(SavedReportListSerializer(report).data)
