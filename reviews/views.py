@@ -1,5 +1,9 @@
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -7,17 +11,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.services import record as record_audit
-from common.permissions import IsAdmin
+from common.permissions import ADMIN_ROLES, IsAdmin
 
-from .models import Review
+from .models import Review, ReviewReply
 from .serializers import (
     ReviewCreateSerializer,
+    ReviewReplyCreateSerializer,
+    ReviewReplySerializer,
     ReviewSerializer,
     ReviewUpdateSerializer,
     ReviewVisibilitySerializer,
 )
 from .services import (
     check_eligibility,
+    create_reply,
     create_review,
     rating_summary,
     resolve_target,
@@ -158,3 +165,60 @@ class AdminReviewVisibilityView(APIView):
             details={},
         )
         return Response(ReviewSerializer(review).data)
+    
+@extend_schema_view(
+    get=extend_schema(tags=["reviews"], summary="Replies under a review (public)"),
+    post=extend_schema(
+        tags=["reviews"],
+        summary="Reply to a review",
+        request=ReviewReplyCreateSerializer,
+        responses={201: ReviewReplySerializer},
+        description=(
+            "Customers, admins and the owning vendor can reply. A review can "
+            "have any number of replies."
+        ),
+    ),
+)
+class ReviewReplyListCreateView(generics.ListCreateAPIView):
+    serializer_class = ReviewReplySerializer
+    pagination_class = ReviewPagination
+
+    def get_authenticators(self):
+        # Reading is public and ignores tokens (an expired one must not break
+        # the page); posting needs a login.
+        if self.request.method == "GET":
+            return []
+        return super().get_authenticators()
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ReviewReply.objects.none()
+        review = get_object_or_404(Review, pk=self.kwargs["pk"], is_visible=True)
+        return review.replies.select_related("author")
+
+    def create(self, request, *args, **kwargs):
+        serializer = ReviewReplyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reply = create_reply(
+            author=request.user,
+            review_id=kwargs["pk"],
+            body=serializer.validated_data["body"],
+        )
+        return Response(ReviewReplySerializer(reply).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=["reviews"], summary="Delete a reply (author or admin)")
+class ReviewReplyDeleteView(generics.DestroyAPIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        replies = ReviewReply.objects.all()
+        if self.request.user.role in ADMIN_ROLES:
+            return replies
+        # Someone else's reply behaves as if it does not exist (404).
+        return replies.filter(author=self.request.user)

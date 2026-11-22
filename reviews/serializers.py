@@ -1,8 +1,17 @@
 from rest_framework import serializers
 from .services import rating_summary
 
-from .models import Review
+from .models import Review, ReviewReply
 
+
+
+def short_name(user) -> str:
+    """First name and last initial, so we don't expose full names."""
+    first = (user.first_name or "").strip()
+    last = (user.last_name or "").strip()
+    if not first:
+        return "Customer"
+    return f"{first} {last[0]}." if last else first
 
 class ReviewCreateSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=("product", "service", "pet"))
@@ -38,21 +47,13 @@ class ReviewSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_reviewer(self, obj) -> str:
-        """First name and last initial, so we don't expose full names."""
-        first = (obj.customer.first_name or "").strip()
-        last = (obj.customer.last_name or "").strip()
-        if not first:
-            return "Customer"
-        return f"{first} {last[0]}." if last else first
+        return short_name(obj.customer)
 
 
 class ReviewVisibilitySerializer(serializers.Serializer):
     is_visible = serializers.BooleanField()
     
     
-from .services import rating_summary
-
-
 class RatingSummaryMixin(serializers.Serializer):
     """Adds average_rating and review_count to a public serializer.
     Set rating_field to "product", "service" or "pet". If the queryset was
@@ -77,3 +78,20 @@ class RatingSummaryMixin(serializers.Serializer):
 
     def get_review_count(self, obj) -> int:
         return self._summary(obj)["review_count"]
+    
+    
+class ReviewReplyCreateSerializer(serializers.Serializer):
+    body = serializers.CharField(max_length=1000, trim_whitespace=True)
+
+
+class ReviewReplySerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+    author_role = serializers.CharField(source="author.role", read_only=True)
+
+    class Meta:
+        model = ReviewReply
+        fields = ("id", "review_id", "author_name", "author_role", "body", "created_at")
+        read_only_fields = fields
+
+    def get_author_name(self, obj) -> str:
+        return short_name(obj.author)

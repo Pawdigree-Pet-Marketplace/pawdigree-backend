@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 def _notify(pet, notification_type, message, email_subject):
     try:
         create_notification(
-            user=pet.vendor,
-            notification_type=notification_type,
-            message=message,
-            reference_id=pet.pk,
+            user=pet.vendor, 
+            notification_type=notification_type, message=message,
+            reference_id=pet.pk, 
+            reference_type="pet", 
+            business=pet.business
         )
     except Exception:
         logger.exception("Could not create notification for pet %s", pet.pk)
