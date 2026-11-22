@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .admin_views import (
     AdminUserListView,
@@ -12,6 +12,7 @@ from .admin_views import (
 )
 
 urlpatterns = [
+    path('dashboard/', include('dashboard.urls')),
     path(
         'users/',
         AdminUserListView.as_view(),
