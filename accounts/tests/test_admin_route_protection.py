@@ -1,8 +1,10 @@
 from django.urls import URLPattern, URLResolver, get_resolver
 
-from common.permissions import IsSystemAdminRoleOnly
+from common.permissions import IsAdmin, IsSystemAdminRoleOnly
+from rest_framework.permissions import IsAuthenticated
 
 ADMIN_PREFIX = "api/admin/"
+DASHBOARD_PREFIX = f"{ADMIN_PREFIX}dashboard/"
 
 
 def collect_routes(patterns, prefix=""):
@@ -24,7 +26,25 @@ def test_every_admin_route_requires_system_admin_role():
     # Guard against passing by checking nothing.
     assert len(routes) >= 4
 
+    dashboard_routes = set()
+    management_route_count = 0
+
     for route, callback in routes:
         view_class = getattr(callback, "cls", None)
         assert view_class is not None, f"{route} is not a class-based view"
-        assert IsSystemAdminRoleOnly in view_class.permission_classes, route
+
+        if route.startswith(DASHBOARD_PREFIX):
+            dashboard_routes.add(route)
+            assert IsAuthenticated in view_class.permission_classes, route
+            assert IsAdmin in view_class.permission_classes, route
+        else:
+            management_route_count += 1
+            assert (
+                IsSystemAdminRoleOnly in view_class.permission_classes
+            ), route
+
+    assert management_route_count >= 4
+    assert dashboard_routes == {
+        f"{DASHBOARD_PREFIX}summary/",
+        f"{DASHBOARD_PREFIX}statistics/",
+    }
