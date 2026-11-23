@@ -14,11 +14,13 @@ def _notify(product, notification_type, message, email_subject):
 
     try:
         create_notification(
-            user=vendor,
-            notification_type=notification_type,
+            user=vendor, 
+            notification_type=notification_type, 
             message=message,
-            reference_id=product.pk,
-        )
+            reference_id=product.pk, 
+            reference_type="product", 
+            business=product.business
+            )
     except Exception:
         logger.exception(
             "Could not create notification for product %s", product.pk

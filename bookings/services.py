@@ -6,6 +6,8 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from .availability import booking_tz, free_start_times
 from .models import ACTIVE_STATUSES, Booking
+from notification.services import after_commit
+from .notifications import (notify_booking_created, notify_booking_status_changed, notify_booking_cancelled, notify_booking_rescheduled )
 
 
 def create_booking(customer, service, start_at, notes=""):
@@ -20,13 +22,12 @@ def create_booking(customer, service, start_at, notes=""):
 
     try:
         with transaction.atomic():
-            return Booking.objects.create(
-                customer=customer,
-                service=service,
-                start_at=start_at,
-                end_at=start_at + timedelta(minutes=service.duration),
-                notes=notes,
+            booking = Booking.objects.create(
+                customer=customer, service=service, start_at=start_at,
+                end_at=start_at + timedelta(minutes=service.duration), notes=notes,
             )
+            after_commit(lambda: notify_booking_created(booking.pk))
+            return booking
     except IntegrityError:
         # Someone booked the same time between the check and the save.
         raise ValidationError(
@@ -91,6 +92,8 @@ def change_booking_status(vendor, booking_id, new_status, decision_reason=""):
             booking.decision_reason = decision_reason.strip()
             update_fields.append("decision_reason")
         booking.save(update_fields=update_fields)
+        
+        after_commit(lambda: notify_booking_status_changed(booking.pk, new_status))
         return booking
 
 
@@ -118,6 +121,7 @@ def cancel_booking(customer, booking_id):
         _require_changeable(booking, "cancelled")
         booking.status = Booking.Status.CANCELLED
         booking.save(update_fields=["status", "updated_at"])
+        after_commit(lambda: notify_booking_cancelled(booking.pk))
     return booking
 
 
@@ -149,4 +153,6 @@ def reschedule_booking(customer, booking_id, new_start_at):
             raise ValidationError(
                 {"start_at": "This time was just booked by someone else."}
             )
+        
+        after_commit(lambda: notify_booking_rescheduled(booking.pk))
     return booking

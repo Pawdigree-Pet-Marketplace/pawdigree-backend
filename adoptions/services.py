@@ -8,6 +8,8 @@ from rest_framework.exceptions import (
 
 from accounts.models import User
 from pets.models import Pet
+from notification.services import after_commit
+from .notifications import (notify_application_submitted, notify_application_decided, notify_info_requested, notify_applicant_replied)
 
 from .models import ACTIVE_STATUSES, AdoptionApplication, AdoptionInfoMessage
 
@@ -39,11 +41,10 @@ def create_adoption_application(customer, pet_id, data):
 
     try:
         with transaction.atomic():
-            return AdoptionApplication.objects.create(
-                customer=customer,
-                pet=pet,
-                **data,
-            )
+            application = AdoptionApplication.objects.create(customer=customer, pet=pet, **data)
+            after_commit(lambda: notify_application_submitted(application.pk))
+            return application
+            
     except IntegrityError:
         # Two submits at the same moment: the database rule stopped the second.
         raise ValidationError({'pet': ALREADY_APPLIED})
@@ -118,7 +119,8 @@ def decide_adoption_application(
                 "updated_at",
             ]
         )
-
+        
+        after_commit(lambda: notify_application_decided(application.pk))
         return application
     
     
@@ -183,7 +185,7 @@ def request_adoption_info(application_id, actor, message):
 
         application.status = AdoptionApplication.Status.INFO_REQUESTED
         application.save(update_fields=['status', 'updated_at'])
-
+        after_commit(lambda: notify_info_requested(application.pk))
         return application
     
 
@@ -228,5 +230,6 @@ def reply_to_info_request(application_id, actor, message):
         # ask again.
         application.status = AdoptionApplication.Status.PENDING
         application.save(update_fields=['status', 'updated_at'])
+        after_commit(lambda: notify_applicant_replied(application.pk))
 
         return application

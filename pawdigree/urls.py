@@ -30,7 +30,8 @@ urlpatterns = [
     path('api/audit-logs/', include('audit.urls')),
     path('api/reports/', include('reports.urls')),
     path('api/reviews/', include('reviews.urls')),
-
+    path('api/platform-reports/', include('admin_reports.urls')),
+    
     path('api/schema/',SpectacularAPIView.as_view(),name='schema',),
     path('api/docs/',SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui', ),
     path('api/notification/', include('notification.urls')),

@@ -11,6 +11,7 @@ from .views import (
     ServiceDetailView,
     ServiceSlotDeleteView,
     ServiceSlotListCreateView,
+    PublicServiceDetailView,
 )
 
 urlpatterns = [
@@ -30,6 +31,12 @@ urlpatterns = [
         "admin/pending/",
         AdminPendingServiceListView.as_view(),
         name="service-admin-pending",
+    ),
+
+    path(
+    "public/<int:pk>/",
+    PublicServiceDetailView.as_view(),
+    name="service-public-detail",
     ),
     path(
         "admin/<int:pk>/approve/",

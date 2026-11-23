@@ -13,7 +13,10 @@ from services.models import Service
 from adoptions.models import AdoptionApplication
 from bookings.models import Booking
 
-from .models import Review
+from notification.services import after_commit
+
+from .models import Review, ReviewReply
+from .notifications import notify_new_review, notify_review_reply
 
 TARGETS = {
     "product": ("product", Product),
@@ -107,13 +110,39 @@ def create_review(*, customer, kind, target_id, rating, comment=""):
         raise PermissionDenied(reason)
 
     try:
-        # The savepoint keeps a duplicate-key error from breaking an outer transaction (and tests).
         with transaction.atomic():
-            return Review.objects.create(
+            review = Review.objects.create(
                 customer=customer, rating=rating, comment=comment, **{field: target}
             )
+            after_commit(lambda: notify_new_review(review.pk))
+            return review
     except IntegrityError:
-            raise ValidationError("You have already reviewed this.")
+        raise ValidationError("You have already reviewed this.")
+
+
+def create_reply(*, author, review_id, body):
+    """Customers and admins can reply to any visible review; a vendor only
+    on reviews of their own business's items."""
+    review = get_object_or_404(
+        Review.objects.select_related(
+            "customer", "product__business", "service__business", "pet__business"
+        ),
+        pk=review_id,
+        is_visible=True,
+    )
+    body = (body or "").strip()
+    if not body:
+        raise ValidationError({"body": "Write something first."})
+
+    if author.role == User.Role.VENDOR and review.business.vendor_id != author.pk:
+        raise PermissionDenied(
+            "Only the business that owns this item can reply as a vendor."
+        )
+
+    with transaction.atomic():
+        reply = ReviewReply.objects.create(review=review, author=author, body=body)
+        after_commit(lambda: notify_review_reply(reply.pk))
+    return reply
 
 
 def rating_summary(field, target):

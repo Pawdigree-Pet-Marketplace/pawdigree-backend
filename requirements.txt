@@ -46,3 +46,8 @@ pycountry==26.2.16
 django-anymail[brevo]
 cloudinary==1.47.0
 django-cloudinary-storage==0.3.0
+charset-normalizer==3.5.2
+et_xmlfile==2.0.0
+openpyxl==3.1.5
+pillow==12.3.0
+reportlab==5.1.0

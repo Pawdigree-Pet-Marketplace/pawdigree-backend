@@ -24,9 +24,12 @@ class Report(TimeStampedModel):
         PRODUCT = "PRODUCT", "Product"
         SERVICE = "SERVICE", "Service"
         GENERAL = "GENERAL", "General"
+        REVIEW = "REVIEW", "Review"
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
+        DISMISSED = "DISMISSED", "Dismissed"
+        RESOLVED = "RESOLVED", "Resolved"
 
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -47,6 +50,15 @@ class Report(TimeStampedModel):
         choices=Status.choices,
         default=Status.PENDING,
     )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reports_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    resolution_note = models.TextField(blank=True)
 
     class Meta:
         constraints = [

@@ -9,6 +9,8 @@ from rest_framework import generics, status, serializers
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from notification.services import after_commit
+from .notifications import notify_business_decision
 
 
 from audit.services import record as record_audit
@@ -475,11 +477,12 @@ class AdminBusinessDetailView(generics.RetrieveAPIView):
     summary="Decide on a vendor application (administrators)",
     request=BusinessDecisionInputSerializer,
     description=(
-        "Actions: approve (from pending), request_changes (from pending or "
-        "approved, reason required), suspend (from approved, reason required) "
-        "and reapprove (from suspended). The decision and reason are saved "
-        "on the business and in its decision history, and the vendor's "
-        "approved flag is updated."
+        "Actions: approve (from pending), reject (from pending or "
+        "changes_requested, reason required), request_changes (from pending "
+        "or approved, reason required), suspend (from approved, reason "
+        "required) and reapprove (from suspended). The decision and reason "
+        "are saved on the business and in its decision history, and the "
+        "vendor's approved flag is updated. A rejected vendor can reapply."
     ),
 )
 class AdminBusinessDecisionView(generics.GenericAPIView):
@@ -529,6 +532,12 @@ class AdminBusinessDecisionView(generics.GenericAPIView):
         )
 
         vendor_approved = sync_vendor_approval(business.vendor)
+        # Sent only once the decision has committed, so a rolled-back
+        # decision never produces a notification.
+        after_commit(
+            lambda bid=business.pk, act=data["action"], did=decision.pk:
+                notify_business_decision(bid, act, did)
+        )
 
         return Response({
             "business_id": str(business.pk),

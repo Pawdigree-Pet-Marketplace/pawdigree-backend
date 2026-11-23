@@ -81,3 +81,27 @@ class Review(TimeStampedModel):
 
     def __str__(self):
         return f"{self.rating}★ {self.target_kind} {self.target_pk} by {self.customer_id}"
+    
+    @property
+    def target(self):
+        return self.product or self.service or self.pet
+
+    @property
+    def business(self):
+        return self.target.business
+
+
+class ReviewReply(TimeStampedModel):
+    """One message in the thread under a review."""
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="replies")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="review_replies"
+    )
+    body = models.TextField(max_length=1000)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self):
+        return f"Reply {self.pk} on review {self.review_id}"
