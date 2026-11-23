@@ -4,7 +4,7 @@ from businesses.models import Business
 from common.validators import validate_description_length
 from reviews.serializers import RatingSummaryMixin
 
-from .models import Pet, PetImage
+from .models import Pet, PetImage, PetSearchTerm
 
 
 class PetImageSerializer(serializers.ModelSerializer):
@@ -225,3 +225,8 @@ class PetBusinessOptionSerializer(serializers.ModelSerializer):
         model = Business
         fields = ("id", "name")
         read_only_fields = fields
+
+class TrendingSearchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PetSearchTerm
+        fields = ("term", "count")
