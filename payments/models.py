@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from common.models import TimeStampedModel
@@ -37,3 +38,29 @@ class Payment(TimeStampedModel):
 
     def __str__(self):
         return f"Payment {self.gateway_reference} ({self.status})"
+
+
+class PaymentRefund(TimeStampedModel):
+    """An administrator's record that a payment was paid back to the customer.
+
+    One refund per payment: the one-to-one link is what stops a payment from
+    being refunded twice. created_at is when the administrator recorded it.
+    """
+
+    payment = models.OneToOneField(
+        Payment,
+        on_delete=models.PROTECT,
+        related_name="refund",
+    )
+    refunded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="payment_refunds",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3)
+    reason = models.CharField(max_length=500, blank=True)
+    gateway_reference = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return f"Refund {self.gateway_reference} for payment {self.payment_id}"
