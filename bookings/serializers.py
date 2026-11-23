@@ -107,3 +107,83 @@ class VendorBookingStatusSerializer(serializers.Serializer):
 class BookingRescheduleSerializer(serializers.Serializer):
     start_at = serializers.DateTimeField()
 
+
+class AdminBookingSerializer(serializers.ModelSerializer):
+    """Full booking detail for administrator views."""
+
+    customer_id = serializers.IntegerField(source="customer.pk", read_only=True)
+    customer_name = serializers.SerializerMethodField()
+    service_id = serializers.IntegerField(source="service.pk", read_only=True)
+    service_name = serializers.CharField(source="service.name", read_only=True)
+    business_id = serializers.SerializerMethodField()
+    business_name = serializers.CharField(
+        source="service.business.name", read_only=True
+    )
+    vendor_id = serializers.IntegerField(
+        source="service.business.vendor.pk", read_only=True
+    )
+    vendor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Booking
+        fields = (
+            "booking_id",
+            "customer_id",
+            "customer_name",
+            "service_id",
+            "service_name",
+            "business_id",
+            "business_name",
+            "vendor_id",
+            "vendor_name",
+            "start_at",
+            "end_at",
+            "status",
+            "notes",
+            "decision_reason",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_customer_name(self, obj) -> str:
+        full_name = obj.customer.get_full_name().strip()
+        return full_name or obj.customer.username
+
+    def get_business_id(self, obj) -> str:
+        return str(obj.service.business.pk)
+
+    def get_vendor_name(self, obj) -> str:
+        vendor = obj.service.business.vendor
+        full_name = vendor.get_full_name().strip()
+        return full_name or vendor.username
+
+
+class AdminBookingStatusSerializer(serializers.Serializer):
+    """Validate an administrator's requested booking status transition."""
+
+    status = serializers.ChoiceField(
+        choices=(
+            (Booking.Status.ACCEPTED, "Accepted"),
+            (Booking.Status.DECLINED, "Declined"),
+            (Booking.Status.COMPLETED, "Completed"),
+            (Booking.Status.CANCELLED, "Cancelled"),
+        )
+    )
+    reason = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=True, default=""
+    )
+
+    def validate(self, attrs):
+        status = attrs["status"]
+        reason = attrs.get("reason", "").strip()
+        if status == Booking.Status.DECLINED and not reason:
+            raise serializers.ValidationError(
+                {"reason": "A reason is required when declining a booking."}
+            )
+        if status == Booking.Status.CANCELLED and not reason:
+            raise serializers.ValidationError(
+                {"reason": "A reason is required when an administrator cancels a booking."}
+            )
+        return attrs
+
