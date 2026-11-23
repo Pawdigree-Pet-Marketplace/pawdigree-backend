@@ -6,6 +6,7 @@ from rest_framework import serializers
 from common.validators import validate_description_length
 from pets.models import Pet
 from products.models import Product
+from reviews.models import Review
 from services.models import Service
 
 from .models import Report
@@ -15,6 +16,7 @@ TARGET_MODELS = {
     Report.ReportedItemType.PET: Pet,
     Report.ReportedItemType.PRODUCT: Product,
     Report.ReportedItemType.SERVICE: Service,
+    Report.ReportedItemType.REVIEW: Review,
 }
 
 
