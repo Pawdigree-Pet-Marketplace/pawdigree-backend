@@ -1,3 +1,4 @@
+from datetime import timedelta
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -29,7 +30,7 @@ from .filters import (
     filter_public_pets,
     public_locations,
 )
-from .models import Pet, PetImage
+from .models import Pet, PetImage, PetSearchTerm
 from .notifications import notify_listing_approved, notify_listing_rejected
 from .serializers import (
     AdminPetCreateSerializer,
@@ -40,6 +41,7 @@ from .serializers import (
     PetRejectSerializer,
     PetSerializer,
     PublicPetSerializer,
+    TrendingSearchSerializer,
 )
 
 MAX_IMAGES_PER_LISTING = 10
@@ -227,6 +229,14 @@ class PublicPetListView(generics.ListAPIView):
             public_pet_queryset(), self.request.query_params
         )
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        search = request.query_params.get("search", "")
+        is_first_page = request.query_params.get("page", "1") == "1"
+        if search and is_first_page and response.data.get("count"):
+            PetSearchTerm.record(search)
+        return response
+
 
 @extend_schema(
     tags=["pets"],
@@ -267,6 +277,40 @@ class PublicPetLocationListView(APIView):
 
     def get(self, request):
         return Response(public_locations())
+
+
+TRENDING_DAYS = 30
+
+
+@extend_schema(
+    tags=["pets"],
+    summary="Most searched pet terms",
+    description=(
+        "Public list of the terms customers searched for most in the last "
+        "30 days, most searched first. Use ?limit= to change how many "
+        "(default 8, max 20)."
+    ),
+    parameters=[OpenApiParameter("limit", int)],
+)
+class TrendingSearchListView(generics.ListAPIView):
+    serializer_class = TrendingSearchSerializer
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+    pagination_class = None
+
+    def _limit(self):
+        try:
+            limit = int(self.request.query_params.get("limit", 8))
+        except ValueError:
+            limit = 8
+        return max(1, min(limit, 20))
+
+    def get_queryset(self):
+        since = timezone.now() - timedelta(days=TRENDING_DAYS)
+        return PetSearchTerm.objects.filter(last_searched_at__gte=since)[
+            : self._limit()
+        ]
+
 
 @extend_schema_view(
     get=extend_schema(
@@ -808,5 +852,3 @@ class AdminPetBusinessListView(generics.ListAPIView):
             verification_status=Business.VerificationStatus.APPROVED,
             business_type=Business.BusinessType.PET_SALE_ADOPTION,
         ).order_by("name")
-
-

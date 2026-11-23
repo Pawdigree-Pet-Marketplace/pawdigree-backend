@@ -28,6 +28,7 @@ from .serializers import (
     LogoutSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    VendorGoogleLoginSerializer,
     VendorLoginSerializer,
     VendorRegistrationSerializer,
 )
@@ -117,6 +118,10 @@ class GoogleLoginView(generics.GenericAPIView):
             'access': serializer.validated_data['access'],
             'refresh': serializer.validated_data['refresh'],
         })
+
+
+class VendorGoogleLoginView(GoogleLoginView):
+    serializer_class = VendorGoogleLoginSerializer
 
 
 @extend_schema(

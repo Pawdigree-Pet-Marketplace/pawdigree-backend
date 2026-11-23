@@ -2,6 +2,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Report
 from .serializers import ReportResponseSerializer, ReportSubmissionSerializer
@@ -21,6 +22,8 @@ from .serializers import ReportResponseSerializer, ReportSubmissionSerializer
 class ReportCreateView(generics.GenericAPIView):
     serializer_class = ReportSubmissionSerializer
     permission_classes = (IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "report_submission"
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
