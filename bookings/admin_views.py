@@ -1,13 +1,21 @@
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from common.permissions import IsAdmin
 
+from .filters import filter_admin_bookings
 from .models import Booking
 from .serializers import AdminBookingSerializer, AdminBookingStatusSerializer
 from .services import admin_change_booking_status
+
+
+class AdminBookingPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 50
 
 
 @extend_schema(
@@ -15,10 +23,49 @@ from .services import admin_change_booking_status
     summary="List all platform bookings",
     description=(
         "ADMIN and SYSTEM_ADMIN only. Returns every booking on the platform "
-        "across all customers, vendors and businesses, newest first."
+        "across all customers, vendors and businesses, newest first. "
+        "All filters are optional and combined with AND behaviour."
     ),
+    parameters=[
+        OpenApiParameter(
+            "status",
+            str,
+            enum=Booking.Status.values,
+            description="Only bookings with this status.",
+        ),
+        OpenApiParameter(
+            "date_from",
+            str,
+            description="Only bookings starting on or after this date (YYYY-MM-DD).",
+        ),
+        OpenApiParameter(
+            "date_to",
+            str,
+            description="Only bookings starting on or before this date (YYYY-MM-DD).",
+        ),
+        OpenApiParameter(
+            "customer",
+            str,
+            description=(
+                "A numeric customer id, or a partial username/first name/last name "
+                "(case-insensitive)."
+            ),
+        ),
+        OpenApiParameter(
+            "business",
+            str,
+            description="A business UUID. Returns bookings for services in that business.",
+        ),
+        OpenApiParameter("page", int, description="Page number, starting at 1."),
+        OpenApiParameter(
+            "page_size",
+            int,
+            description="Results per page (default 20, maximum 50).",
+        ),
+    ],
     responses={
         200: AdminBookingSerializer(many=True),
+        400: OpenApiResponse(description="Invalid filter value."),
         401: OpenApiResponse(description="Authentication is required."),
         403: OpenApiResponse(description="Only administrators may use this endpoint."),
     },
@@ -26,6 +73,7 @@ from .services import admin_change_booking_status
 class AdminBookingListView(generics.ListAPIView):
     serializer_class = AdminBookingSerializer
     permission_classes = (IsAuthenticated, IsAdmin)
+    pagination_class = AdminBookingPagination
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -36,7 +84,7 @@ class AdminBookingListView(generics.ListAPIView):
             "service__business",
             "service__business__vendor",
         ).order_by("-created_at", "-booking_id")
-        return queryset
+        return filter_admin_bookings(queryset, self.request.query_params)
 
 
 @extend_schema(
