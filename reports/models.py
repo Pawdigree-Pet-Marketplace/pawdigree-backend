@@ -33,9 +33,7 @@ class Report(TimeStampedModel):
 
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
         related_name="reports_submitted",
     )
     reason = models.CharField(max_length=22, choices=Reason.choices)
