@@ -4,6 +4,7 @@ from businesses.views import BusinessRegistrationView
 
 from .admin_invites import AdminSetPasswordView
 from .change_password import ChangePasswordView
+from .username_views import UsernameAvailableView
 from .verification_views import (
     ResendVerificationView,
     VerifyEmailView,
@@ -27,6 +28,7 @@ from .views import (
 urlpatterns = [
     path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     path('verify-email/resend/', ResendVerificationView.as_view(), name='verify-email-resend'),
+    path('username-available/', UsernameAvailableView.as_view(), name='username-available'),
     path('businesses/register/',BusinessRegistrationView.as_view(),name='business-register',),
     path('register/customer/',CustomerRegistrationView.as_view(),name='customer-register',),
     path('register/vendor/',VendorRegistrationView.as_view(),name='vendor-register',),
