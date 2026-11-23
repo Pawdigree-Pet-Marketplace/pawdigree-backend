@@ -21,6 +21,7 @@ from .views import (
     PasswordResetConfirmView,
     PasswordResetRequestView,
     SessionTokenRefreshView,
+    VendorGoogleLoginView,
     VendorLoginView,
     VendorRegistrationView,
 )
@@ -34,6 +35,7 @@ urlpatterns = [
     path('register/vendor/',VendorRegistrationView.as_view(),name='vendor-register',),
     path('login/customer/',CustomerLoginView.as_view(),name='customer-login',),
     path('login/google/', GoogleLoginView.as_view(), name='google-login'),
+    path('google/vendor/', VendorGoogleLoginView.as_view(), name='google-vendor-login'),
     path('login/vendor/',VendorLoginView.as_view(),name='vendor-login',),
     path('login/admin/', AdminLoginView.as_view(), name='admin-login',),
     path('logout/',LogoutView.as_view(),name='logout', ),

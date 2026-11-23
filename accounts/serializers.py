@@ -230,6 +230,7 @@ class CustomerLoginSerializer(serializers.Serializer):
 
 
 class GoogleLoginSerializer(serializers.Serializer):
+    role = User.Role.CUSTOMER
     credential = serializers.CharField(write_only=True)
 
     @staticmethod
@@ -248,7 +249,7 @@ class GoogleLoginSerializer(serializers.Serializer):
                 'Google account has no email address.'
             )
 
-        user = User.objects.by_email_role(email, User.Role.CUSTOMER)
+        user = User.objects.by_email_role(email, self.role)
 
         if user is None:
             try:
@@ -258,19 +259,19 @@ class GoogleLoginSerializer(serializers.Serializer):
                         email=email,
                         first_name=info.get('given_name', ''),
                         last_name=info.get('family_name', ''),
-                        role=User.Role.CUSTOMER,
+                        role=self.role,
                     )
                     user.set_unusable_password()
                     user.save()
             except IntegrityError:
                 # A concurrent request created the account first.
-                user = User.objects.by_email_role(email, User.Role.CUSTOMER)
+                user = User.objects.by_email_role(email, self.role)
                 if user is None:
                     raise serializers.ValidationError(
                         'Could not sign in. Please try again.'
                     )
 
-        if user.role != User.Role.CUSTOMER:
+        if user.role != self.role:
             raise serializers.ValidationError(
                 'Could not sign in. Please try again.'
             )
@@ -297,6 +298,11 @@ class GoogleLoginSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
+
+
+class VendorGoogleLoginSerializer(GoogleLoginSerializer):
+    role = User.Role.VENDOR
+
 
 class VendorLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
