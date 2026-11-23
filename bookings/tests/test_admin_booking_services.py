@@ -354,3 +354,246 @@ class AdminBookingServiceTests(AdminBookingServiceTestData, TestCase):
                 target_id=str(booking.booking_id),
             ).exists()
         )
+
+    def test_status_notifications_are_queued_after_commit(self):
+        scenarios = (
+            (Booking.Status.PENDING, Booking.Status.ACCEPTED, ""),
+            (Booking.Status.PENDING, Booking.Status.DECLINED, "Duplicate."),
+            (Booking.Status.ACCEPTED, Booking.Status.COMPLETED, ""),
+        )
+        for current_status, new_status, reason in scenarios:
+            with self.subTest(new_status=new_status):
+                end_at = (
+                    timezone.now() - timedelta(minutes=1)
+                    if new_status == Booking.Status.COMPLETED
+                    else None
+                )
+                booking = self.make_booking(
+                    status_value=current_status,
+                    end_at=end_at,
+                )
+                with patch.object(
+                    booking_services, "notify_booking_status_changed"
+                ) as notify:
+                    with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                        admin_change_booking_status(
+                            administrator=self.admin,
+                            booking=booking,
+                            new_status=new_status,
+                            reason=reason,
+                        )
+                        notify.assert_not_called()
+
+                    self.assertEqual(len(callbacks), 1)
+                    notify.assert_called_once_with(booking.booking_id, new_status)
+
+    def test_admin_cancellation_notification_is_queued_after_commit(self):
+        booking = self.make_booking()
+        with patch.object(
+            booking_services,
+            "notify_booking_admin_cancelled",
+            create=True,
+        ) as notify:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                admin_change_booking_status(
+                    administrator=self.admin,
+                    booking=booking,
+                    new_status=Booking.Status.CANCELLED,
+                    reason="Internal support note.",
+                )
+                notify.assert_not_called()
+
+            self.assertEqual(len(callbacks), 1)
+            notify.assert_called_once_with(booking.booking_id)
+
+    def test_admin_cancellation_notification_reaches_both_parties_without_reason(
+        self,
+    ):
+        booking = self.make_booking()
+        booking.decision_reason = "Do not expose this reason"
+        booking.save(update_fields=["decision_reason"])
+        notify = getattr(
+            __import__("bookings.notifications", fromlist=[
+                "notify_booking_admin_cancelled"
+            ]),
+            "notify_booking_admin_cancelled",
+            None,
+        )
+        self.assertIsNotNone(
+            notify,
+            "bookings.notifications.notify_booking_admin_cancelled is not "
+            "implemented; it must notify customer and vendor without exposing "
+            "the administrative reason.",
+        )
+
+        notify(booking.booking_id)
+
+        notices = Notification.objects.filter(
+            reference_type="booking",
+            reference_id=str(booking.booking_id),
+        )
+        self.assertSetEqual(
+            set(notices.values_list("user_id", flat=True)),
+            {booking.customer_id, self.vendor.pk},
+        )
+        self.assertEqual(notices.count(), 2)
+        for notice in notices:
+            self.assertIn("administrator", notice.message.lower())
+            self.assertIn("cancelled", notice.message.lower())
+            self.assertEqual(notice.type, Notification.Type.BOOKING_CANCELLED)
+            self.assertNotIn("Do not expose this reason", notice.message)
+
+    def test_rejected_admin_cancellation_does_not_schedule_notifications(self):
+        booking = self.make_booking(status_value=Booking.Status.DECLINED)
+        with patch.object(
+            booking_services, "notify_booking_admin_cancelled"
+        ) as notify:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                with self.assertRaises(ValidationError):
+                    admin_change_booking_status(
+                        administrator=self.admin,
+                        booking=booking,
+                        new_status=Booking.Status.CANCELLED,
+                        reason="Not permitted.",
+                    )
+
+            self.assertEqual(callbacks, [])
+            notify.assert_not_called()
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_existing_vendor_ownership_scope_remains_enforced(self):
+        booking = self.make_booking(service=self.other_service)
+
+        with self.assertRaises(NotFound):
+            booking_services.change_booking_status(
+                self.vendor,
+                booking.booking_id,
+                Booking.Status.ACCEPTED,
+            )
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.PENDING)
+
+
+class AdminBookingServiceTransactionTests(
+    AdminBookingServiceTestData, TransactionTestCase
+):
+    reset_sequences = True
+
+    def test_admin_status_notification_waits_for_transaction_commit(self):
+        booking = self.make_booking()
+        with patch.object(
+            booking_services, "notify_booking_status_changed"
+        ) as notify:
+            with transaction.atomic():
+                admin_change_booking_status(
+                    administrator=self.admin,
+                    booking=booking,
+                    new_status=Booking.Status.ACCEPTED,
+                )
+                notify.assert_not_called()
+
+            notify.assert_called_once_with(
+                booking.booking_id,
+                Booking.Status.ACCEPTED,
+            )
+
+    def test_rollback_discards_audit_and_status_notifications(self):
+        booking = self.make_booking()
+        with patch.object(
+            booking_services, "notify_booking_status_changed"
+        ) as notify:
+            with self.assertRaisesRegex(RuntimeError, "force rollback"):
+                with transaction.atomic():
+                    admin_change_booking_status(
+                        administrator=self.admin,
+                        booking=booking,
+                        new_status=Booking.Status.ACCEPTED,
+                    )
+                    raise RuntimeError("force rollback")
+
+            notify.assert_not_called()
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.PENDING)
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action="booking.status_changed",
+                target_id=str(booking.booking_id),
+            ).exists()
+        )
+
+    def test_rollback_discards_admin_cancellation_notifications(self):
+        booking = self.make_booking()
+        with patch.object(
+            booking_services, "notify_booking_admin_cancelled"
+        ) as notify:
+            with self.assertRaisesRegex(RuntimeError, "force rollback"):
+                with transaction.atomic():
+                    admin_change_booking_status(
+                        administrator=self.admin,
+                        booking=booking,
+                        new_status=Booking.Status.CANCELLED,
+                        reason="Support decision.",
+                    )
+                    raise RuntimeError("force rollback")
+
+            notify.assert_not_called()
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.PENDING)
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action="booking.status_changed",
+                target_id=str(booking.booking_id),
+            ).exists()
+        )
+
+    @skipUnless(
+        connection.features.has_select_for_update,
+        "The database backend does not provide row-level select_for_update.",
+    )
+    def test_conflicting_admin_transitions_allow_only_one_update(self):
+        booking = self.make_booking()
+        barrier = Barrier(2)
+
+        def update(new_status, reason=""):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                admin_change_booking_status(
+                    administrator=self.admin,
+                    booking=booking,
+                    new_status=new_status,
+                    reason=reason,
+                )
+                return "updated"
+            except ValidationError:
+                return "rejected"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(
+                executor.map(
+                    lambda values: update(*values),
+                    (
+                        (Booking.Status.ACCEPTED, ""),
+                        (Booking.Status.DECLINED, "Conflict resolved."),
+                    ),
+                )
+            )
+
+        self.assertCountEqual(results, ["updated", "rejected"])
+        booking.refresh_from_db()
+        self.assertIn(
+            booking.status,
+            (Booking.Status.ACCEPTED, Booking.Status.DECLINED),
+        )
+        self.assertEqual(
+            AuditLog.objects.filter(
+                action="booking.status_changed",
+                target_id=str(booking.booking_id),
+            ).count(),
+            1,
+        )

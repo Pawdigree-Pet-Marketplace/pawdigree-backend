@@ -9,6 +9,7 @@ from .availability import booking_tz, free_start_times
 from .models import ACTIVE_STATUSES, Booking
 from notification.services import after_commit
 from .notifications import (
+    notify_booking_admin_cancelled,
     notify_booking_cancelled,
     notify_booking_created,
     notify_booking_rescheduled,
@@ -187,9 +188,14 @@ def admin_change_booking_status(
             },
         )
 
-        after_commit(
-            lambda: notify_booking_status_changed(booking.pk, new_status)
-        )
+        if new_status == Booking.Status.CANCELLED:
+            after_commit(
+                lambda: notify_booking_admin_cancelled(booking.pk)
+            )
+        else:
+            after_commit(
+                lambda: notify_booking_status_changed(booking.pk, new_status)
+            )
         return booking
 
 
