@@ -1,3 +1,4 @@
+
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -50,7 +51,10 @@ class CreateServiceTests(TestCase):
             business_type=Business.BusinessType.SERVICE_PROVIDER,
             verification_status=Business.VerificationStatus.APPROVED,
         )
-        self.category = Category.objects.create(kind=Category.Kind.SERVICES, name="Grooming")
+        self.category = Category.objects.create(
+            kind=Category.Kind.SERVICES,
+            name="Grooming",
+        )
         self.url = reverse("service-create")
         self.service_data = {
             "business": self.business.pk,
@@ -111,7 +115,7 @@ class CreateServiceTests(TestCase):
         self.assertEqual(response.data["category"], self.category.pk)
         self.assertEqual(
             response.data["category_status"],
-            BusinessCategory.ApprovalStatus.PENDING,
+            "approved",
         )
         self.assertEqual(response.data["service_type"], service.service_type)
         self.assertEqual(response.data["description"], service.description)
@@ -129,13 +133,12 @@ class CreateServiceTests(TestCase):
         self.assertIsNotNone(service.created_at)
         self.assertIsNotNone(service.updated_at)
 
-        link = BusinessCategory.objects.get(
-            business=self.business,
-            category=self.category,
-        )
-        self.assertEqual(
-            link.approval_status,
-            BusinessCategory.ApprovalStatus.PENDING,
+        # Creating a service does not create a separate category approval request.
+        self.assertFalse(
+            BusinessCategory.objects.filter(
+                business=self.business,
+                category=self.category,
+            ).exists()
         )
 
     def test_anonymous_user_cannot_create_service(self):

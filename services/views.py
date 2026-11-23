@@ -1,6 +1,5 @@
 
 from django.db import transaction
-from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import (
@@ -14,7 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from audit.services import record as record_audit
-from businesses.models import Business, BusinessCategory
+from businesses.models import Business
 from categories.models import Category
 from common.permissions import IsAdmin, IsVendor
 from reviews.services import with_ratings
@@ -39,7 +38,7 @@ class PublicServicePagination(PageNumberPagination):
 
 
 def public_services():
-    """Services available to customers through an approved business category."""
+    """Services available to customers through active service categories."""
 
     return with_ratings(
         Service.objects.filter(
@@ -47,12 +46,9 @@ def public_services():
             is_active=True,
             business__is_active=True,
             business__verification_status=Business.VerificationStatus.APPROVED,
+            business__business_type=Business.BusinessType.SERVICE_PROVIDER,
             category__is_active=True,
             category__kind=Category.Kind.SERVICES,
-            business__business_categories__category_id=F("category_id"),
-            business__business_categories__approval_status=(
-                BusinessCategory.ApprovalStatus.APPROVED
-            ),
         )
         .select_related("business", "category"),
         "service",
@@ -98,8 +94,8 @@ class ServiceCreateView(generics.ListCreateAPIView):
     summary="Browse available pet services",
     description=(
         "Public listing of active services offered by active, approved "
-        "businesses. A service's category must be active, customer-visible, "
-        "and approved for that business. The image uses the service image "
+        "Service Provider businesses. A service's category must be an active "
+        "category in the services catalogue. The image uses the service image "
         "when present, otherwise the business logo; it is null if neither "
         "exists. Availability is based on availability_status, not weekly "
         "availability slots."
@@ -146,7 +142,8 @@ class PublicServiceListView(generics.ListAPIView):
     summary="View public service details",
     description=(
         "Returns details of one active, approved service offered by an "
-        "active, approved business with an approved service category. "
+        "active, approved Service Provider business with an active "
+        "service category. "
         "Unavailable or non-public services return 404."
     ),
     responses={200: PublicServiceSerializer},
@@ -361,7 +358,8 @@ class AdminServiceReviewBaseView(generics.GenericAPIView):
     request=None,
     description=(
         "Marks the service as approved and notifies the vendor. Customers "
-        "still only see it once its category is approved for the business."
+        "still only see it when its business and service category meet "
+        "the public listing requirements."
     ),
 )
 class AdminServiceApproveView(AdminServiceReviewBaseView):

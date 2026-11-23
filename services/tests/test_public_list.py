@@ -68,6 +68,7 @@ class PublicServiceListTests(TestCase):
             "address": "Kampala Road",
             "city_district": "Kampala",
             "verification_status": Business.VerificationStatus.APPROVED,
+            "business_type": Business.BusinessType.SERVICE_PROVIDER,
         }
         values.update(overrides)
         return Business.objects.create(**values)
@@ -149,7 +150,10 @@ class PublicServiceListTests(TestCase):
             pending_category,
             BusinessCategory.ApprovalStatus.PENDING,
         )
-        self.make_service("Pending category service", category=pending_category)
+        pending_category_service = self.make_service(
+            "Pending category service",
+            category=pending_category,
+        )
         inactive_category = Category.objects.create(
             name="Inactive Service Category",
             kind=Category.Kind.SERVICES,
@@ -169,7 +173,7 @@ class PublicServiceListTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             [item["service_id"] for item in response.data["results"]],
-            [visible.pk],
+            [pending_category_service.pk, visible.pk],
         )
 
     def test_public_response_contains_customer_fields_only(self):
