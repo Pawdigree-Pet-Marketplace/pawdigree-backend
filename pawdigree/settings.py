@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     'audit',
     'reports.apps.ReportsConfig',
     'reviews',
+    'admin_reports'
 ]
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
@@ -202,6 +203,7 @@ TIME_ZONE = 'UTC'
 # Weekly service slots are plain times, so bookings need one real zone
 # to turn "Monday 09:00" into an exact moment. Stored datetimes stay UTC.
 BOOKING_TIME_ZONE = 'Africa/Kampala'
+REPORT_TIME_ZONE = BOOKING_TIME_ZONE
 
 USE_I18N = True
 
@@ -256,6 +258,8 @@ REST_FRAMEWORK = {
         'password_reset_confirm': '10/hour',
         'change_password': '10/hour',
         'admin_set_password': '10/hour',
+        'username_check': '30/minute',
+        'report_submission': '5/minute',
     },
     'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '2')),
 }
@@ -294,6 +298,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+# Lets the browser read the download filename on report exports.
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
 
 # Add production frontend URL(s) from the environment
 extra_origins = os.environ.get("FRONTEND_URL", "")
@@ -350,6 +356,8 @@ SPECTACULAR_SETTINGS = {
         'BusinessDecisionActionEnum': 'pawdigree.schema_enums.BusinessDecisionAction',
         'AdminAuditActionEnum': 'pawdigree.schema_enums.AdminAuditAction',
         'DocumentReviewActionEnum': 'pawdigree.schema_enums.DocumentReviewAction',
+        'ReportStatusEnum': 'pawdigree.schema_enums.ReportStatus',
+        'PaymentStatusEnum': 'pawdigree.schema_enums.PaymentStatus',
     },
     'TAGS': [
         {'name': 'auth', 'description': 'Accounts, login and registration'},

@@ -189,8 +189,8 @@ class ReportSubmissionSerializerTests(TestCase):
                     "reported_item_id",
                 )
 
-    def test_review_and_other_unsupported_types_are_rejected(self):
-        for target_type in ("REVIEW", "UNKNOWN"):
+    def test_unknown_types_are_rejected(self):
+        for target_type in ("UNKNOWN",):
             with self.subTest(target_type=target_type):
                 self.assert_invalid(
                     self.payload(target_type),

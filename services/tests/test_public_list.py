@@ -68,6 +68,7 @@ class PublicServiceListTests(TestCase):
             "address": "Kampala Road",
             "city_district": "Kampala",
             "verification_status": Business.VerificationStatus.APPROVED,
+            "business_type": Business.BusinessType.SERVICE_PROVIDER,
         }
         values.update(overrides)
         return Business.objects.create(**values)
@@ -149,7 +150,10 @@ class PublicServiceListTests(TestCase):
             pending_category,
             BusinessCategory.ApprovalStatus.PENDING,
         )
-        self.make_service("Pending category service", category=pending_category)
+        pending_category_service = self.make_service(
+            "Pending category service",
+            category=pending_category,
+        )
         inactive_category = Category.objects.create(
             name="Inactive Service Category",
             kind=Category.Kind.SERVICES,
@@ -169,7 +173,7 @@ class PublicServiceListTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             [item["service_id"] for item in response.data["results"]],
-            [visible.pk],
+            [pending_category_service.pk, visible.pk],
         )
 
     def test_public_response_contains_customer_fields_only(self):
@@ -318,4 +322,59 @@ class PublicServiceListTests(TestCase):
         self.assertEqual(len(large_page.data["results"]), 50)
         self.assertEqual(len(second_page.data["results"]), 1)
         self.assertIsNotNone(second_page.data["previous"])
+
+
+    def test_anonymous_and_customer_can_view_public_service_details(self):
+        service = self.make_service()
+        detail_url = reverse(
+            "service-public-detail",
+            kwargs={"pk": service.pk},
+        )
+
+        anonymous_response = self.client.get(detail_url)
+
+        self.client.force_authenticate(user=self.customer)
+        customer_response = self.client.get(detail_url)
+
+        self.assertEqual(
+            anonymous_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            customer_response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            anonymous_response.data["service_id"],
+            service.pk,
+        )
+        self.assertEqual(
+            anonymous_response.data["name"],
+            service.name,
+        )
+        self.assertEqual(
+            anonymous_response.data["business_name"],
+            self.business.name,
+        )
+        self.assertEqual(
+            anonymous_response.data["description"],
+            service.description,
+        )
+
+    def test_public_service_details_returns_404_for_hidden_service(self):
+        service = self.make_service(
+            "Hidden Service",
+            is_active=False,
+        )
+        detail_url = reverse(
+            "service-public-detail",
+            kwargs={"pk": service.pk},
+        )
+
+        response = self.client.get(detail_url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
 

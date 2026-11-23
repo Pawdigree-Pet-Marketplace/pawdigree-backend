@@ -1,19 +1,34 @@
 from django.urls import URLPattern, URLResolver, get_resolver
 
-from common.permissions import IsAdmin, IsSystemAdminRoleOnly
+from common.permissions import IsAdmin, IsSystemAdmin, IsSystemAdminRoleOnly
 
 ADMIN_PREFIX = "api/admin/"
 
-# Booking management endpoints are accessible to ADMIN and SYSTEM_ADMIN.
 BOOKING_ADMIN_ROUTES = {
     "api/admin/bookings/",
     "api/admin/bookings/<int:booking_id>/status/",
+}
+
+LIVE_REPORT_ROUTES = {
+    "api/platform-reports/overview/",
+    "api/platform-reports/users/",
+    "api/platform-reports/pets/",
+    "api/platform-reports/product-sales/",
+    "api/platform-reports/pet-sales/",
+}
+
+SAVED_REPORT_ROUTES = {
+    "api/platform-reports/saved/",
+    "api/platform-reports/saved/<int:pk>/",
+    "api/platform-reports/saved/trash/",
+    "api/platform-reports/saved/<int:pk>/restore/",
 }
 
 
 def collect_routes(patterns, prefix=""):
     for entry in patterns:
         route = prefix + str(entry.pattern)
+
         if isinstance(entry, URLResolver):
             yield from collect_routes(entry.url_patterns, route)
         elif isinstance(entry, URLPattern):
@@ -21,10 +36,11 @@ def collect_routes(patterns, prefix=""):
 
 
 def test_account_management_routes_require_system_admin_role():
-    """All /api/admin/ routes that are NOT booking routes must be SYSTEM_ADMIN-only."""
+    all_routes = dict(collect_routes(get_resolver().url_patterns))
+
     routes = [
         (route, callback)
-        for route, callback in collect_routes(get_resolver().url_patterns)
+        for route, callback in all_routes.items()
         if route.startswith(ADMIN_PREFIX) and route not in BOOKING_ADMIN_ROUTES
     ]
 
@@ -35,27 +51,37 @@ def test_account_management_routes_require_system_admin_role():
     for route, callback in routes:
         view_class = getattr(callback, "cls", None)
         assert view_class is not None, f"{route} is not a class-based view"
-        assert IsSystemAdminRoleOnly in view_class.permission_classes, (
-            f"{route} must require IsSystemAdminRoleOnly"
-        )
+        assert IsSystemAdminRoleOnly in view_class.permission_classes, route
 
 
 def test_booking_admin_routes_require_admin_role():
-    """Booking management routes must be accessible to ADMIN and SYSTEM_ADMIN."""
-    routes = [
-        (route, callback)
-        for route, callback in collect_routes(get_resolver().url_patterns)
-        if route in BOOKING_ADMIN_ROUTES
-    ]
+    all_routes = dict(collect_routes(get_resolver().url_patterns))
 
-    assert len(routes) == len(BOOKING_ADMIN_ROUTES), (
-        f"Expected {len(BOOKING_ADMIN_ROUTES)} booking admin routes, "
-        f"found {len(routes)}: {[r for r, _ in routes]}"
-    )
+    assert BOOKING_ADMIN_ROUTES.issubset(all_routes.keys())
 
-    for route, callback in routes:
-        view_class = getattr(callback, "cls", None)
+    for route in BOOKING_ADMIN_ROUTES:
+        view_class = getattr(all_routes[route], "cls", None)
         assert view_class is not None, f"{route} is not a class-based view"
-        assert IsAdmin in view_class.permission_classes, (
-            f"{route} must require IsAdmin"
-        )
+        assert IsAdmin in view_class.permission_classes, route
+
+
+def test_live_platform_report_routes_require_system_admin():
+    all_routes = dict(collect_routes(get_resolver().url_patterns))
+
+    assert LIVE_REPORT_ROUTES.issubset(all_routes.keys())
+
+    for route in LIVE_REPORT_ROUTES:
+        view_class = getattr(all_routes[route], "cls", None)
+        assert view_class is not None, f"{route} is not a class-based view"
+        assert IsSystemAdmin in view_class.permission_classes, route
+
+
+def test_saved_platform_report_routes_require_admin():
+    all_routes = dict(collect_routes(get_resolver().url_patterns))
+
+    assert SAVED_REPORT_ROUTES.issubset(all_routes.keys())
+
+    for route in SAVED_REPORT_ROUTES:
+        view_class = getattr(all_routes[route], "cls", None)
+        assert view_class is not None, f"{route} is not a class-based view"
+        assert IsAdmin in view_class.permission_classes, route

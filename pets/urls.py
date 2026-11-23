@@ -15,6 +15,7 @@ from .views import (
     PublicPetDetailView,
     PublicPetListView,
     PublicPetLocationListView,
+    TrendingSearchListView,
 )
 
 urlpatterns = [
@@ -32,4 +33,5 @@ urlpatterns = [
     path("<int:pk>/edit/", PetUpdateView.as_view(), name="pet-update"),
     path("admin/", AdminPetListView.as_view(), name="pet-admin-list"),
     path("admin/businesses/", AdminPetBusinessListView.as_view(), name="pet-admin-businesses"),
+    path("trending-searches/", TrendingSearchListView.as_view(), name="pet-trending-searches"),
 ]

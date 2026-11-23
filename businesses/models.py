@@ -157,6 +157,7 @@ class BusinessDecision(TimeStampedModel):
 
     class Action(models.TextChoices):
         APPROVE = "approve", "Approve"
+        REJECT = "reject", "Reject"
         REQUEST_CHANGES = "request_changes", "Request changes"
         SUSPEND = "suspend", "Suspend"
         REAPPROVE = "reapprove", "Re-approve"

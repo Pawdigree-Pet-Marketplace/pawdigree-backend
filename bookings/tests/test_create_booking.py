@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from businesses.models import Business
 from bookings.availability import booking_tz
 from bookings.models import Booking
 from bookings.tests.helpers import add_slot, at, future_date, make_service
@@ -21,6 +22,11 @@ class CreateBookingTests(TestCase):
         self.other_customer = make_user("booker2", User.Role.CUSTOMER)
         self.vendor = make_user("bookvendor", User.Role.VENDOR)
         self.business = make_business(self.vendor)
+
+    # Booking tests need a service-provider business.
+        self.business.business_type = Business.BusinessType.SERVICE_PROVIDER
+        self.business.save(update_fields=["business_type"])
+
         self.service = make_service(self.business, duration=60)
         add_slot(self.service, weekday=0, start_hour=9, end_hour=12)
         self.day = future_date(weekday=0)

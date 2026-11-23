@@ -371,6 +371,11 @@ DECISION_RULES = {
         "to": Status.APPROVED.value,
         "reason_required": False,
     },
+    Action.REJECT.value: {
+    "from": (Status.PENDING.value, Status.CHANGES_REQUESTED.value),
+    "to": Status.REJECTED.value,
+    "reason_required": True,
+    },
     Action.REQUEST_CHANGES.value: {
         "from": (Status.PENDING.value, Status.APPROVED.value),
         "to": Status.CHANGES_REQUESTED.value,

@@ -124,18 +124,24 @@ class ServiceBulkUploadTests(BulkTestCase):
             service.availability_status, Service.AvailabilityStatus.AVAILABLE
         )
 
-    def test_new_category_is_requested_as_pending(self):
-        self.client.force_authenticate(user=self.vendor)
+        def test_service_category_does_not_require_business_category_request(self):
+         self.client.force_authenticate(user=self.vendor)
 
-        self.upload(csv_file(self.row("Pending Category")))
+        response = self.upload(csv_file(self.row("Pending Category")))
 
-        link = BusinessCategory.objects.get(
-            business=self.business, category=self.category
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["created"], 1)
+        self.assertEqual(response.data["failed"], [])
+
+        service = Service.objects.get(name="Pending Category")
+
+        self.assertEqual(service.category, self.category)
+        self.assertFalse(
+            BusinessCategory.objects.filter(
+                business=self.business,
+                category=self.category,
+            ).exists()
         )
-        self.assertEqual(
-            link.approval_status, BusinessCategory.ApprovalStatus.PENDING
-        )
-
     def test_excel_utf8_bom_file_is_accepted(self):
         self.client.force_authenticate(user=self.vendor)
 

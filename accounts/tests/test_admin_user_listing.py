@@ -57,6 +57,7 @@ class AdminUserListingTests(TestCase):
             set(row),
             {
                 'id',
+                'username',
                 'first_name',
                 'last_name',
                 'email',
@@ -65,6 +66,7 @@ class AdminUserListingTests(TestCase):
                 'date_joined',
             },
         )
+        self.assertEqual(row['username'], customer.username)
         self.assertEqual(row['status'], 'active')
         self.assertNotIn('password', row)
         self.assertNotIn('is_staff', row)

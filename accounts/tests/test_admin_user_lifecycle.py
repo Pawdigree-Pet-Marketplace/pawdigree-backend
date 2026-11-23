@@ -41,6 +41,7 @@ class AdminUserLifecycleTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['id'], self.vendor.pk)
+        self.assertEqual(response.data['username'], self.vendor.username)
         self.assertEqual(response.data['status'], 'active')
         self.vendor.refresh_from_db()
         self.assertTrue(self.vendor.is_active)
@@ -59,6 +60,7 @@ class AdminUserLifecycleTests(TestCase):
         response = self.client.post(self.action_url(self.customer, 'deactivate'))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], self.customer.username)
         self.assertEqual(response.data['status'], 'deactivated')
         self.customer.refresh_from_db()
         self.assertFalse(self.customer.is_active)
@@ -116,6 +118,7 @@ class AdminUserLifecycleTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], self.customer.username)
         self.assertEqual(response.data['status'], 'suspended')
         self.customer.refresh_from_db()
         self.assertFalse(self.customer.is_active)
