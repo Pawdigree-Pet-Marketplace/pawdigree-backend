@@ -194,13 +194,13 @@ def build_pets_report(f):
 
     S = Pet.AdoptionStatus
     totals = pets.aggregate(
-        listings=Count("pk"),
-        approved=Count("pk", filter=Q(approved=True)),
-        pending=Count("pk", filter=Q(approved=False, rejection_reason="")),
-        rejected=Count("pk", filter=Q(approved=False) & ~Q(rejection_reason="")),
-        available=Count("pk", filter=Q(adoption_status=S.AVAILABLE)),
-        sold=Count("pk", filter=Q(adoption_status=S.SOLD)),
-        adopted=Count("pk", filter=Q(adoption_status=S.ADOPTED)),
+        n_listings=Count("pk"),
+        n_approved=Count("pk", filter=Q(approved=True)),
+        n_pending=Count("pk", filter=Q(approved=False, rejection_reason="")),
+        n_rejected=Count("pk", filter=Q(approved=False) & ~Q(rejection_reason="")),
+        n_available=Count("pk", filter=Q(adoption_status=S.AVAILABLE)),
+        n_sold=Count("pk", filter=Q(adoption_status=S.SOLD)),
+        n_adopted=Count("pk", filter=Q(adoption_status=S.ADOPTED)),
     )
 
     applications = AdoptionApplication.objects.filter(
@@ -241,13 +241,13 @@ def build_pets_report(f):
     trend = build_trend(pets, f, "created_at", {"listings": Count("pk")})
 
     summary = [
-        kpi("listings", "Listings created", totals["listings"]),
-        kpi("approved", "Approved", totals["approved"]),
-        kpi("pending", "Awaiting review", totals["pending"]),
-        kpi("rejected", "Rejected", totals["rejected"]),
-        kpi("available", "Currently available", totals["available"]),
-        kpi("sold", "Sold", totals["sold"]),
-        kpi("adopted", "Adopted", totals["adopted"]),
+        kpi("listings", "Listings created", totals["n_listings"]),
+        kpi("approved", "Approved", totals["n_approved"]),
+        kpi("pending", "Awaiting review", totals["n_pending"]),
+        kpi("rejected", "Rejected", totals["n_rejected"]),
+        kpi("available", "Currently available", totals["n_available"]),
+        kpi("sold", "Sold", totals["n_sold"]),
+        kpi("adopted", "Adopted", totals["n_adopted"]),
         kpi("applications", "Adoption applications", sum(app_counts.values())),
         kpi("approval_rate", "Adoption approval rate", pct(approved, decided), "percent"),
     ]
