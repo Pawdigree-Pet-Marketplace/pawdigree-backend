@@ -40,6 +40,7 @@ of search, role/status filters or the current page.
   "results": [
     {
       "id": 24,
+      "username": "casey",
       "first_name": "Casey",
       "last_name": "Example",
       "email": "casey@example.com",
@@ -51,10 +52,10 @@ of search, role/status filters or the current page.
 }
 ```
 
-Each result contains only `id`, `first_name`, `last_name`, `email`, `role`,
-`status` and `date_joined`. `next` and `previous` are full URLs or `null`. An
-invalid role or status filter returns `400`; a page beyond the available range
-returns `404`.
+Each result contains only `id`, `username`, `first_name`, `last_name`, `email`,
+`role`, `status` and `date_joined`. `next` and `previous` are full URLs or
+`null`. An invalid role or status filter returns `400`; a page beyond the
+available range returns `404`.
 
 ## Account status actions
 
@@ -74,6 +75,7 @@ All actions return `200` with the updated safe user object:
 ```json
 {
   "id": 24,
+  "username": "casey",
   "first_name": "Casey",
   "last_name": "Example",
   "email": "casey@example.com",
