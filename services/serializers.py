@@ -1,22 +1,16 @@
+
 from datetime import date, datetime
 
 from django.db import transaction
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from businesses.models import Business, BusinessCategory
+from businesses.models import Business
 from categories.models import Category
 from common.validators import validate_description_length
 from reviews.serializers import RatingSummaryMixin
 
 from .models import AvailabilitySlot, Service
-
-# Same rule as the category request endpoint: a business in one of these
-# states can't ask for new categories.
-BLOCKED_STATUSES = (
-    Business.VerificationStatus.SUSPENDED,
-    Business.VerificationStatus.REJECTED,
-)
 
 
 class ServiceSerializer(serializers.ModelSerializer):
@@ -74,16 +68,17 @@ class ServiceSerializer(serializers.ModelSerializer):
             )
 
     def get_category_status(self, obj) -> str | None:
-        """Approval status of this category for the service's business."""
+        """Return the admin catalogue status of the service category."""
         if obj.category_id is None:
             return None
 
-        link = BusinessCategory.objects.filter(
-            business=obj.business,
-            category_id=obj.category_id,
-        ).first()
+        if (
+            obj.category.is_active
+            and obj.category.kind == Category.Kind.SERVICES
+        ):
+            return "approved"
 
-        return link.approval_status if link else None
+        return None
 
     def validate_duration(self, value):
         if value <= 0:
@@ -97,8 +92,8 @@ class ServiceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Price must not be negative."
             )
-        return value    
-    
+        return value
+
     def validate_business(self, business):
         if (
             not business.is_active
@@ -116,61 +111,8 @@ class ServiceSerializer(serializers.ModelSerializer):
 
         return business
 
-    
-
-    def validate(self, attrs):
-        category = attrs.get("category")
-        if category is None:
-            return attrs
-
-        # On edit the business is read-only, so take it from the service.
-        business = attrs.get("business") or self.instance.business
-        link = BusinessCategory.objects.filter(
-            business=business,
-            category=category,
-        ).first()
-
-        if link is None:
-            if (
-                not business.is_active
-                or business.verification_status in BLOCKED_STATUSES
-            ):
-                raise serializers.ValidationError({
-                    "category": (
-                        "This business can't request new categories "
-                        "right now."
-                    )
-                })
-        elif link.approval_status == BusinessCategory.ApprovalStatus.REJECTED:
-            raise serializers.ValidationError({
-                "category": (
-                    "This category was rejected for your business. "
-                    "Re-apply for it from your business page first."
-                )
-            })
-
-        return attrs
-
-    @staticmethod
-    def _request_category(business, category):
-        """Make sure the business has asked for this category.
-
-        A new request starts as pending. The business keeps its current
-        verification status, and the service stays unavailable to
-        customers until the category is approved.
-        """
-        if category is not None:
-            BusinessCategory.objects.get_or_create(
-                business=business,
-                category=category,
-            )
-
     @transaction.atomic
     def create(self, validated_data):
-        self._request_category(
-            validated_data["business"],
-            validated_data.get("category"),
-        )
         return super().create(validated_data)
 
     def validate_description(self, value):
@@ -199,10 +141,6 @@ class ServiceSerializer(serializers.ModelSerializer):
         if self._changes_reviewed_content(instance, validated_data):
             instance.send_back_for_review(save=False)
 
-        self._request_category(
-            instance.business,
-            validated_data.get("category"),
-        )
         return super().update(instance, validated_data)
 
 
@@ -243,7 +181,7 @@ class PublicServiceSerializer(RatingSummaryMixin, serializers.ModelSerializer):
             "business_name",
             "city_district",
             "image",
-            "average_rating", 
+            "average_rating",
             "review_count",
         )
         read_only_fields = fields

@@ -1,3 +1,4 @@
+
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -75,18 +76,20 @@ class ServiceApprovalVisibilityTests(TestCase):
 
         self.assertNotIn(service.pk, self.public_ids())
 
-    def test_approved_service_stays_hidden_while_its_category_is_pending(self):
+    def test_approved_service_is_visible_while_business_category_is_pending(self):
         pending_category = Category.objects.create(
             name="Visibility Training", kind=Category.Kind.SERVICES
         )
         BusinessCategory.objects.create(
-            business=self.business, category=pending_category
+            business=self.business,
+            category=pending_category,
+            approval_status=BusinessCategory.ApprovalStatus.PENDING,
         )
         service = self.make_service(
             "Pending category", category=pending_category, approved=True
         )
 
-        self.assertNotIn(service.pk, self.public_ids())
+        self.assertIn(service.pk, self.public_ids())
 
     def test_sending_a_service_back_for_review_hides_it(self):
         service = self.make_service("Edited", approved=True)

@@ -1,3 +1,4 @@
+
 import pytest
 from django.urls import reverse
 from rest_framework import status
@@ -74,7 +75,7 @@ def boarding(db):
     return Category.objects.create(kind=Category.Kind.SERVICES, name="Boarding")
 
 
-def test_new_category_creates_pending_request_and_keeps_business_approved(
+def test_new_category_does_not_create_business_category_request(
     client, vendor, grooming
 ):
     business = make_business(vendor)
@@ -87,10 +88,13 @@ def test_new_category_creates_pending_request_and_keeps_business_approved(
 
     assert response.status_code == status.HTTP_201_CREATED
     assert response.data["category"] == grooming.pk
-    assert response.data["category_status"] == Approval.PENDING
+    assert response.data["category_status"] == "approved"
 
-    link = BusinessCategory.objects.get(business=business, category=grooming)
-    assert link.approval_status == Approval.PENDING
+    # No separate business-category approval is required.
+    assert not BusinessCategory.objects.filter(
+        business=business,
+        category=grooming,
+    ).exists()
 
     business.refresh_from_db()
     assert business.verification_status == Status.APPROVED
@@ -111,7 +115,7 @@ def test_approved_category_is_reused_not_duplicated(client, vendor, grooming):
     )
 
     assert response.status_code == status.HTTP_201_CREATED
-    assert response.data["category_status"] == Approval.APPROVED
+    assert response.data["category_status"] == "approved"
     assert BusinessCategory.objects.filter(business=business).count() == 1
 
 
@@ -129,7 +133,9 @@ def test_category_is_required_when_creating(client, vendor):
     assert not Service.objects.exists()
 
 
-def test_rejected_category_is_blocked(client, vendor, grooming):
+def test_rejected_business_category_does_not_block_service_creation(
+    client, vendor, grooming
+):
     business = make_business(vendor)
     BusinessCategory.objects.create(
         business=business,
@@ -143,9 +149,20 @@ def test_rejected_category_is_blocked(client, vendor, grooming):
         format="json",
     )
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "category" in response.data
-    assert not Service.objects.exists()
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.data["category"] == grooming.pk
+    assert response.data["category_status"] == "approved"
+    assert Service.objects.filter(
+        business=business,
+        category=grooming,
+    ).exists()
+
+    # The existing rejected association is not changed or used for approval.
+    link = BusinessCategory.objects.get(
+        business=business,
+        category=grooming,
+    )
+    assert link.approval_status == Approval.REJECTED
 
 
 def test_suspended_business_cannot_request_a_new_category(
@@ -165,7 +182,11 @@ def test_suspended_business_cannot_request_a_new_category(
 
 def test_inactive_category_is_rejected(client, vendor):
     business = make_business(vendor)
-    inactive = Category.objects.create(kind=Category.Kind.SERVICES, name="Retired", is_active=False)
+    inactive = Category.objects.create(
+        kind=Category.Kind.SERVICES,
+        name="Retired",
+        is_active=False,
+    )
 
     response = client.post(
         reverse("service-create"),
@@ -202,7 +223,7 @@ def test_edit_without_category_keeps_the_existing_one(
     assert service.category == grooming
 
 
-def test_edit_to_a_new_category_requests_it(
+def test_edit_to_a_new_category_does_not_create_business_category_request(
     client, vendor, grooming, boarding
 ):
     business = make_business(vendor)
@@ -223,8 +244,17 @@ def test_edit_to_a_new_category_requests_it(
     )
 
     assert response.status_code == status.HTTP_200_OK
-    link = BusinessCategory.objects.get(business=business, category=boarding)
-    assert link.approval_status == Approval.PENDING
+    assert response.data["category"] == boarding.pk
+    assert response.data["category_status"] == "approved"
+
+    service.refresh_from_db()
+    assert service.category == boarding
+
+    assert not BusinessCategory.objects.filter(
+        business=business,
+        category=boarding,
+    ).exists()
+
 
 def test_pending_business_cannot_add_services(client, vendor, grooming):
     business = make_business(vendor, verification_status=Status.PENDING)
