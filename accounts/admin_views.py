@@ -59,8 +59,9 @@ class AdminUserPagination(PageNumberPagination):
         'SYSTEM_ADMIN only. Lists CUSTOMER, VENDOR and regular ADMIN accounts. '
         'SYSTEM_ADMIN and superuser accounts are excluded. Summary counts cover '
         'the complete eligible population, independently of filters and page. '
-        'Each result contains id, first_name, last_name, email, role, status '
-        'and date_joined; sensitive authentication fields are not returned.'
+        'Each result contains id, username, first_name, last_name, email, '
+        'role, status and date_joined; sensitive authentication fields are '
+        'not returned.'
     ),
     parameters=[
         OpenApiParameter('search', str, description='Search username, name or email.'),
