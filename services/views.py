@@ -1,3 +1,4 @@
+
 from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404
@@ -39,7 +40,7 @@ class PublicServicePagination(PageNumberPagination):
 
 def public_services():
     """Services available to customers through an approved business category."""
-        
+
     return with_ratings(
         Service.objects.filter(
             approved=True,
@@ -139,6 +140,28 @@ class PublicServiceListView(generics.ListAPIView):
         )
 
 
+# NEW: Public single-service details endpoint
+@extend_schema(
+    tags=["services"],
+    summary="View public service details",
+    description=(
+        "Returns details of one active, approved service offered by an "
+        "active, approved business with an approved service category. "
+        "Unavailable or non-public services return 404."
+    ),
+    responses={200: PublicServiceSerializer},
+)
+class PublicServiceDetailView(generics.RetrieveAPIView):
+    """Retrieve one service available to the public."""
+
+    serializer_class = PublicServiceSerializer
+    permission_classes = (AllowAny,)
+    authentication_classes = ()
+
+    def get_queryset(self):
+        return public_services()
+
+
 @extend_schema_view(
     get=extend_schema(
         tags=["services"],
@@ -177,7 +200,8 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
-        
+
+
 @extend_schema_view(
     get=extend_schema(tags=["services"], summary="List a service's time slots"),
     post=extend_schema(
@@ -194,6 +218,7 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
 )
 class ServiceSlotListCreateView(generics.ListCreateAPIView):
     """List or add the weekly time slots of one of the vendor's services."""
+
     serializer_class = AvailabilitySlotSerializer
     permission_classes = (IsAuthenticated, IsVendor)
 
@@ -228,7 +253,8 @@ class ServiceSlotListCreateView(generics.ListCreateAPIView):
         serializer.save(service=service)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
+
 @extend_schema(
     tags=["services"],
     summary="Remove a time slot",
@@ -255,8 +281,8 @@ class ServiceSlotDeleteView(generics.DestroyAPIView):
             service__business__vendor=self.request.user,
             service__is_active=True,
         )
-        
-        
+
+
 @extend_schema(
     tags=["services"],
     summary="Weekly availability calendar for a service",

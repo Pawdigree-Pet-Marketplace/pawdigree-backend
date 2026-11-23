@@ -165,7 +165,8 @@ class AdminReviewVisibilityView(APIView):
             details={},
         )
         return Response(ReviewSerializer(review).data)
-    
+
+
 @extend_schema_view(
     get=extend_schema(tags=["reviews"], summary="Replies under a review (public)"),
     post=extend_schema(
@@ -183,10 +184,14 @@ class ReviewReplyListCreateView(generics.ListCreateAPIView):
     serializer_class = ReviewReplySerializer
     pagination_class = ReviewPagination
 
+    def initialize_request(self, request, *args, **kwargs):
+        self._request_method = request.method
+        return super().initialize_request(request, *args, **kwargs)
+
     def get_authenticators(self):
         # Reading is public and ignores tokens (an expired one must not break
         # the page); posting needs a login.
-        if self.request.method == "GET":
+        if self._request_method == "GET":
             return []
         return super().get_authenticators()
 
