@@ -8,6 +8,7 @@ from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework.test import APITestCase
 
 import reviews.tests as rt  # module import: its test classes are not collected here
 from accounts.models import User
@@ -46,6 +47,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Notification
 from .services import create_notification
 from reviews.services import create_reply, create_review
+from businesses.models import Business
 
 T = Notification.Type
 STATUS = VendorOrder.Status
@@ -722,3 +724,127 @@ class NotificationAPITests(NotificationTestCase):
         read = self.client.get(self.list_url, {"is_read": "true"})
         self.assertEqual(self.messages(unread), {"Second"})
         self.assertEqual(self.messages(read), {"Mine"})
+        
+        
+        
+class BusinessDecisionNotificationTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("adm", "adm@example.com", "Pass12345!", role="ADMIN")
+        self.vendor = User.objects.create_user("ven", "ven@example.com", "Pass12345!", role="VENDOR")
+        self.other_vendor = User.objects.create_user("ven2", "ven2@example.com", "Pass12345!", role="VENDOR")
+        self.business = Business.objects.create(
+            vendor=self.vendor, name="Paws", description="d", contact="0700000000",
+            email="b@example.com", address="a", city_district="c",
+            verification_status=Business.VerificationStatus.PENDING,
+        )
+        self.client.force_authenticate(self.admin)
+
+    def decide(self, action, reason=""):
+        url = reverse("business-admin-decision", args=[self.business.pk])
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(url, {"action": action, "reason": reason}, format="json")
+
+    def set_status(self, status):
+        Business.objects.filter(pk=self.business.pk).update(verification_status=status)
+
+    def test_approval_notifies_the_vendor_with_a_business_link(self):
+        self.assertEqual(self.decide("approve").status_code, 200)
+        note = Notification.objects.get(user=self.vendor)
+        self.assertEqual(note.type, Notification.Type.BUSINESS_VERIFICATION)
+        self.assertEqual(note.business, self.business)
+        self.assertEqual(note.reference_type, "business")
+        self.assertEqual(note.reference_id, str(self.business.pk))
+        self.assertIn("was approved", note.message)
+        self.assertFalse(note.is_read)
+
+    def test_request_changes_suspend_and_reapprove_each_notify(self):
+        self.decide("request_changes", "Upload a clearer licence")
+        self.set_status("approved")
+        self.decide("suspend", "Complaints received")
+        self.decide("reapprove")
+        messages = list(
+            Notification.objects.filter(user=self.vendor)
+            .order_by("created_at").values_list("message", flat=True)
+        )
+        self.assertEqual(len(messages), 3)
+        self.assertIn("needs changes", messages[0])
+        self.assertIn("was suspended", messages[1])
+        self.assertIn("was reinstated", messages[2])
+
+    def test_other_users_get_nothing(self):
+        self.decide("approve")
+        self.assertEqual(Notification.objects.filter(user=self.other_vendor).count(), 0)
+        self.assertEqual(Notification.objects.filter(user=self.admin).count(), 0)
+
+    def test_a_rejected_decision_request_creates_no_notification(self):
+        # Suspending a pending business is not allowed, so nothing may be sent.
+        self.assertEqual(self.decide("suspend", "x").status_code, 400)
+        self.assertEqual(Notification.objects.count(), 0)
+        # Request-changes needs a reason.
+        self.assertEqual(self.decide("request_changes").status_code, 400)
+        self.assertEqual(Notification.objects.count(), 0)
+        
+    def test_rejection_notifies_the_vendor_and_is_recorded(self):
+        response = self.decide("reject", "Documents do not match the business name")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["verification_status"], "rejected")
+        self.assertEqual(response.data["decision"]["action"], "reject")
+
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.verification_status, "rejected")
+        self.assertEqual(
+            self.business.decision_reason, "Documents do not match the business name"
+        )
+        note = Notification.objects.get(user=self.vendor)
+        self.assertEqual(note.type, Notification.Type.BUSINESS_VERIFICATION)
+        self.assertEqual(note.business, self.business)
+        self.assertIn("was not approved", note.message)
+        self.assertNotIn("Documents do not match", note.message)  # reason stays off the card
+
+        history = self.client.get(
+            reverse("business-admin-decisions", args=[self.business.pk])
+        )
+        self.assertEqual(history.data[0]["action"], "reject")
+
+    def test_rejection_requires_a_reason(self):
+        self.assertEqual(self.decide("reject").status_code, 400)
+        self.assertEqual(self.decide("reject", "   ").status_code, 400)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.verification_status, "pending")
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_rejection_is_only_allowed_from_pending_or_changes_requested(self):
+        self.set_status("changes_requested")
+        self.assertEqual(self.decide("reject", "No reply from vendor").status_code, 200)
+
+        for blocked in ("approved", "suspended", "rejected", "draft"):
+            with self.subTest(status=blocked):
+                self.set_status(blocked)
+                Notification.objects.all().delete()
+                self.assertEqual(self.decide("reject", "x").status_code, 400)
+                self.assertEqual(Notification.objects.count(), 0)
+
+    def test_a_rejected_vendor_can_reapply_and_be_approved(self):
+        self.decide("reject", "Missing tax records")
+        self.client.force_authenticate(self.vendor)
+        reapply = self.client.post(
+            reverse("business-reapply", args=[self.business.pk]),
+            {"vendor_response": "Tax records uploaded"}, format="json",
+        )
+        self.assertEqual(reapply.status_code, 200)
+        self.assertEqual(reapply.data["verification_status"], "pending")
+
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.decide("approve").status_code, 200)
+        messages = list(
+            Notification.objects.filter(user=self.vendor)
+            .order_by("created_at").values_list("message", flat=True)
+        )
+        self.assertEqual(len(messages), 2)
+        self.assertIn("was not approved", messages[0])
+        self.assertIn("was approved", messages[1])
+
+    def test_rejection_does_not_make_the_vendor_approved(self):
+        self.decide("reject", "Not eligible")
+        self.vendor.refresh_from_db()
+        self.assertFalse(self.vendor.approved)   

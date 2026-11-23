@@ -17,6 +17,10 @@ DECISION_TEXT = {
     BusinessDecision.Action.SUSPEND: (
         "was suspended. Open your business page for details."
     ),
+    BusinessDecision.Action.REJECT: (
+        "was not approved. Open your business page for the reason, "
+        "then reapply when you're ready."
+    ),
 }
 
 
