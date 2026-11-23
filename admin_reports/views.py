@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 
 from accounts.models import User
 from audit.services import record
-from common.permissions import IsAdmin
+from common.permissions import IsAdmin, IsSystemAdmin
 
 from .exporters import export_response
 from .filters import REPORT_FILTERS, ReportFilterSerializer
@@ -46,7 +46,7 @@ def live_docs(report_type, summary):
 class LiveReportView(APIView):
     """Base for the five live reports; subclasses set report_type."""
 
-    permission_classes = (IsAdmin,)
+    permission_classes = (IsSystemAdmin,)
     report_type = None
 
     def get(self, request):
