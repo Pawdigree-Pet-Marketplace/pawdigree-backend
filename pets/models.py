@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import F
+from django.utils import timezone
 
 from common.validators import validate_image_upload
 
@@ -160,3 +162,30 @@ class PetImage(models.Model):
 
     class Meta:
         ordering = ["position", "created_at"]
+
+class PetSearchTerm(models.Model):
+    """How often customers search for a term, for the "most searched" list."""
+
+    MIN_LENGTH = 2
+    MAX_LENGTH = 60
+
+    term = models.CharField(max_length=MAX_LENGTH, unique=True)
+    count = models.PositiveIntegerField(default=1)
+    last_searched_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ("-count", "-last_searched_at")
+
+    def __str__(self):
+        return f"{self.term} ({self.count})"
+
+    @classmethod
+    def record(cls, raw_term):
+        term = " ".join(str(raw_term).lower().split())
+        if not cls.MIN_LENGTH <= len(term) <= cls.MAX_LENGTH:
+            return
+        obj, created = cls.objects.get_or_create(term=term)
+        if not created:
+            cls.objects.filter(pk=obj.pk).update(
+                count=F("count") + 1, last_searched_at=timezone.now()
+            )
