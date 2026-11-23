@@ -317,3 +317,40 @@ class AdminBookingServiceTests(AdminBookingServiceTestData, TestCase):
                     booking.start_at,
                     free_start_times(booking.service, day),
                 )
+
+    def test_audit_failure_rolls_back_booking_update(self):
+        booking = self.make_booking()
+
+        with patch.object(
+            booking_services,
+            "record_audit",
+            side_effect=IntegrityError("audit storage unavailable"),
+            create=True,
+        ):
+            with self.assertRaises(IntegrityError):
+                admin_change_booking_status(
+                    administrator=self.admin,
+                    booking=booking,
+                    new_status=Booking.Status.ACCEPTED,
+                )
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.PENDING)
+        self.assertEqual(AuditLog.objects.count(), 0)
+
+    def test_rejected_transition_creates_no_audit_entry(self):
+        booking = self.make_booking(status_value=Booking.Status.DECLINED)
+
+        with self.assertRaises(ValidationError):
+            admin_change_booking_status(
+                administrator=self.admin,
+                booking=booking,
+                new_status=Booking.Status.ACCEPTED,
+            )
+
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action="booking.status_changed",
+                target_id=str(booking.booking_id),
+            ).exists()
+        )
