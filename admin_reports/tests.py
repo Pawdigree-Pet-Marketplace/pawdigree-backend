@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
 from rest_framework.test import APITestCase
+from django.core.management import call_command
 
 from accounts.models import User
 from adoptions.models import AdoptionApplication
@@ -712,6 +713,93 @@ class SavedReportTests(ReportTestCase):
         saved_id = self.save().data["id"]
         self.assertEqual(self.client.delete(self.detail(saved_id)).status_code, 204)
         self.assertEqual(self.client.get(self.detail(saved_id)).status_code, 404)
+        
+    def trash(self):
+        return self.client.get(reverse("admin-report-saved-trash"))
+
+    def restore_url(self, saved_id):
+        return reverse("admin-report-saved-restore", args=[saved_id])
+
+    def test_delete_moves_the_report_to_the_trash(self):
+        saved_id = self.save().data["id"]
+        self.assertEqual(self.client.delete(self.detail(saved_id)).status_code, 204)
+
+        self.assertEqual(self.client.get(self.detail(saved_id)).status_code, 404)
+        self.assertEqual(self.client.get(self.url).data["count"], 0)
+        trash = self.trash()
+        self.assertEqual(trash.data["count"], 1)
+        item = trash.data["results"][0]
+        self.assertEqual(item["deleted_by_email"], self.admin.email)
+        self.assertIsNotNone(item["restorable_until"])
+        self.assertNotIn("data", item)
+        row = SavedReport.all_objects.get(pk=saved_id)   # still in the database
+        self.assertIsNotNone(row.deleted_at)
+
+    def test_restore_brings_the_report_back_intact(self):
+        saved_id = self.save().data["id"]
+        self.client.delete(self.detail(saved_id))
+
+        response = self.client.post(self.restore_url(saved_id))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get(self.url).data["count"], 1)
+        self.assertEqual(self.trash().data["count"], 0)
+        restored = self.client.get(self.detail(saved_id)).data["data"]
+        self.assertEqual(self.kpis(restored)["net_sales"], "1000.00")
+        row = SavedReport.objects.get(pk=saved_id)
+        self.assertIsNone(row.deleted_at)
+        self.assertIsNone(row.deleted_by)
+        self.assertTrue(AuditLog.objects.filter(action="report.restored").exists())
+
+    def test_a_report_deleted_over_30_days_ago_cannot_be_restored(self):
+        saved_id = self.save().data["id"]
+        self.client.delete(self.detail(saved_id))
+        SavedReport.all_objects.filter(pk=saved_id).update(
+            deleted_at=timezone.now() - timedelta(days=31)
+        )
+        self.assertEqual(self.client.post(self.restore_url(saved_id)).status_code, 404)
+        self.assertEqual(self.trash().data["count"], 0)
+
+    def test_a_report_deleted_29_days_ago_can_still_be_restored(self):
+        saved_id = self.save().data["id"]
+        self.client.delete(self.detail(saved_id))
+        SavedReport.all_objects.filter(pk=saved_id).update(
+            deleted_at=timezone.now() - timedelta(days=29)
+        )
+        self.assertEqual(self.client.post(self.restore_url(saved_id)).status_code, 200)
+
+    def test_only_the_creator_or_a_system_admin_can_restore(self):
+        saved_id = self.save().data["id"]
+        self.client.delete(self.detail(saved_id))
+
+        self.client.force_authenticate(make_user("ADMIN"))
+        self.assertEqual(self.client.post(self.restore_url(saved_id)).status_code, 403)
+        self.client.force_authenticate(self.customer)
+        self.assertEqual(self.client.post(self.restore_url(saved_id)).status_code, 403)
+        self.client.force_authenticate(self.system_admin)
+        self.assertEqual(self.client.post(self.restore_url(saved_id)).status_code, 200)
+
+    def test_restoring_a_report_that_is_not_deleted_returns_404(self):
+        saved_id = self.save().data["id"]
+        self.assertEqual(self.client.post(self.restore_url(saved_id)).status_code, 404)
+
+    def test_purge_removes_only_expired_reports(self):
+        keep_active = self.save(name="Active").data["id"]
+        keep_recent = self.save(name="Recently deleted").data["id"]
+        gone = self.save(name="Old deleted").data["id"]
+        self.client.delete(self.detail(keep_recent))
+        self.client.delete(self.detail(gone))
+        SavedReport.all_objects.filter(pk=gone).update(
+            deleted_at=timezone.now() - timedelta(days=31)
+        )
+
+        call_command("purge_deleted_reports")
+
+        self.assertTrue(SavedReport.all_objects.filter(pk=keep_active).exists())
+        self.assertTrue(SavedReport.all_objects.filter(pk=keep_recent).exists())
+        self.assertFalse(SavedReport.all_objects.filter(pk=gone).exists())
+        entry = AuditLog.objects.get(action="report.purged")
+        self.assertEqual(entry.details["name"], "Old deleted")
+        self.assertIsNone(entry.actor)    
 
 
 # ---------- exports ----------
