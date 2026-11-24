@@ -398,6 +398,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
     isActive = serializers.SerializerMethodField()
     accountStatus = serializers.SerializerMethodField()
     businesses = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -410,6 +411,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             'phone',
             'role',
             'is_email_verified',
+            'has_password',
             'isActive',
             'accountStatus',
             'businesses',
@@ -422,6 +424,9 @@ class CurrentUserSerializer(serializers.ModelSerializer):
     def get_accountStatus(self, obj) -> str:
         return 'active' if obj.is_active else 'inactive'
 
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
+
     def get_businesses(self, obj) -> list:
         if obj.role != User.Role.VENDOR:
             return []
@@ -431,6 +436,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
                 'id': str(business.id),
                 'name': business.name,
                 'verification_status': business.verification_status,
+                
             }
             for business in obj.businesses.filter(is_active=True)
         ]

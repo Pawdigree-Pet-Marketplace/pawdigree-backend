@@ -4,6 +4,7 @@ from businesses.views import BusinessRegistrationView
 
 from .admin_invites import AdminSetPasswordView
 from .change_password import ChangePasswordView
+from .set_password import SetPasswordView
 from .username_views import UsernameAvailableView
 from .verification_views import (
     ResendVerificationView,
@@ -46,5 +47,6 @@ urlpatterns = [
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm-uid'),
     path('password-reset/confirm/<str:uidb64>/<str:token>/', PasswordResetConfirmLinkView.as_view(), name='password-reset-confirm'),
+    path('set-password/', SetPasswordView.as_view(), name='set-password'),
     path('token/refresh/', SessionTokenRefreshView.as_view(), name='token-refresh'),
 ]
