@@ -6,8 +6,9 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -26,8 +27,11 @@ from products.models import Product
 from services.models import Service
 
 from .models import Review
+from .models import ReviewReply
+from .serializers import ReviewReplySerializer
 from .services import (
     check_eligibility,
+    create_reply,
     create_review,
     rating_summary,
     resolve_target,
@@ -898,4 +902,238 @@ class AdminHideReviewAPITests(ReviewTestCase):
         missing = reverse("review-visibility", kwargs={"pk": 999999})
         self.assertEqual(
             admin.patch(missing, {"is_visible": False}, format="json").status_code, 404
+        )
+
+
+# --------------------------------------------------------------------------
+# API: reply creation permissions (Commit 1)
+# --------------------------------------------------------------------------
+class ReviewReplyCreatePermissionTests(ReviewTestCase):
+    """POST /reviews/<pk>/replies/ must be restricted to authenticated vendors."""
+
+    def setUp(self):
+        super().setUp()
+        self.review = add_review(self.customer, product=self.product)
+        self.url = reverse("review-replies", kwargs={"pk": self.review.pk})
+        self.payload = {"body": "Thank you for your feedback!"}
+
+    def test_authenticated_vendor_can_post_a_reply(self):
+        response = self.login(self.vendor).post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        reply = ReviewReply.objects.get()
+        self.assertEqual(reply.author, self.vendor)
+        self.assertEqual(reply.review, self.review)
+        self.assertEqual(response.data["id"], reply.pk)
+        self.assertEqual(response.data["review_id"], self.review.pk)
+
+        public_url = reverse(
+            "review-list", kwargs={"kind": "product", "pk": self.product.pk}
+        )
+        public_response = APIClient().get(public_url)
+        self.assertEqual(public_response.status_code, 200)
+        public_review = next(
+            result
+            for result in public_response.data["results"]
+            if result["id"] == self.review.pk
+        )
+        self.assertEqual(public_review["replies"][0]["id"], reply.pk)
+        self.assertEqual(public_review["replies"][0]["body"], self.payload["body"])
+
+    def test_vendor_cannot_post_a_duplicate_reply(self):
+        client = self.login(self.vendor)
+        first_response = client.post(self.url, self.payload, format="json")
+        self.assertEqual(first_response.status_code, 201)
+
+        duplicate_response = client.post(
+            self.url, {"body": "A second reply."}, format="json"
+        )
+
+        self.assertEqual(duplicate_response.status_code, 400)
+        self.assertEqual(ReviewReply.objects.count(), 1)
+        reply = ReviewReply.objects.get()
+        self.assertEqual(reply.review, self.review)
+        self.assertEqual(reply.body, self.payload["body"])
+
+    def test_anonymous_post_returns_401_and_creates_no_reply(self):
+        response = APIClient().post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_customer_post_returns_403_and_creates_no_reply(self):
+        response = self.client.post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_admin_post_returns_403_and_creates_no_reply(self):
+        response = self.login(self.admin).post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_get_replies_is_public_without_authentication(self):
+        response = APIClient().get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_replies_tolerates_an_expired_token(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION="Bearer not-a-real-token")
+        self.assertEqual(client.get(self.url).status_code, 200)
+
+
+# --------------------------------------------------------------------------
+# Service layer: create_reply
+# --------------------------------------------------------------------------
+class CreateReplyServiceTests(ReviewTestCase):
+    """Service-level tests for vendor ownership and one-reply-per-review rules."""
+
+    def setUp(self):
+        super().setUp()
+        self.review = add_review(self.customer, product=self.product)
+        self.other_vendor = make_user("othervendor", User.Role.VENDOR)
+        self.other_business = make_business(self.other_vendor, name="Other Shop")
+
+    def test_vendor_cannot_reply_to_another_vendors_review(self):
+        with self.assertRaises(PermissionDenied):
+            create_reply(
+                author=self.other_vendor,
+                review_id=self.review.pk,
+                body="Trying to reply to someone else's review.",
+            )
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_vendor_can_reply_to_their_own_business_review(self):
+        reply = create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="Thank you for your feedback!",
+        )
+        self.assertEqual(reply.author, self.vendor)
+        self.assertEqual(reply.review, self.review)
+        self.assertEqual(ReviewReply.objects.count(), 1)
+
+    def test_vendor_cannot_reply_twice_to_the_same_review(self):
+        create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="First reply.",
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            create_reply(
+                author=self.vendor,
+                review_id=self.review.pk,
+                body="Second reply.",
+            )
+        self.assertIn("body", ctx.exception.detail)
+        self.assertEqual(ReviewReply.objects.count(), 1)
+
+    def test_vendor_can_reply_to_a_different_review(self):
+        second_review = add_review(self.other, product=self.product)
+        create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="Reply to first review.",
+        )
+        reply2 = create_reply(
+            author=self.vendor,
+            review_id=second_review.pk,
+            body="Reply to second review.",
+        )
+        self.assertEqual(ReviewReply.objects.count(), 2)
+        self.assertEqual(reply2.review, second_review)
+
+
+# --------------------------------------------------------------------------
+# Serializer: replies embedded in ReviewSerializer (Commit 3)
+# --------------------------------------------------------------------------
+class ReviewSerializerRepliesTests(ReviewTestCase):
+    """ReviewSerializer must embed associated replies in its output."""
+
+    def setUp(self):
+        super().setUp()
+        self.review = add_review(self.customer, product=self.product)
+        self.url = reverse("review-replies", kwargs={"pk": self.review.pk})
+
+    def _review_data(self):
+        """Fetch the review via the public list endpoint and return the first result."""
+        list_url = reverse("review-list", kwargs={"kind": "product", "pk": self.product.pk})
+        return APIClient().get(list_url).data["results"][0]
+
+    def test_review_with_no_replies_returns_empty_list(self):
+        data = self._review_data()
+        self.assertIn("replies", data)
+        self.assertEqual(data["replies"], [])
+
+    def test_review_response_includes_associated_reply(self):
+        self.vendor.first_name = "Alice"
+        self.vendor.last_name = "Smith"
+        self.vendor.save()
+        reply = create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="Thank you for your feedback!",
+        )
+
+        data = self._review_data()
+        self.assertEqual(len(data["replies"]), 1)
+        r = data["replies"][0]
+        self.assertEqual(r["id"], reply.pk)
+        self.assertEqual(r["body"], "Thank you for your feedback!")
+        self.assertEqual(r["author_name"], "Alice S.")
+        self.assertEqual(r["author_role"], str(self.vendor.role))
+        self.assertIn("created_at", r)
+
+    def test_reply_fields_match_review_reply_serializer_output(self):
+        create_reply(author=self.vendor, review_id=self.review.pk, body="Great choice!")
+
+        data = self._review_data()
+        r = data["replies"][0]
+        self.assertEqual(
+            set(r.keys()), {"id", "review_id", "author_name", "author_role", "body", "created_at"}
+        )
+        self.assertEqual(r["review_id"], self.review.pk)
+
+
+# --------------------------------------------------------------------------
+# Query count: prefetch_related prevents N+1 on review list (Commit 4)
+# --------------------------------------------------------------------------
+class ReviewListQueryCountTests(ReviewTestCase):
+    """Fetching multiple reviews with replies must not produce N+1 queries."""
+
+    def setUp(self):
+        super().setUp()
+        customer = make_user("qc_customer0", User.Role.CUSTOMER)
+        self.reviews = [add_review(customer, product=self.product)]
+        create_reply(author=self.vendor, review_id=self.reviews[0].pk, body="Thanks!")
+
+    def test_review_list_with_replies_does_not_produce_n_plus_1_queries(self):
+        list_url = reverse("review-list", kwargs={"kind": "product", "pk": self.product.pk})
+
+        with CaptureQueriesContext(connection) as one_review_queries:
+            one_review_response = APIClient().get(list_url)
+
+        self.assertEqual(one_review_response.status_code, 200)
+        one_review_results = one_review_response.data["results"]
+        self.assertEqual(len(one_review_results), 1)
+        self.assertEqual(one_review_results[0]["replies"][0]["body"], "Thanks!")
+
+        for index in range(1, 3):
+            customer = make_user(f"qc_customer{index}", User.Role.CUSTOMER)
+            review = add_review(customer, product=self.product)
+            self.reviews.append(review)
+            create_reply(author=self.vendor, review_id=review.pk, body="Thanks!")
+
+        with CaptureQueriesContext(connection) as multiple_review_queries:
+            multiple_review_response = APIClient().get(list_url)
+
+        self.assertEqual(multiple_review_response.status_code, 200)
+        multiple_review_results = multiple_review_response.data["results"]
+        self.assertEqual(len(multiple_review_results), 3)
+        self.assertTrue(all(result["replies"] for result in multiple_review_results))
+        self.assertTrue(
+            all(result["replies"][0]["body"] == "Thanks!" for result in multiple_review_results)
+        )
+
+        self.assertEqual(
+            len(one_review_queries),
+            len(multiple_review_queries),
+            "Query count grew when adding a review with a reply — N+1 detected.",
         )

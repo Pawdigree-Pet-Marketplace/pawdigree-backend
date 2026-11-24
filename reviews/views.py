@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.services import record as record_audit
-from common.permissions import ADMIN_ROLES, IsAdmin
+from common.permissions import ADMIN_ROLES, IsAdmin, IsVendor
 
 from .models import Review, ReviewReply
 from .serializers import (
@@ -76,7 +76,7 @@ class ReviewListView(generics.ListAPIView):
         )
         return Review.objects.filter(
             **{self.field: self.target}, is_visible=True
-        ).select_related("customer")
+        ).select_related("customer").prefetch_related("replies__author")
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -91,7 +91,7 @@ class MyReviewListView(generics.ListAPIView):
     pagination_class = ReviewPagination
 
     def get_queryset(self):
-        return Review.objects.filter(customer=self.request.user).select_related("customer")
+        return Review.objects.filter(customer=self.request.user).select_related("customer").prefetch_related("replies__author")
 
 
 @extend_schema(
@@ -104,7 +104,7 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         # Someone else's review behaves as if it does not exist (404).
-        return Review.objects.filter(customer=self.request.user).select_related("customer")
+        return Review.objects.filter(customer=self.request.user).select_related("customer").prefetch_related("replies__author")
 
     def get_serializer_class(self):
         if self.request.method == "PATCH":
@@ -171,12 +171,12 @@ class AdminReviewVisibilityView(APIView):
     get=extend_schema(tags=["reviews"], summary="Replies under a review (public)"),
     post=extend_schema(
         tags=["reviews"],
-        summary="Reply to a review",
+        summary="Reply to a review (vendors only)",
         request=ReviewReplyCreateSerializer,
         responses={201: ReviewReplySerializer},
         description=(
-            "Customers, admins and the owning vendor can reply. A review can "
-            "have any number of replies."
+            "Only authenticated vendors can post a reply. "
+            "The vendor must own the business associated with the reviewed item."
         ),
     ),
 )
@@ -198,7 +198,7 @@ class ReviewReplyListCreateView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == "GET":
             return [AllowAny()]
-        return [IsAuthenticated()]
+        return [IsVendor()]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

@@ -139,6 +139,11 @@ def create_reply(*, author, review_id, body):
             "Only the business that owns this item can reply as a vendor."
         )
 
+    if author.role == User.Role.VENDOR and ReviewReply.objects.filter(
+        review=review, author=author
+    ).exists():
+        raise ValidationError({"body": "You have already replied to this review."})
+
     with transaction.atomic():
         reply = ReviewReply.objects.create(review=review, author=author, body=body)
         after_commit(lambda: notify_review_reply(reply.pk))
