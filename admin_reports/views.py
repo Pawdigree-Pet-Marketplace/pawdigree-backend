@@ -46,7 +46,7 @@ def live_docs(report_type, summary):
 class LiveReportView(APIView):
     """Base for the five live reports; subclasses set report_type."""
 
-    permission_classes = (IsSystemAdmin,)
+    permission_classes = (IsSystemAdmin,IsAdmin)
     report_type = None
 
     def get(self, request):

@@ -4,24 +4,21 @@ from django.urls import URLPattern, URLResolver, get_resolver
 from common.permissions import IsAdmin, IsSystemAdminRoleOnly
 
 ADMIN_PREFIX = "api/admin/"
+REPORTS_PREFIX = "api/platform-reports/"
 # Platform reports are open to both ADMIN and SYSTEM_ADMIN on purpose.
 SHARED_ADMIN_APPS = ("admin_reports.",)
 
-SYSTEM_ADMIN_ROUTES = {
-    "api/admin/platform-reports/overview/",
-    "api/admin/platform-reports/users/",
-    "api/admin/platform-reports/pets/",
-    "api/admin/platform-reports/product-sales/",
-    "api/admin/platform-reports/pet-sales/",
+REPORT_ROUTES = {
+    f"{REPORTS_PREFIX}overview/",
+    f"{REPORTS_PREFIX}users/",
+    f"{REPORTS_PREFIX}pets/",
+    f"{REPORTS_PREFIX}product-sales/",
+    f"{REPORTS_PREFIX}pet-sales/",
+    f"{REPORTS_PREFIX}saved/",
+    f"{REPORTS_PREFIX}saved/trash/",
+    f"{REPORTS_PREFIX}saved/<int:pk>/",
+    f"{REPORTS_PREFIX}saved/<int:pk>/restore/",
 }
-
-ADMIN_ROUTES = {
-    "api/admin/platform-reports/saved/",
-    "api/admin/platform-reports/saved/<int:pk>/",
-    "api/admin/platform-reports/saved/trash/",
-    "api/admin/platform-reports/saved/<int:pk>/restore/",
-}
-
 
 def collect_routes(patterns, prefix=""):
     for entry in patterns:
@@ -50,11 +47,7 @@ def test_every_admin_route_requires_system_admin_role():
     # Guard against passing by checking nothing.
     assert len(routes) >= 4
 
-    # Ensure all expected report routes are registered.
-    assert SYSTEM_ADMIN_ROUTES.issubset(routes.keys())
-    assert ADMIN_ROUTES.issubset(routes.keys())
-
-    for route, callback in routes.items():
+    for route, callback in routes:
         view_class = getattr(callback, "cls", None)
         assert view_class is not None, f"{route} is not a class-based view"
         assert IsSystemAdminRoleOnly in view_class.permission_classes, route
@@ -69,6 +62,24 @@ def test_platform_reports_routes_are_admin_only():
 
     assert len(routes) >= 5
 
+    # Every report route must be registered, and only under the reports prefix.
+    registered = {route for route, _ in routes}
+    assert REPORT_ROUTES.issubset(registered), REPORT_ROUTES - registered
+    assert all(route.startswith(REPORTS_PREFIX) for route in registered), registered
+
     for route, callback in routes:
         view_class = callback.cls
         assert IsAdmin in view_class.permission_classes, route
+        
+
+def test_platform_reports_are_not_under_the_system_admin_only_prefix():
+    # Reports are shared with ADMIN, so they must not sit under api/admin/,
+    # where every route has to be system-admin-only.
+    routes = [
+        route
+        for route, callback in collect_routes(get_resolver().url_patterns)
+        if is_shared_admin_view(callback)
+    ]
+
+    assert routes
+    assert not [route for route in routes if route.startswith(ADMIN_PREFIX)]
