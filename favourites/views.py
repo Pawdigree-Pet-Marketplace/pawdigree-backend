@@ -7,10 +7,10 @@ from rest_framework.views import APIView
 from common.permissions import IsCustomer
 from pets.serializers import PublicPetSerializer
 from pets.views import PublicPetPagination
-from products.serializers import PublicProductSerializer, ProductFavouriteStatusSerializer
+from products.serializers import PublicProductSerializer
 from products.views import PublicProductPagination
 
-from .serializers import FavouriteStatusSerializer
+from .serializers import FavouriteStatusSerializer, ProductFavouriteStatusSerializer
 from .services import (
     add_favourite,
     favourite_pet_ids,
