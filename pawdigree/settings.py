@@ -104,7 +104,8 @@ INSTALLED_APPS = [
     'audit',
     'reports.apps.ReportsConfig',
     'reviews',
-    'admin_reports'
+    'admin_reports',
+    'comparisons',
 ]
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
