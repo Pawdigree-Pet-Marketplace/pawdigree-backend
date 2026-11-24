@@ -27,6 +27,7 @@ from services.models import Service
 
 from .models import Review
 from .models import ReviewReply
+from .serializers import ReviewReplySerializer
 from .services import (
     check_eligibility,
     create_reply,
@@ -1006,3 +1007,54 @@ class CreateReplyServiceTests(ReviewTestCase):
         )
         self.assertEqual(ReviewReply.objects.count(), 2)
         self.assertEqual(reply2.review, second_review)
+
+
+# --------------------------------------------------------------------------
+# Serializer: replies embedded in ReviewSerializer (Commit 3)
+# --------------------------------------------------------------------------
+class ReviewSerializerRepliesTests(ReviewTestCase):
+    """ReviewSerializer must embed associated replies in its output."""
+
+    def setUp(self):
+        super().setUp()
+        self.review = add_review(self.customer, product=self.product)
+        self.url = reverse("review-replies", kwargs={"pk": self.review.pk})
+
+    def _review_data(self):
+        """Fetch the review via the public list endpoint and return the first result."""
+        list_url = reverse("review-list", kwargs={"kind": "product", "pk": self.product.pk})
+        return APIClient().get(list_url).data["results"][0]
+
+    def test_review_with_no_replies_returns_empty_list(self):
+        data = self._review_data()
+        self.assertIn("replies", data)
+        self.assertEqual(data["replies"], [])
+
+    def test_review_response_includes_associated_reply(self):
+        self.vendor.first_name = "Alice"
+        self.vendor.last_name = "Smith"
+        self.vendor.save()
+        reply = create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="Thank you for your feedback!",
+        )
+
+        data = self._review_data()
+        self.assertEqual(len(data["replies"]), 1)
+        r = data["replies"][0]
+        self.assertEqual(r["id"], reply.pk)
+        self.assertEqual(r["body"], "Thank you for your feedback!")
+        self.assertEqual(r["author_name"], "Alice S.")
+        self.assertEqual(r["author_role"], str(self.vendor.role))
+        self.assertIn("created_at", r)
+
+    def test_reply_fields_match_review_reply_serializer_output(self):
+        create_reply(author=self.vendor, review_id=self.review.pk, body="Great choice!")
+
+        data = self._review_data()
+        r = data["replies"][0]
+        self.assertEqual(
+            set(r.keys()), {"id", "review_id", "author_name", "author_role", "body", "created_at"}
+        )
+        self.assertEqual(r["review_id"], self.review.pk)

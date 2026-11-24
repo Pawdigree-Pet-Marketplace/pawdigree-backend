@@ -37,17 +37,21 @@ class ReviewSerializer(serializers.ModelSerializer):
     kind = serializers.CharField(source="target_kind", read_only=True)
     target_id = serializers.IntegerField(source="target_pk", read_only=True)
     reviewer = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
         fields = (
             "id", "kind", "target_id", "rating", "comment",
-            "reviewer", "created_at", "updated_at",
+            "reviewer", "created_at", "updated_at", "replies",
         )
         read_only_fields = fields
 
     def get_reviewer(self, obj) -> str:
         return short_name(obj.customer)
+
+    def get_replies(self, obj) -> list:
+        return ReviewReplySerializer(obj.replies.select_related("author"), many=True).data
 
 
 class ReviewVisibilitySerializer(serializers.Serializer):
