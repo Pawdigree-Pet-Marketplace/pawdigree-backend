@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .admin_views import (
     AdminUserListView,
@@ -52,4 +52,5 @@ urlpatterns = [
         DeactivateAdministratorView.as_view(),
         name='administrator-deactivate',
     ),
+    path('', include('bookings.admin_urls')),
 ]

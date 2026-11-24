@@ -4,10 +4,17 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from audit.services import record as record_audit
 from .availability import booking_tz, free_start_times
 from .models import ACTIVE_STATUSES, Booking
 from notification.services import after_commit
-from .notifications import (notify_booking_created, notify_booking_status_changed, notify_booking_cancelled, notify_booking_rescheduled )
+from .notifications import (
+    notify_booking_admin_cancelled,
+    notify_booking_cancelled,
+    notify_booking_created,
+    notify_booking_rescheduled,
+    notify_booking_status_changed,
+)
 
 
 def create_booking(customer, service, start_at, notes=""):
@@ -47,6 +54,83 @@ def _own_booking(customer, booking_id):
         raise NotFound("Booking not found.")
 
 
+def _apply_booking_status_transition(
+    booking,
+    new_status,
+    reason="",
+    *,
+    allow_administrative_cancellation=False,
+):
+    """Validate and persist a transition on an already-locked booking.
+
+    Actor ownership and lookup scopes belong to the public service functions;
+    this helper only applies the shared lifecycle rules and the explicitly
+    enabled administrator cancellation transitions.
+    """
+    reason = (reason or "").strip()
+    current_status = booking.status
+
+    if current_status == Booking.Status.PENDING:
+        allowed_statuses = [Booking.Status.ACCEPTED, Booking.Status.DECLINED]
+        if allow_administrative_cancellation:
+            allowed_statuses.append(Booking.Status.CANCELLED)
+        if new_status not in allowed_statuses:
+            allowed = "accepted or declined"
+            if allow_administrative_cancellation:
+                allowed += " or cancelled"
+            raise ValidationError(
+                {"status": f"A pending booking can only be {allowed}."}
+            )
+    elif current_status == Booking.Status.ACCEPTED:
+        allowed_statuses = [Booking.Status.COMPLETED]
+        if allow_administrative_cancellation:
+            allowed_statuses.append(Booking.Status.CANCELLED)
+        if new_status not in allowed_statuses:
+            allowed = "completed"
+            if allow_administrative_cancellation:
+                allowed += " or cancelled"
+            raise ValidationError(
+                {"status": f"An accepted booking can only be {allowed}."}
+            )
+    else:
+        raise ValidationError(
+            {
+                "status": (
+                    f"A {booking.get_status_display().lower()} booking "
+                    "can't be changed."
+                )
+            }
+        )
+
+    if new_status == Booking.Status.DECLINED and not reason:
+        raise ValidationError(
+            {"decision_reason": "A reason is required when declining a booking."}
+        )
+    if (
+        allow_administrative_cancellation
+        and new_status == Booking.Status.CANCELLED
+        and not reason
+    ):
+        raise ValidationError(
+            {"reason": "A reason is required when an administrator cancels a booking."}
+        )
+    if (
+        new_status == Booking.Status.COMPLETED
+        and timezone.now() < booking.end_at
+    ):
+        raise ValidationError(
+            {"status": "A booking can only be completed after it has ended."}
+        )
+
+    booking.status = new_status
+    update_fields = ["status", "updated_at"]
+    if new_status == Booking.Status.DECLINED:
+        booking.decision_reason = reason
+        update_fields.append("decision_reason")
+    booking.save(update_fields=update_fields)
+    return booking
+
+
 def change_booking_status(vendor, booking_id, new_status, decision_reason=""):
     """Apply an allowed vendor transition to one of their bookings."""
     with transaction.atomic():
@@ -62,38 +146,56 @@ def change_booking_status(vendor, booking_id, new_status, decision_reason=""):
         except Booking.DoesNotExist:
             raise NotFound("Booking not found.")
 
-        if booking.status == Booking.Status.PENDING:
-            if new_status not in (Booking.Status.ACCEPTED, Booking.Status.DECLINED):
-                raise ValidationError(
-                    {"status": "A pending booking can only be accepted or declined."}
-                )
-        elif booking.status == Booking.Status.ACCEPTED:
-            if new_status != Booking.Status.COMPLETED:
-                raise ValidationError(
-                    {"status": "An accepted booking can only be completed."}
-                )
-            if timezone.now() < booking.end_at:
-                raise ValidationError(
-                    {"status": "A booking can only be completed after it has ended."}
-                )
-        else:
-            raise ValidationError(
-                {
-                    "status": (
-                        f"A {booking.get_status_display().lower()} booking "
-                        "can't be changed."
-                    )
-                }
-            )
-
-        booking.status = new_status
-        update_fields = ["status", "updated_at"]
-        if new_status == Booking.Status.DECLINED:
-            booking.decision_reason = decision_reason.strip()
-            update_fields.append("decision_reason")
-        booking.save(update_fields=update_fields)
-        
+        booking = _apply_booking_status_transition(
+            booking,
+            new_status,
+            decision_reason,
+        )
         after_commit(lambda: notify_booking_status_changed(booking.pk, new_status))
+        return booking
+
+
+def admin_change_booking_status(
+    *, administrator, booking_id, new_status, reason=""
+):
+    """Apply an approved administrative transition to any platform booking."""
+    reason = (reason or "").strip()
+    with transaction.atomic():
+        try:
+            booking = (
+                Booking.objects.select_for_update(of=("self",))
+                .select_related("service__business")
+                .get(pk=booking_id)
+            )
+        except Booking.DoesNotExist:
+            raise NotFound("Booking not found.")
+
+        previous_status = booking.status
+        booking = _apply_booking_status_transition(
+            booking,
+            new_status,
+            reason,
+            allow_administrative_cancellation=True,
+        )
+        record_audit(
+            actor=administrator,
+            action="booking.status_changed",
+            target=booking,
+            details={
+                "previous_status": previous_status,
+                "new_status": new_status,
+                "reason": reason,
+            },
+        )
+
+        if new_status == Booking.Status.CANCELLED:
+            after_commit(
+                lambda: notify_booking_admin_cancelled(booking.pk)
+            )
+        else:
+            after_commit(
+                lambda: notify_booking_status_changed(booking.pk, new_status)
+            )
         return booking
 
 

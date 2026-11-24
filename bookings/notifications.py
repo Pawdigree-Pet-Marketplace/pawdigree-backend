@@ -64,6 +64,27 @@ def notify_booking_cancelled(booking_id):
     )
 
 
+def notify_booking_admin_cancelled(booking_id):
+    """Notify the customer and vendor about an administrator cancellation."""
+    booking = _load(booking_id)
+    name, when = booking.service.name, _when(booking)
+
+    create_notification(
+        booking.customer,
+        T.BOOKING_CANCELLED,
+        f"An administrator cancelled your booking for {name} on {when}.",
+        reference_id=booking.pk,
+        reference_type="booking",
+        event_key=f"booking-admin-cancelled:{booking.pk}:customer",
+    )
+    _vendor_notice(
+        booking,
+        T.BOOKING_CANCELLED,
+        f"An administrator cancelled the booking for {name} on {when}.",
+        f"booking-admin-cancelled:{booking.pk}:vendor",
+    )
+
+
 def notify_booking_rescheduled(booking_id):
     booking = _load(booking_id)
     _vendor_notice(
