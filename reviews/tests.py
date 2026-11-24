@@ -6,8 +6,9 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -1058,3 +1059,50 @@ class ReviewSerializerRepliesTests(ReviewTestCase):
             set(r.keys()), {"id", "review_id", "author_name", "author_role", "body", "created_at"}
         )
         self.assertEqual(r["review_id"], self.review.pk)
+
+
+# --------------------------------------------------------------------------
+# Query count: prefetch_related prevents N+1 on review list (Commit 4)
+# --------------------------------------------------------------------------
+class ReviewListQueryCountTests(ReviewTestCase):
+    """Fetching multiple reviews with replies must not produce N+1 queries."""
+
+    def setUp(self):
+        super().setUp()
+        customer = make_user("qc_customer0", User.Role.CUSTOMER)
+        self.reviews = [add_review(customer, product=self.product)]
+        create_reply(author=self.vendor, review_id=self.reviews[0].pk, body="Thanks!")
+
+    def test_review_list_with_replies_does_not_produce_n_plus_1_queries(self):
+        list_url = reverse("review-list", kwargs={"kind": "product", "pk": self.product.pk})
+
+        with CaptureQueriesContext(connection) as one_review_queries:
+            one_review_response = APIClient().get(list_url)
+
+        self.assertEqual(one_review_response.status_code, 200)
+        one_review_results = one_review_response.data["results"]
+        self.assertEqual(len(one_review_results), 1)
+        self.assertEqual(one_review_results[0]["replies"][0]["body"], "Thanks!")
+
+        for index in range(1, 3):
+            customer = make_user(f"qc_customer{index}", User.Role.CUSTOMER)
+            review = add_review(customer, product=self.product)
+            self.reviews.append(review)
+            create_reply(author=self.vendor, review_id=review.pk, body="Thanks!")
+
+        with CaptureQueriesContext(connection) as multiple_review_queries:
+            multiple_review_response = APIClient().get(list_url)
+
+        self.assertEqual(multiple_review_response.status_code, 200)
+        multiple_review_results = multiple_review_response.data["results"]
+        self.assertEqual(len(multiple_review_results), 3)
+        self.assertTrue(all(result["replies"] for result in multiple_review_results))
+        self.assertTrue(
+            all(result["replies"][0]["body"] == "Thanks!" for result in multiple_review_results)
+        )
+
+        self.assertEqual(
+            len(one_review_queries),
+            len(multiple_review_queries),
+            "Query count grew when adding a review with a reply — N+1 detected.",
+        )

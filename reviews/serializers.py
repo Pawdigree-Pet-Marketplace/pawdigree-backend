@@ -51,7 +51,7 @@ class ReviewSerializer(serializers.ModelSerializer):
         return short_name(obj.customer)
 
     def get_replies(self, obj) -> list:
-        return ReviewReplySerializer(obj.replies.select_related("author"), many=True).data
+        return ReviewReplySerializer(obj.replies.all(), many=True).data
 
 
 class ReviewVisibilitySerializer(serializers.Serializer):

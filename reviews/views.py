@@ -76,7 +76,7 @@ class ReviewListView(generics.ListAPIView):
         )
         return Review.objects.filter(
             **{self.field: self.target}, is_visible=True
-        ).select_related("customer")
+        ).select_related("customer").prefetch_related("replies__author")
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -91,7 +91,7 @@ class MyReviewListView(generics.ListAPIView):
     pagination_class = ReviewPagination
 
     def get_queryset(self):
-        return Review.objects.filter(customer=self.request.user).select_related("customer")
+        return Review.objects.filter(customer=self.request.user).select_related("customer").prefetch_related("replies__author")
 
 
 @extend_schema(
@@ -104,7 +104,7 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         # Someone else's review behaves as if it does not exist (404).
-        return Review.objects.filter(customer=self.request.user).select_related("customer")
+        return Review.objects.filter(customer=self.request.user).select_related("customer").prefetch_related("replies__author")
 
     def get_serializer_class(self):
         if self.request.method == "PATCH":
