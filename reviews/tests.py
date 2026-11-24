@@ -920,8 +920,39 @@ class ReviewReplyCreatePermissionTests(ReviewTestCase):
     def test_authenticated_vendor_can_post_a_reply(self):
         response = self.login(self.vendor).post(self.url, self.payload, format="json")
         self.assertEqual(response.status_code, 201)
+        reply = ReviewReply.objects.get()
+        self.assertEqual(reply.author, self.vendor)
+        self.assertEqual(reply.review, self.review)
+        self.assertEqual(response.data["id"], reply.pk)
+        self.assertEqual(response.data["review_id"], self.review.pk)
+
+        public_url = reverse(
+            "review-list", kwargs={"kind": "product", "pk": self.product.pk}
+        )
+        public_response = APIClient().get(public_url)
+        self.assertEqual(public_response.status_code, 200)
+        public_review = next(
+            result
+            for result in public_response.data["results"]
+            if result["id"] == self.review.pk
+        )
+        self.assertEqual(public_review["replies"][0]["id"], reply.pk)
+        self.assertEqual(public_review["replies"][0]["body"], self.payload["body"])
+
+    def test_vendor_cannot_post_a_duplicate_reply(self):
+        client = self.login(self.vendor)
+        first_response = client.post(self.url, self.payload, format="json")
+        self.assertEqual(first_response.status_code, 201)
+
+        duplicate_response = client.post(
+            self.url, {"body": "A second reply."}, format="json"
+        )
+
+        self.assertEqual(duplicate_response.status_code, 400)
         self.assertEqual(ReviewReply.objects.count(), 1)
-        self.assertEqual(ReviewReply.objects.get().author, self.vendor)
+        reply = ReviewReply.objects.get()
+        self.assertEqual(reply.review, self.review)
+        self.assertEqual(reply.body, self.payload["body"])
 
     def test_anonymous_post_returns_401_and_creates_no_reply(self):
         response = APIClient().post(self.url, self.payload, format="json")
