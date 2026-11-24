@@ -16,6 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -300,6 +301,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 # Lets the browser read the download filename on report exports.
 CORS_EXPOSE_HEADERS = ["Content-Disposition"]
+# The guest cart sends its token in this header, so browsers must be allowed to.
+CORS_ALLOW_HEADERS = (*default_headers, "x-cart-token")
 
 # Add production frontend URL(s) from the environment
 extra_origins = os.environ.get("FRONTEND_URL", "")
