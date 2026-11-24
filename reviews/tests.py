@@ -29,6 +29,7 @@ from .models import Review
 from .models import ReviewReply
 from .services import (
     check_eligibility,
+    create_reply,
     create_review,
     rating_summary,
     resolve_target,
@@ -943,3 +944,65 @@ class ReviewReplyCreatePermissionTests(ReviewTestCase):
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION="Bearer not-a-real-token")
         self.assertEqual(client.get(self.url).status_code, 200)
+
+
+# --------------------------------------------------------------------------
+# Service layer: create_reply
+# --------------------------------------------------------------------------
+class CreateReplyServiceTests(ReviewTestCase):
+    """Service-level tests for vendor ownership and one-reply-per-review rules."""
+
+    def setUp(self):
+        super().setUp()
+        self.review = add_review(self.customer, product=self.product)
+        self.other_vendor = make_user("othervendor", User.Role.VENDOR)
+        self.other_business = make_business(self.other_vendor, name="Other Shop")
+
+    def test_vendor_cannot_reply_to_another_vendors_review(self):
+        with self.assertRaises(PermissionDenied):
+            create_reply(
+                author=self.other_vendor,
+                review_id=self.review.pk,
+                body="Trying to reply to someone else's review.",
+            )
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_vendor_can_reply_to_their_own_business_review(self):
+        reply = create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="Thank you for your feedback!",
+        )
+        self.assertEqual(reply.author, self.vendor)
+        self.assertEqual(reply.review, self.review)
+        self.assertEqual(ReviewReply.objects.count(), 1)
+
+    def test_vendor_cannot_reply_twice_to_the_same_review(self):
+        create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="First reply.",
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            create_reply(
+                author=self.vendor,
+                review_id=self.review.pk,
+                body="Second reply.",
+            )
+        self.assertIn("body", ctx.exception.detail)
+        self.assertEqual(ReviewReply.objects.count(), 1)
+
+    def test_vendor_can_reply_to_a_different_review(self):
+        second_review = add_review(self.other, product=self.product)
+        create_reply(
+            author=self.vendor,
+            review_id=self.review.pk,
+            body="Reply to first review.",
+        )
+        reply2 = create_reply(
+            author=self.vendor,
+            review_id=second_review.pk,
+            body="Reply to second review.",
+        )
+        self.assertEqual(ReviewReply.objects.count(), 2)
+        self.assertEqual(reply2.review, second_review)
