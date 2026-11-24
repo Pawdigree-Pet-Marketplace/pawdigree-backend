@@ -1,34 +1,33 @@
+from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
-from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import generics, serializers, status
 from rest_framework.pagination import PageNumberPagination
-from drf_spectacular.utils import extend_schema
-from rest_framework import generics, status, serializers
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from notification.services import after_commit
-from .notifications import notify_business_decision
-
 
 from audit.services import record as record_audit
 from common.permissions import IsAdmin, IsVendor
-from .services import sync_vendor_approval
+from notification.services import after_commit
+
 from .models import Business, BusinessCategory, BusinessDecision
+from .notifications import notify_business_decision
 from .serializers import (
-    BusinessSerializer,
+    AdminBusinessReviewSerializer,
     BusinessCategoryStatusSerializer,
+    BusinessDecisionHistorySerializer,
+    BusinessDecisionInputSerializer,
+    BusinessSerializer,
     BusinessVerificationStatusSerializer,
     BusinessWriteSerializer,
-    AdminBusinessReviewSerializer,
     CategoryRequestSerializer,
     PublicBusinessSerializer,
     VendorResponseSerializer,
-    BusinessDecisionHistorySerializer,
-    BusinessDecisionInputSerializer,
 )
+from .services import sync_vendor_approval
 
 PARSERS = (MultiPartParser, FormParser, JSONParser)
 
@@ -283,35 +282,15 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
 
             saved_categories.append(business_category)
 
-        changed = created + reopened
+            changed = created + reopened
 
-        sent_back = False
-        if (
-            changed
-            and business.verification_status
-            == Business.VerificationStatus.APPROVED
-        ):
-            # New categories mean the business is reviewed again.
-            business.verification_status = Business.VerificationStatus.PENDING
-            business.reviewed_at = None
-            business.save(update_fields=[
-                "verification_status", "reviewed_at", "updated_at",
-            ])
-            sync_vendor_approval(business.vendor)
-            sent_back = True
-
-        if not changed:
+        if changed:
+            message = f"{changed} category request(s) sent for review."
+        else:
             message = (
                 "These categories were already requested. "
                 "No changes were made."
             )
-        elif sent_back:
-            message = (
-                f"{changed} category request(s) sent. Your business is back "
-                "in review until they are decided."
-            )
-        else:
-            message = f"{changed} category request(s) sent for review."
 
         response_serializer = BusinessCategoryStatusSerializer(
             saved_categories,
@@ -323,7 +302,6 @@ class BusinessCategoryRequestView(generics.GenericAPIView):
                 "message": message,
                 "new_requests": created,
                 "reopened": reopened,
-                "sent_back_to_review": sent_back,
                 "verification_status": business.verification_status,
                 "categories": response_serializer.data,
             },
