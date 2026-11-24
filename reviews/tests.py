@@ -26,6 +26,7 @@ from products.models import Product
 from services.models import Service
 
 from .models import Review
+from .models import ReviewReply
 from .services import (
     check_eligibility,
     create_review,
@@ -899,3 +900,46 @@ class AdminHideReviewAPITests(ReviewTestCase):
         self.assertEqual(
             admin.patch(missing, {"is_visible": False}, format="json").status_code, 404
         )
+
+
+# --------------------------------------------------------------------------
+# API: reply creation permissions (Commit 1)
+# --------------------------------------------------------------------------
+class ReviewReplyCreatePermissionTests(ReviewTestCase):
+    """POST /reviews/<pk>/replies/ must be restricted to authenticated vendors."""
+
+    def setUp(self):
+        super().setUp()
+        self.review = add_review(self.customer, product=self.product)
+        self.url = reverse("review-replies", kwargs={"pk": self.review.pk})
+        self.payload = {"body": "Thank you for your feedback!"}
+
+    def test_authenticated_vendor_can_post_a_reply(self):
+        response = self.login(self.vendor).post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ReviewReply.objects.count(), 1)
+        self.assertEqual(ReviewReply.objects.get().author, self.vendor)
+
+    def test_anonymous_post_returns_401_and_creates_no_reply(self):
+        response = APIClient().post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_customer_post_returns_403_and_creates_no_reply(self):
+        response = self.client.post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_admin_post_returns_403_and_creates_no_reply(self):
+        response = self.login(self.admin).post(self.url, self.payload, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReviewReply.objects.count(), 0)
+
+    def test_get_replies_is_public_without_authentication(self):
+        response = APIClient().get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_replies_tolerates_an_expired_token(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION="Bearer not-a-real-token")
+        self.assertEqual(client.get(self.url).status_code, 200)
