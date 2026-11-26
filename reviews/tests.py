@@ -7,7 +7,7 @@ from decimal import Decimal
 from unittest import mock
 
 from django.db import IntegrityError, connection, transaction
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
@@ -28,7 +28,14 @@ from services.models import Service
 
 from .models import Review
 from .models import ReviewReply
-from .serializers import ReviewReplySerializer
+from .serializers import (
+    MAX_COMMENT_CHARS,
+    MAX_COMMENT_WORDS,
+    ReviewCreateSerializer,
+    ReviewReplySerializer,
+    ReviewUpdateSerializer,
+    count_words,
+)
 from .services import (
     check_eligibility,
     create_reply,
@@ -577,13 +584,34 @@ class CreateReviewAPITests(ReviewTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_comment_has_a_length_limit(self):
+    def test_comment_over_300_words_is_rejected(self):
         buy(self.customer, self.vendor, product=self.product)
         response = self.client.post(
-            self.url, self.body(comment="x" * 1001), format="json"
+            self.url, self.body(comment=" ".join(["word"] * 301)), format="json"
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("comment", response.data)
+        self.assertIn("300", str(response.data["comment"][0]))
+        self.assertEqual(Review.objects.count(), 0)
+
+    def test_comment_of_exactly_300_words_is_accepted(self):
+        buy(self.customer, self.vendor, product=self.product)
+        comment = " ".join(["word"] * 300)
+        response = self.client.post(
+            self.url, self.body(comment=comment), format="json"
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["comment"], comment)
+
+    def test_comment_over_1000_characters_is_fine_within_300_words(self):
+        buy(self.customer, self.vendor, product=self.product)
+        comment = " ".join(["abcdefghi"] * 200)  # 200 words, 1,999 characters
+        self.assertGreater(len(comment), 1000)
+        response = self.client.post(
+            self.url, self.body(comment=comment), format="json"
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Review.objects.get().comment, comment)
 
     def test_unknown_kind_is_400(self):
         response = self.client.post(
@@ -813,6 +841,30 @@ class EditAndDeleteReviewAPITests(ReviewTestCase):
     def test_edit_validates_rating(self):
         response = self.client.patch(self.url, {"rating": 9}, format="json")
         self.assertEqual(response.status_code, 400)
+
+    def test_edit_over_300_words_is_rejected_and_nothing_changes(self):
+        response = self.client.patch(
+            self.url, {"comment": " ".join(["word"] * 301)}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("comment", response.data)
+        self.assertIn("300", str(response.data["comment"][0]))
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.comment, "ok")
+
+    def test_edit_to_exactly_300_words_is_accepted(self):
+        comment = " ".join(["word"] * 300)
+        response = self.client.patch(self.url, {"comment": comment}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.comment, comment)
+
+    def test_edit_to_more_than_1000_characters_is_fine_within_300_words(self):
+        comment = " ".join(["abcdefghi"] * 200)  # 200 words, 1,999 characters
+        response = self.client.patch(self.url, {"comment": comment}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.comment, comment)
 
     def test_someone_else_gets_404_and_nothing_changes(self):
         other_client = self.login(self.other)
@@ -1137,3 +1189,107 @@ class ReviewListQueryCountTests(ReviewTestCase):
             len(multiple_review_queries),
             "Query count grew when adding a review with a reply — N+1 detected.",
         )
+
+
+# --------------------------------------------------------------------------
+# Serializers: the 300-word comment limit (create and edit share one rule)
+# --------------------------------------------------------------------------
+def words(n, size=5):
+    return " ".join(["a" * size] * n)
+
+
+def build_create(comment):
+    data = {"kind": "product", "target_id": 1, "rating": 5}
+    if comment is not None:
+        data["comment"] = comment
+    return ReviewCreateSerializer(data=data)
+
+
+def build_update(comment):
+    data = {} if comment is None else {"comment": comment}
+    return ReviewUpdateSerializer(data=data, partial=True)
+
+
+BUILDERS = (("create", build_create), ("update", build_update))
+
+
+class CommentWordLimitTests(SimpleTestCase):
+    """Submitting and editing a review apply exactly the same rule."""
+
+    def assert_accepted(self, comment):
+        for name, build in BUILDERS:
+            with self.subTest(name):
+                serializer = build(comment)
+                self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def assert_rejected(self, comment):
+        for name, build in BUILDERS:
+            with self.subTest(name):
+                serializer = build(comment)
+                self.assertFalse(serializer.is_valid())
+                self.assertEqual(set(serializer.errors), {"comment"})
+
+    def test_count_words(self):
+        cases = [
+            ("", 0),
+            ("   ", 0),
+            ("one", 1),
+            ("one two", 2),
+            ("  one   two  ", 2),
+            ("one\ntwo\tthree", 3),
+            ("well-made don't", 2),
+            ("a\u00a0b", 2),
+        ]
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(count_words(text), expected)
+
+    def test_exactly_300_words_is_accepted(self):
+        self.assert_accepted(words(MAX_COMMENT_WORDS))
+
+    def test_301_words_is_rejected_with_a_clear_message(self):
+        self.assert_rejected(words(MAX_COMMENT_WORDS + 1))
+        for name, build in BUILDERS:
+            with self.subTest(name):
+                serializer = build(words(MAX_COMMENT_WORDS + 1))
+                serializer.is_valid()
+                message = str(serializer.errors["comment"][0])
+                self.assertIn("300", message)
+                self.assertIn("301", message)
+
+    def test_the_old_1000_character_limit_no_longer_applies(self):
+        comment = words(200, size=9)  # 200 words, 1,999 characters
+        self.assertGreater(len(comment), 1000)
+        self.assert_accepted(comment)
+
+    def test_whitespace_runs_count_as_one_separator(self):
+        self.assert_accepted(" \n\t ".join(["word"] * MAX_COMMENT_WORDS))
+
+    def test_surrounding_whitespace_is_ignored_and_stripped(self):
+        for name, build in BUILDERS:
+            with self.subTest(name):
+                serializer = build("  " + words(MAX_COMMENT_WORDS) + "\n\n")
+                self.assertTrue(serializer.is_valid(), serializer.errors)
+                self.assertEqual(
+                    serializer.validated_data["comment"], words(MAX_COMMENT_WORDS)
+                )
+
+    def test_comment_is_optional_and_may_be_blank(self):
+        for comment in ("", "   ", None):
+            with self.subTest(comment=comment):
+                self.assert_accepted(comment)
+
+    def test_one_enormous_word_hits_the_safety_cap(self):
+        self.assert_accepted("x" * MAX_COMMENT_CHARS)
+        self.assert_rejected("x" * (MAX_COMMENT_CHARS + 1))
+
+    def test_update_without_a_comment_is_valid(self):
+        serializer = ReviewUpdateSerializer(data={"rating": 4}, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_create_still_validates_the_other_fields(self):
+        serializer = ReviewCreateSerializer(
+            data={"kind": "product", "target_id": 1, "rating": 6, "comment": "ok"}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(set(serializer.errors), {"rating"})

@@ -110,7 +110,7 @@ INSTALLED_APPS = [
 
 PAYMENT_CURRENCY = "UGX"  # the currency your gateway account uses
 PAYMENT_METHODS = ("pesapal",)
-PAYMENT_GATEWAY_CLASS = "payments.gateways.sandbox.SandboxGateway" #"payments.gateways.pesapal.PesapalGateway"
+PAYMENT_GATEWAY_CLASS ="payments.gateways.pesapal.PesapalGateway"  #"payments.gateways.sandbox.SandboxGateway"
 
 PESAPAL_BASE_URL = os.environ.get("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/pesapalv3/api")
 PESAPAL_CONSUMER_KEY = os.environ.get("PESAPAL_CONSUMER_KEY", "")

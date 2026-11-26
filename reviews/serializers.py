@@ -13,20 +13,48 @@ def short_name(user) -> str:
         return "Customer"
     return f"{first} {last[0]}." if last else first
 
+MAX_COMMENT_WORDS = 300
+# Safety net only: one "word" of a million letters would otherwise count as a
+# single word. 300 words fit easily (about 2,000 characters on average).
+MAX_COMMENT_CHARS = 5000
+
+
+def count_words(text):
+    """Words separated by any whitespace (spaces, tabs, new lines)."""
+    return len(text.split())
+
+
+def validate_comment_words(value):
+    words = count_words(value)
+    if words > MAX_COMMENT_WORDS:
+        raise serializers.ValidationError(
+            f"Reviews can be at most {MAX_COMMENT_WORDS} words. Yours has {words}."
+        )
+    return value
+
+
+class ReviewCommentField(serializers.CharField):
+    """The single definition of a review comment, used by create and update."""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("allow_blank", True)
+        kwargs.setdefault("trim_whitespace", True)
+        kwargs.setdefault("max_length", MAX_COMMENT_CHARS)
+        kwargs.setdefault("help_text", f"Up to {MAX_COMMENT_WORDS} words.")
+        super().__init__(**kwargs)
+        self.validators.append(validate_comment_words)
+
 class ReviewCreateSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=("product", "service", "pet"))
     target_id = serializers.IntegerField(min_value=1)
     rating = serializers.IntegerField(min_value=1, max_value=5)
-    comment = serializers.CharField(
-        max_length=1000, required=False, allow_blank=True, trim_whitespace=True
-    )
+    comment = ReviewCommentField()
 
 
 class ReviewUpdateSerializer(serializers.ModelSerializer):
     rating = serializers.IntegerField(min_value=1, max_value=5, required=False)
-    comment = serializers.CharField(
-        max_length=1000, required=False, allow_blank=True, trim_whitespace=True
-    )
+    comment = ReviewCommentField()
 
     class Meta:
         model = Review
